@@ -27,6 +27,14 @@ Set `BASE_URL` to host+port only.
 - ✅ `BASE_URL=https://relay.example.com:8443`
 - ❌ `BASE_URL=https://relay.example.com/miro`
 
+## Friendly browser flow
+
+Open:
+
+- `/miro` → small enrollment page
+- `/miro/start?display_name=Benji&contact=benji@example.com&admin_key=...` → one-click profile creation + OAuth redirect
+- add `&show=1` to display `profile_id`, `relay_token`, `mcp_url` before redirect
+
 ## API
 
 ### 1) Create profile (admin)

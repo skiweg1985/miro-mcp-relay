@@ -210,6 +210,25 @@ app.get('/miro/status', (req, res) => {
   res.json({ ok: true, profiles: out });
 });
 
+// Friendly browser landing page
+app.get('/miro', (_req, res) => {
+  res.type('html').send(`<!doctype html>
+<html>
+  <head><meta charset="utf-8"><title>Miro Relay Start</title></head>
+  <body style="font-family: sans-serif; max-width: 760px; margin: 40px auto; line-height: 1.45;">
+    <h2>Miro MCP Relay</h2>
+    <p>Start enrollment directly in browser:</p>
+    <form method="get" action="/miro/start">
+      <label>Display name<br><input name="display_name" placeholder="Benji Net Agent" style="width:100%;padding:8px"></label><br><br>
+      <label>Contact (optional)<br><input name="contact" placeholder="benji@example.com" style="width:100%;padding:8px"></label><br><br>
+      <label>Admin key<br><input name="admin_key" placeholder="MIRO_RELAY_ADMIN_KEY" style="width:100%;padding:8px"></label><br><br>
+      <button type="submit" style="padding:10px 16px">Start OAuth Enrollment</button>
+    </form>
+    <p style="margin-top:16px;color:#666">Tip: You can also call <code>POST /miro/profiles</code> from API clients.</p>
+  </body>
+</html>`);
+});
+
 app.get('/miro/status/:profileId', requireProfileToken, (req, res) => {
   const id = req.profileId;
   const p = req.profile;
@@ -225,6 +244,30 @@ app.get('/miro/status/:profileId', requireProfileToken, (req, res) => {
 });
 
 // v2 provisioning endpoint (admin creates profile + gets one-time relay token)
+async function createProfile({ display_name, contact }) {
+  const profileId = newProfileId();
+  const relayToken = newRelayToken();
+
+  profiles[profileId] = {
+    display_name,
+    contact,
+    relay_token_hash: tokenHash(relayToken),
+    status: 'pending',
+    created_at: nowIso(),
+    updated_at: nowIso()
+  };
+
+  await registerClient(profileId);
+  saveAll();
+
+  return {
+    profile_id: profileId,
+    relay_token: relayToken,
+    auth_url: `${BASE_URL}/miro/auth/start?profile=${encodeURIComponent(profileId)}`,
+    mcp_url: `${BASE_URL}/miro/mcp/${profileId}`
+  };
+}
+
 app.post('/miro/profiles', requireAdmin, async (req, res) => {
   try {
     const display_name = String(req.body?.display_name || '').trim();
@@ -232,31 +275,44 @@ app.post('/miro/profiles', requireAdmin, async (req, res) => {
 
     if (!display_name) return res.status(400).json({ error: 'display_name is required' });
 
-    const profileId = newProfileId();
-    const relayToken = newRelayToken();
-
-    profiles[profileId] = {
-      display_name,
-      contact,
-      relay_token_hash: tokenHash(relayToken),
-      status: 'pending',
-      created_at: nowIso(),
-      updated_at: nowIso()
-    };
-
-    await registerClient(profileId);
-    saveAll();
-
-    const auth_url = `${BASE_URL}/miro/auth/start?profile=${encodeURIComponent(profileId)}`;
+    const created = await createProfile({ display_name, contact });
 
     res.status(201).json({
       ok: true,
-      profile_id: profileId,
-      relay_token: relayToken,
-      auth_url,
-      mcp_url: `${BASE_URL}/miro/mcp/${profileId}`,
+      ...created,
       note: 'Store relay_token now. It is not shown again.'
     });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// One-click browser enrollment flow (friendlier UX)
+app.get('/miro/start', async (req, res) => {
+  try {
+    const display_name = String(req.query.display_name || '').trim() || 'Miro User';
+    const contact = String(req.query.contact || '').trim();
+    const adminKey = String(req.query.admin_key || req.header('x-admin-key') || '');
+
+    if (!ADMIN_API_KEY || adminKey !== ADMIN_API_KEY) {
+      return res.status(401).type('html').send('<h3>Unauthorized</h3><p>Provide valid admin key via <code>?admin_key=...</code>.</p>');
+    }
+
+    const created = await createProfile({ display_name, contact });
+
+    // optional show credentials as html before redirect
+    if (String(req.query.show || '') === '1') {
+      return res.type('html').send(`<!doctype html><html><body style="font-family:sans-serif;max-width:760px;margin:40px auto;line-height:1.45">
+        <h2>Profile created</h2>
+        <p><b>profile_id:</b> <code>${created.profile_id}</code></p>
+        <p><b>relay_token:</b> <code>${created.relay_token}</code></p>
+        <p><b>mcp_url:</b> <code>${created.mcp_url}</code></p>
+        <p>Store relay_token now (one-time).</p>
+        <p><a href="${created.auth_url}">Continue to Miro OAuth</a></p>
+      </body></html>`);
+    }
+
+    return res.redirect(created.auth_url);
   } catch (e) {
     res.status(500).json({ error: String(e) });
   }
@@ -425,6 +481,8 @@ app.get('/', (_req, res) => {
     ok: true,
     service: 'miro-mcp-relay',
     endpoints: {
+      ui: '/miro',
+      start_enroll: '/miro/start?display_name=...&contact=...&admin_key=... (optional: &show=1)',
       status: '/miro/status',
       create_profile: 'POST /miro/profiles (X-Admin-Key)',
       auth_start: '/miro/auth/start?profile=<profile_id>',

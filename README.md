@@ -7,8 +7,12 @@ OAuth relay/proxy for `https://mcp.miro.com/`, with multi-profile support.
 - Profile-based Miro OAuth (PKCE)
 - Per-profile MCP endpoint: `/miro/mcp/<profile_id>`
 - Per-profile relay token (`X-Relay-Key`)
-- Self-service deregistration per profile
+- Self-service + admin deregistration options
+- Admin governance actions: list profiles, rotate relay token, revoke OAuth
 - Automatic token refresh
+- Audit log endpoint for admin
+- Health and readiness endpoints (`/healthz`, `/readyz`)
+- Retry + circuit-breaker protection for MCP upstream calls
 
 ## Run
 
@@ -92,6 +96,29 @@ DELETE /miro/admin/profiles/<profile_id>
 X-Admin-Key: <ADMIN_KEY>
 ```
 
+### 6) Admin governance actions
+
+Rotate profile relay token:
+
+```http
+POST /miro/admin/profiles/<profile_id>/rotate-token
+X-Admin-Key: <ADMIN_KEY>
+```
+
+Revoke OAuth for a profile:
+
+```http
+POST /miro/admin/profiles/<profile_id>/revoke-oauth
+X-Admin-Key: <ADMIN_KEY>
+```
+
+Read audit log:
+
+```http
+GET /miro/admin/audit?lines=200
+X-Admin-Key: <ADMIN_KEY>
+```
+
 ## Agent Zero example
 
 ```json
@@ -117,6 +144,11 @@ use_backend be_miro_relay if is_miro
 backend be_miro_relay
   server relay1 127.0.0.1:8787 check
 ```
+
+## Health checks
+
+- `GET /healthz` basic process liveness
+- `GET /readyz` readiness with upstream + circuit-breaker state
 
 ## Security notes
 

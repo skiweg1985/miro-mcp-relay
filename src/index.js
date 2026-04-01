@@ -30,7 +30,11 @@ const DATA_DIR = process.env.DATA_DIR || path.resolve(process.cwd(), 'data');
 const TOKEN_FILE = path.join(DATA_DIR, 'tokens.json');
 const CLIENT_FILE = path.join(DATA_DIR, 'oauth-clients.json');
 const PROFILE_FILE = path.join(DATA_DIR, 'profiles.json');
+const AUDIT_FILE = path.join(DATA_DIR, 'audit.log');
 const MCP_BASE = 'https://mcp.miro.com';
+const BREAKER_FAIL_THRESHOLD = Number(process.env.MIRO_BREAKER_FAIL_THRESHOLD || 5);
+const BREAKER_OPEN_MS = Number(process.env.MIRO_BREAKER_OPEN_MS || 30000);
+const MCP_RETRY_COUNT = Number(process.env.MIRO_MCP_RETRY_COUNT || 2);
 
 if (!RELAY_API_KEY) {
   console.warn('⚠️ MIRO_RELAY_API_KEY is empty. Set it in .env for secure usage.');
@@ -124,16 +128,47 @@ function rateLimit(key, maxHits, windowMs) {
   };
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function breakerIsOpen() {
+  return Date.now() < breaker.openUntil;
+}
+
+function breakerMarkSuccess() {
+  breaker.consecutiveFails = 0;
+}
+
+function breakerMarkFailure() {
+  breaker.consecutiveFails += 1;
+  if (breaker.consecutiveFails >= BREAKER_FAIL_THRESHOLD) {
+    breaker.openUntil = Date.now() + BREAKER_OPEN_MS;
+    breaker.consecutiveFails = 0;
+  }
+}
+
 // runtime stores
 const pending = new Map(); // state -> { profileId, verifier }
 const tokens = readJson(TOKEN_FILE, {}); // profileId -> oauth token set
 const clients = readJson(CLIENT_FILE, {}); // profileId -> oauth client
 const profiles = readJson(PROFILE_FILE, {}); // profileId -> metadata
+const breaker = { consecutiveFails: 0, openUntil: 0 };
 
 function saveAll() {
   writeJson(TOKEN_FILE, tokens);
   writeJson(CLIENT_FILE, clients);
   writeJson(PROFILE_FILE, profiles);
+}
+
+function audit(event, details = {}, req = null) {
+  try {
+    const ip = req ? (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown').toString().split(',')[0].trim() : 'system';
+    const line = JSON.stringify({ ts: nowIso(), event, ip, details });
+    fs.appendFileSync(AUDIT_FILE, line + '\n');
+  } catch {
+    // do not break request flow on audit errors
+  }
 }
 
 function getProfile(profileId) {
@@ -329,6 +364,9 @@ app.get('/miro', (_req, res) => {
             <button class="btn-danger" type="button" onclick="doAdminDelete()">Deregister (admin)</button>
             <button class="btn-secondary" type="button" onclick="doStatus()">Check Status</button>
             <button class="btn-secondary" type="button" onclick="doListProfiles()">List Profiles (admin)</button>
+            <button class="btn-secondary" type="button" onclick="doRotateToken()">Rotate Token (admin)</button>
+            <button class="btn-secondary" type="button" onclick="doRevokeOAuth()">Revoke OAuth (admin)</button>
+            <button class="btn-secondary" type="button" onclick="doAudit()">Audit Log (admin)</button>
           </div>
           <div id="out" class="result">Ready.</div>
         </section>
@@ -370,6 +408,32 @@ app.get('/miro', (_req, res) => {
         const r=await fetch('/miro/profiles',{headers:{'X-Admin-Key':ak}});
         const t=await r.text();
         out.textContent='LIST '+r.status+'\n'+t;
+      }
+      async function doRotateToken(){
+        const id=document.getElementById('delProfile').value.trim();
+        const ak=document.getElementById('adminKey').value.trim();
+        const out=document.getElementById('out');
+        if(!id||!ak){ out.textContent='Please enter profile ID and admin key.'; return; }
+        const r=await fetch('/miro/admin/profiles/'+encodeURIComponent(id)+'/rotate-token',{method:'POST',headers:{'X-Admin-Key':ak}});
+        const t=await r.text();
+        out.textContent='ROTATE '+r.status+'\n'+t;
+      }
+      async function doRevokeOAuth(){
+        const id=document.getElementById('delProfile').value.trim();
+        const ak=document.getElementById('adminKey').value.trim();
+        const out=document.getElementById('out');
+        if(!id||!ak){ out.textContent='Please enter profile ID and admin key.'; return; }
+        const r=await fetch('/miro/admin/profiles/'+encodeURIComponent(id)+'/revoke-oauth',{method:'POST',headers:{'X-Admin-Key':ak}});
+        const t=await r.text();
+        out.textContent='REVOKE '+r.status+'\n'+t;
+      }
+      async function doAudit(){
+        const ak=document.getElementById('adminKey').value.trim();
+        const out=document.getElementById('out');
+        if(!ak){ out.textContent='Please enter admin key.'; return; }
+        const r=await fetch('/miro/admin/audit?lines=80',{headers:{'X-Admin-Key':ak}});
+        const t=await r.text();
+        out.textContent='AUDIT '+r.status+'\n'+t;
       }
     </script>
   </body>
@@ -428,6 +492,7 @@ app.post('/miro/profiles', rateLimit('profiles-create', 20, 60_000), requireAdmi
     if (!display_name) return res.status(400).json({ error: 'display_name is required' });
 
     const created = await createProfile({ display_name, contact });
+    audit('profile_created_admin', { profile_id: created.profile_id, display_name: safeText(display_name, 80) }, req);
 
     res.status(201).json({
       ok: true,
@@ -451,6 +516,7 @@ app.get('/miro/start', rateLimit('start-enroll', 30, 60_000), async (req, res) =
     }
 
     const created = await createProfile({ display_name, contact });
+    audit('profile_created_start', { profile_id: created.profile_id, display_name }, req);
 
     // default: always show credentials first so user can store relay token safely
     // optional: set auto=1 to skip preview and redirect immediately
@@ -533,7 +599,40 @@ app.delete('/miro/admin/profiles/:profileId', rateLimit('admin-delete', 40, 60_0
   delete tokens[id];
   delete clients[id];
   saveAll();
+  audit('profile_admin_deregistered', { profile_id: id }, req);
   res.json({ ok: true, message: `profile ${id} admin-deregistered` });
+});
+
+app.post('/miro/admin/profiles/:profileId/rotate-token', rateLimit('admin-rotate', 40, 60_000), requireAdmin, (req, res) => {
+  const id = req.params.profileId;
+  if (!profiles[id] || profiles[id].status === 'deleted') {
+    return res.status(404).json({ error: 'profile not found' });
+  }
+  const relayToken = newRelayToken();
+  profiles[id] = {
+    ...(profiles[id] || {}),
+    relay_token_hash: tokenHash(relayToken),
+    updated_at: nowIso()
+  };
+  saveAll();
+  audit('profile_admin_token_rotated', { profile_id: id }, req);
+  res.json({ ok: true, profile_id: id, relay_token: relayToken, note: 'Store relay_token now. It is not shown again.' });
+});
+
+app.post('/miro/admin/profiles/:profileId/revoke-oauth', rateLimit('admin-revoke', 40, 60_000), requireAdmin, (req, res) => {
+  const id = req.params.profileId;
+  if (!profiles[id] || profiles[id].status === 'deleted') {
+    return res.status(404).json({ error: 'profile not found' });
+  }
+  delete tokens[id];
+  profiles[id] = {
+    ...(profiles[id] || {}),
+    status: 'revoked',
+    updated_at: nowIso()
+  };
+  saveAll();
+  audit('profile_admin_oauth_revoked', { profile_id: id }, req);
+  res.json({ ok: true, profile_id: id, message: 'oauth revoked; re-auth required' });
 });
 
 app.delete('/miro/profiles/:profileId', rateLimit('self-delete', 40, 60_000), requireProfileToken, (req, res) => {
@@ -546,6 +645,7 @@ app.delete('/miro/profiles/:profileId', rateLimit('self-delete', 40, 60_000), re
   delete tokens[id];
   delete clients[id];
   saveAll();
+  audit('profile_self_deregistered', { profile_id: id }, req);
   res.json({ ok: true, message: `profile ${id} deregistered` });
 });
 
@@ -634,15 +734,21 @@ app.get('/miro/auth/callback', async (req, res) => {
 
     pending.delete(state);
     saveAll();
+    audit('oauth_success', { profile_id: p.profileId, scope: data.scope || null }, req);
 
     res.type('html').send(`<h2>✅ Miro auth successful</h2><p>Profile: <b>${p.profileId}</b></p><p>You can close this tab.</p>`);
   } catch (e) {
+    audit('oauth_failed', { error: String(e) }, req);
     res.status(500).send(`Auth failed: ${String(e)}`);
   }
 });
 
 app.post('/miro/mcp/:profile', requireProfileToken, async (req, res) => {
   const profileId = req.profileId;
+
+  if (breakerIsOpen()) {
+    return res.status(503).json({ error: 'upstream_temporarily_unavailable', retry_after_ms: Math.max(0, breaker.openUntil - Date.now()) });
+  }
 
   let token;
   try {
@@ -667,11 +773,34 @@ app.post('/miro/mcp/:profile', requireProfileToken, async (req, res) => {
   }
 
   try {
-    let upstream = await forward(token);
-    if (upstream.status === 401) {
-      token = await refreshToken(profileId);
+    let upstream = null;
+
+    // initial + retry loop for transient failures
+    for (let attempt = 0; attempt <= MCP_RETRY_COUNT; attempt++) {
       upstream = await forward(token);
+
+      if (upstream.status === 401) {
+        token = await refreshToken(profileId);
+        upstream = await forward(token);
+      }
+
+      if (upstream.status < 500) break;
+      if (attempt < MCP_RETRY_COUNT) await sleep(200 * (attempt + 1));
     }
+
+    if (!upstream) throw new Error('no upstream response');
+
+    if (upstream.status >= 500) {
+      breakerMarkFailure();
+    } else {
+      breakerMarkSuccess();
+    }
+
+    audit('mcp_call', {
+      profile_id: profileId,
+      method: req.body?.method || 'unknown',
+      status: upstream.status
+    }, req);
 
     res.status(upstream.status);
     res.setHeader('content-type', upstream.headers.get('content-type') || 'application/json');
@@ -681,7 +810,41 @@ app.post('/miro/mcp/:profile', requireProfileToken, async (req, res) => {
       res.end();
     }
   } catch (e) {
+    breakerMarkFailure();
+    audit('mcp_call_failed', { profile_id: profileId, error: String(e) }, req);
     res.status(502).json({ error: String(e) });
+  }
+});
+
+app.get('/healthz', (_req, res) => {
+  res.json({ ok: true, service: 'miro-mcp-relay', time: nowIso() });
+});
+
+app.get('/readyz', async (_req, res) => {
+  if (breakerIsOpen()) {
+    return res.status(503).json({ ok: false, reason: 'circuit_open', retry_after_ms: Math.max(0, breaker.openUntil - Date.now()) });
+  }
+  try {
+    const r = await fetch(`${MCP_BASE}/.well-known/oauth-protected-resource`, { method: 'GET' });
+    const ok = [200, 401].includes(r.status);
+    if (!ok) return res.status(503).json({ ok: false, reason: 'upstream_unhealthy', status: r.status });
+    return res.json({ ok: true, upstream_status: r.status });
+  } catch (e) {
+    return res.status(503).json({ ok: false, reason: 'upstream_unreachable', error: String(e) });
+  }
+});
+
+app.get('/miro/admin/audit', requireAdmin, (req, res) => {
+  try {
+    const lines = Number(req.query.lines || 200);
+    const content = fs.existsSync(AUDIT_FILE) ? fs.readFileSync(AUDIT_FILE, 'utf8') : '';
+    const arr = content.trim() ? content.trim().split('\n') : [];
+    const out = arr.slice(-Math.max(1, Math.min(2000, lines))).map((l) => {
+      try { return JSON.parse(l); } catch { return { raw: l }; }
+    });
+    res.json({ ok: true, count: out.length, entries: out });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
   }
 });
 
@@ -695,12 +858,18 @@ app.get('/', (_req, res) => {
     },
     endpoints: {
       ui: '/miro',
+      health: '/healthz',
+      ready: '/readyz',
       start_enroll: '/miro/start?display_name=...&contact=... (optional: &admin_key=...&show=1)',
       status: '/miro/status',
       create_profile: 'POST /miro/profiles (X-Admin-Key)',
       auth_start: '/miro/auth/start?profile=<profile_id>',
       mcp_proxy: '/miro/mcp/:profile (POST, X-Relay-Key)',
-      deregister: 'DELETE /miro/profiles/:profileId (X-Relay-Key of profile)'
+      deregister: 'DELETE /miro/profiles/:profileId (X-Relay-Key of profile)',
+      admin_deregister: 'DELETE /miro/admin/profiles/:profileId (X-Admin-Key)',
+      admin_rotate_token: 'POST /miro/admin/profiles/:profileId/rotate-token (X-Admin-Key)',
+      admin_revoke_oauth: 'POST /miro/admin/profiles/:profileId/revoke-oauth (X-Admin-Key)',
+      admin_audit: 'GET /miro/admin/audit?lines=200 (X-Admin-Key)'
     }
   });
 });

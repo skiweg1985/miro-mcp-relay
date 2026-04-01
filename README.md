@@ -31,7 +31,7 @@ Set `BASE_URL` to host+port only.
 
 Open:
 
-- `/miro` → small enrollment page
+- `/miro` → enrollment + deregistration web UI
 - `/miro/start?display_name=Benji&contact=benji@example.com` → one-click profile creation + token preview page
 - token preview now appears by default (so users can store relay token)
 - click "Continue to Miro OAuth" from preview page

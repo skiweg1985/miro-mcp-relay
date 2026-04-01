@@ -216,17 +216,92 @@ app.get('/miro/status', (req, res) => {
 app.get('/miro', (_req, res) => {
   res.type('html').send(`<!doctype html>
 <html>
-  <head><meta charset="utf-8"><title>Miro Relay Start</title></head>
-  <body style="font-family: sans-serif; max-width: 760px; margin: 40px auto; line-height: 1.45;">
-    <h2>Miro MCP Relay</h2>
-    <p>Start enrollment directly in browser:</p>
-    <form method="get" action="/miro/start">
-      <label>Display name<br><input name="display_name" placeholder="Benji Net Agent" style="width:100%;padding:8px"></label><br><br>
-      <label>Contact (optional)<br><input name="contact" placeholder="benji@example.com" style="width:100%;padding:8px"></label><br><br>
-      <label>Admin key (optional unless enforced)<br><input name="admin_key" placeholder="MIRO_RELAY_ADMIN_KEY" style="width:100%;padding:8px"></label><br><br>
-      <button type="submit" style="padding:10px 16px">Start OAuth Enrollment</button>
-    </form>
-    <p style="margin-top:16px;color:#666">Tip: You can also call <code>POST /miro/profiles</code> from API clients.</p>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Miro MCP Relay</title>
+    <style>
+      :root { --bg:#0b1020; --card:#151c33; --muted:#9fb0d9; --text:#ecf2ff; --accent:#7aa2ff; --accent2:#6ee7b7; --danger:#f87171; }
+      body { margin:0; font-family:Inter,system-ui,Segoe UI,Roboto,sans-serif; background:linear-gradient(160deg,#0b1020,#111936); color:var(--text); }
+      .wrap { max-width:980px; margin:32px auto; padding:0 16px; }
+      .grid { display:grid; grid-template-columns:1fr; gap:16px; }
+      @media (min-width: 900px){ .grid{ grid-template-columns: 1fr 1fr; } }
+      .card { background:rgba(21,28,51,.88); border:1px solid #2a3761; border-radius:14px; padding:18px; box-shadow:0 10px 28px rgba(0,0,0,.25); }
+      h1 { margin:0 0 8px; font-size:24px; }
+      h2 { margin:0 0 10px; font-size:18px; }
+      p { color:var(--muted); margin:8px 0 14px; }
+      label { display:block; font-size:13px; color:#c8d6ff; margin:8px 0 4px; }
+      input { width:100%; box-sizing:border-box; padding:10px 12px; border-radius:10px; border:1px solid #38508f; background:#0e1530; color:#fff; }
+      .row { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+      button { border:0; border-radius:10px; padding:10px 14px; color:#fff; cursor:pointer; font-weight:600; }
+      .btn-primary { background:linear-gradient(135deg,#4f7fff,#7aa2ff); }
+      .btn-danger { background:linear-gradient(135deg,#ef4444,#f87171); }
+      .btn-secondary { background:#2c3a67; }
+      .hint { font-size:12px; color:#9fb0d9; }
+      .result { margin-top:10px; padding:10px; border-radius:10px; background:#0e1530; border:1px dashed #3a4f88; white-space:pre-wrap; word-break:break-word; font-size:12px; }
+      code { background:#0e1530; padding:2px 6px; border-radius:8px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Miro MCP Relay</h1>
+      <p>Enroll profile, copy token, connect OAuth, and manage deregistration from one page.</p>
+
+      <div class="grid">
+        <section class="card">
+          <h2>Start Enrollment</h2>
+          <p>Creates profile and shows one-time relay token.</p>
+          <form method="get" action="/miro/start">
+            <label>Display name</label>
+            <input name="display_name" placeholder="Benji Net Agent" required />
+            <label>Contact (optional)</label>
+            <input name="contact" placeholder="benji@example.com" />
+            <label>Admin key (optional unless enforced)</label>
+            <input name="admin_key" placeholder="MIRO_RELAY_ADMIN_KEY" />
+            <input type="hidden" name="show" value="1" />
+            <div class="row">
+              <button class="btn-primary" type="submit">Create Profile</button>
+            </div>
+          </form>
+          <div class="hint">Tip: add <code>auto=1</code> if you want direct redirect without preview.</div>
+        </section>
+
+        <section class="card">
+          <h2>Deregister Profile</h2>
+          <p>Delete a profile using its own relay token.</p>
+          <label>Profile ID</label>
+          <input id="delProfile" placeholder="p_xxxxx" />
+          <label>Relay token (X-Relay-Key)</label>
+          <input id="delToken" placeholder="one-time relay token" />
+          <div class="row">
+            <button class="btn-danger" type="button" onclick="doDelete()">Deregister</button>
+            <button class="btn-secondary" type="button" onclick="doStatus()">Check Status</button>
+          </div>
+          <div id="out" class="result">Ready.</div>
+        </section>
+      </div>
+    </div>
+
+    <script>
+      async function doDelete(){
+        const id=document.getElementById('delProfile').value.trim();
+        const tk=document.getElementById('delToken').value.trim();
+        const out=document.getElementById('out');
+        if(!id||!tk){ out.textContent='Please enter profile ID and relay token.'; return; }
+        const r=await fetch('/miro/profiles/'+encodeURIComponent(id),{method:'DELETE',headers:{'X-Relay-Key':tk}});
+        const t=await r.text();
+        out.textContent='DELETE '+r.status+'\n'+t;
+      }
+      async function doStatus(){
+        const id=document.getElementById('delProfile').value.trim();
+        const tk=document.getElementById('delToken').value.trim();
+        const out=document.getElementById('out');
+        if(!id||!tk){ out.textContent='Please enter profile ID and relay token.'; return; }
+        const r=await fetch('/miro/status/'+encodeURIComponent(id),{headers:{'X-Relay-Key':tk}});
+        const t=await r.text();
+        out.textContent='STATUS '+r.status+'\n'+t;
+      }
+    </script>
   </body>
 </html>`);
 });
@@ -305,14 +380,54 @@ app.get('/miro/start', async (req, res) => {
     // default: always show credentials first so user can store relay token safely
     // optional: set auto=1 to skip preview and redirect immediately
     if (String(req.query.auto || '') !== '1') {
-      return res.type('html').send(`<!doctype html><html><body style="font-family:sans-serif;max-width:760px;margin:40px auto;line-height:1.45">
-        <h2>Profile created</h2>
-        <p><b>profile_id:</b> <code>${created.profile_id}</code></p>
-        <p><b>relay_token (save now):</b> <code>${created.relay_token}</code></p>
-        <p><b>mcp_url:</b> <code>${created.mcp_url}</code></p>
-        <p style="color:#b00020"><b>Important:</b> relay_token is shown one-time. Store it before continuing.</p>
-        <p><a href="${created.auth_url}">Continue to Miro OAuth</a></p>
-      </body></html>`);
+      return res.type('html').send(`<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Profile Created</title>
+    <style>
+      body{margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,sans-serif;background:linear-gradient(160deg,#0b1020,#111936);color:#ecf2ff}
+      .card{max-width:860px;margin:34px auto;padding:20px;background:rgba(21,28,51,.9);border:1px solid #2a3761;border-radius:14px;box-shadow:0 10px 28px rgba(0,0,0,.25)}
+      h2{margin-top:0} p{color:#b8c7ea} code{background:#0e1530;padding:4px 8px;border-radius:8px;word-break:break-all}
+      .warn{color:#fecaca;background:#3f1d1d;padding:10px 12px;border-radius:10px;border:1px solid #7f1d1d}
+      .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+      a.btn,button{display:inline-block;text-decoration:none;border:0;border-radius:10px;padding:10px 14px;font-weight:600;cursor:pointer}
+      a.primary{background:linear-gradient(135deg,#4f7fff,#7aa2ff);color:#fff}
+      button.secondary{background:#2c3a67;color:#fff}
+      .mini{font-size:12px;color:#9fb0d9;margin-top:8px}
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h2>✅ Profile created</h2>
+      <p><b>profile_id:</b> <code id="pid">${created.profile_id}</code></p>
+      <p><b>relay_token (save now):</b> <code id="rtk">${created.relay_token}</code></p>
+      <p><b>mcp_url:</b> <code id="murl">${created.mcp_url}</code></p>
+      <p class="warn"><b>Important:</b> relay_token is shown one-time. Save it before continuing.</p>
+      <div class="row">
+        <button class="secondary" onclick="copyAll()">Copy credentials</button>
+        <a class="btn primary" href="${created.auth_url}">Continue to Miro OAuth</a>
+      </div>
+      <hr style="border-color:#2a3761;margin:18px 0" />
+      <h3 style="margin:0 0 8px">Deregister this profile</h3>
+      <p style="margin-top:0">If you want to cancel now, you can remove this profile immediately.</p>
+      <button class="secondary" onclick="deregister()">Deregister profile now</button>
+      <div id="out" class="mini"></div>
+    </div>
+    <script>
+      function copyAll(){
+        const text = `profile_id=${created.profile_id}\nrelay_token=${created.relay_token}\nmcp_url=${created.mcp_url}`;
+        navigator.clipboard.writeText(text).then(()=>{document.getElementById('out').textContent='Credentials copied to clipboard.';});
+      }
+      async function deregister(){
+        const r = await fetch('/miro/profiles/${created.profile_id}', {method:'DELETE', headers:{'X-Relay-Key':'${created.relay_token}'}});
+        const t = await r.text();
+        document.getElementById('out').textContent = 'DEREGISTER '+r.status+' - '+t;
+      }
+    </script>
+  </body>
+</html>`);
     }
 
     return res.redirect(created.auth_url);

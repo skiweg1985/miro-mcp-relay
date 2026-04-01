@@ -1,0 +1,14 @@
+{
+  "name": "miro-mcp-relay",
+  "version": "0.1.0",
+  "description": "Miro MCP OAuth relay/proxy for clients without native OAuth support",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "dotenv": "^16.4.5"
+  }
+}

@@ -32,8 +32,9 @@ Set `BASE_URL` to host+port only.
 Open:
 
 - `/miro` → small enrollment page
-- `/miro/start?display_name=Benji&contact=benji@example.com&admin_key=...` → one-click profile creation + OAuth redirect
+- `/miro/start?display_name=Benji&contact=benji@example.com` → one-click profile creation + OAuth redirect
 - add `&show=1` to display `profile_id`, `relay_token`, `mcp_url` before redirect
+- if `MIRO_START_REQUIRE_ADMIN=true`, also pass `&admin_key=...`
 
 ## API
 
@@ -112,3 +113,5 @@ backend be_miro_relay
 - Use long random keys for admin + relay
 - Restrict `/miro/mcp/*` by IP if possible
 - Rotate keys periodically
+- Optional: set `MIRO_START_REQUIRE_ADMIN=true` to protect browser onboarding
+- Pending profiles are auto-deleted after `MIRO_PENDING_PROFILE_TTL_MINUTES` (default 15)

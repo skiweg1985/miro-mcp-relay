@@ -14,6 +14,8 @@ const PORT = Number(process.env.PORT || 8787);
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
 const RELAY_API_KEY = process.env.MIRO_RELAY_API_KEY || '';
 const ADMIN_API_KEY = process.env.MIRO_RELAY_ADMIN_KEY || RELAY_API_KEY;
+const START_REQUIRE_ADMIN = String(process.env.MIRO_START_REQUIRE_ADMIN || 'false').toLowerCase() === 'true';
+const PENDING_PROFILE_TTL_MINUTES = Number(process.env.MIRO_PENDING_PROFILE_TTL_MINUTES || 15);
 const DATA_DIR = process.env.DATA_DIR || path.resolve(process.cwd(), 'data');
 
 const TOKEN_FILE = path.join(DATA_DIR, 'tokens.json');
@@ -221,7 +223,7 @@ app.get('/miro', (_req, res) => {
     <form method="get" action="/miro/start">
       <label>Display name<br><input name="display_name" placeholder="Benji Net Agent" style="width:100%;padding:8px"></label><br><br>
       <label>Contact (optional)<br><input name="contact" placeholder="benji@example.com" style="width:100%;padding:8px"></label><br><br>
-      <label>Admin key<br><input name="admin_key" placeholder="MIRO_RELAY_ADMIN_KEY" style="width:100%;padding:8px"></label><br><br>
+      <label>Admin key (optional unless enforced)<br><input name="admin_key" placeholder="MIRO_RELAY_ADMIN_KEY" style="width:100%;padding:8px"></label><br><br>
       <button type="submit" style="padding:10px 16px">Start OAuth Enrollment</button>
     </form>
     <p style="margin-top:16px;color:#666">Tip: You can also call <code>POST /miro/profiles</code> from API clients.</p>
@@ -294,7 +296,7 @@ app.get('/miro/start', async (req, res) => {
     const contact = String(req.query.contact || '').trim();
     const adminKey = String(req.query.admin_key || req.header('x-admin-key') || '');
 
-    if (!ADMIN_API_KEY || adminKey !== ADMIN_API_KEY) {
+    if (START_REQUIRE_ADMIN && (!ADMIN_API_KEY || adminKey !== ADMIN_API_KEY)) {
       return res.status(401).type('html').send('<h3>Unauthorized</h3><p>Provide valid admin key via <code>?admin_key=...</code>.</p>');
     }
 
@@ -480,9 +482,13 @@ app.get('/', (_req, res) => {
   res.json({
     ok: true,
     service: 'miro-mcp-relay',
+    config: {
+      start_require_admin: START_REQUIRE_ADMIN,
+      pending_profile_ttl_minutes: PENDING_PROFILE_TTL_MINUTES
+    },
     endpoints: {
       ui: '/miro',
-      start_enroll: '/miro/start?display_name=...&contact=...&admin_key=... (optional: &show=1)',
+      start_enroll: '/miro/start?display_name=...&contact=... (optional: &admin_key=...&show=1)',
       status: '/miro/status',
       create_profile: 'POST /miro/profiles (X-Admin-Key)',
       auth_start: '/miro/auth/start?profile=<profile_id>',
@@ -492,7 +498,36 @@ app.get('/', (_req, res) => {
   });
 });
 
+function cleanupPendingProfiles() {
+  const ttlMs = Math.max(1, PENDING_PROFILE_TTL_MINUTES) * 60_000;
+  const now = Date.now();
+  let removed = 0;
+
+  for (const [id, p] of Object.entries(profiles)) {
+    if (!p || p.status === 'deleted' || p.status === 'connected') continue;
+
+    const createdAt = Date.parse(p.created_at || '');
+    if (!Number.isFinite(createdAt)) continue;
+
+    if (now - createdAt > ttlMs) {
+      delete profiles[id];
+      delete tokens[id];
+      delete clients[id];
+      removed += 1;
+    }
+  }
+
+  if (removed > 0) {
+    saveAll();
+    console.log(`cleanup: removed ${removed} expired pending profile(s)`);
+  }
+}
+
+setInterval(cleanupPendingProfiles, 60_000);
+
 app.listen(PORT, () => {
   console.log(`miro-mcp-relay listening on ${PORT}`);
   console.log(`BASE_URL=${BASE_URL}`);
+  console.log(`START_REQUIRE_ADMIN=${START_REQUIRE_ADMIN}`);
+  console.log(`PENDING_PROFILE_TTL_MINUTES=${PENDING_PROFILE_TTL_MINUTES}`);
 });

@@ -30,8 +30,9 @@ docker compose up -d --build
 
 Set `BASE_URL` to host+port only.
 
-- ✅ `BASE_URL=https://oe-a0-01.opus.local:8443`
-- ❌ `BASE_URL=https://oe-a0-01.opus.local:8443/miro`
+- ✅ `BASE_URL=https://relay.example.com`
+- ✅ `BASE_URL=https://relay.example.com:8443`
+- ❌ `BASE_URL=https://relay.example.com/miro`
 
 Why: routes already include `/miro/...`. If you add `/miro` in `BASE_URL`, callback becomes duplicated (`/miro/miro/auth/callback`).
 

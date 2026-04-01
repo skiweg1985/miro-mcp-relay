@@ -417,7 +417,7 @@ app.get('/miro/start', async (req, res) => {
     </div>
     <script>
       function copyAll(){
-        const text = `profile_id=${created.profile_id}\nrelay_token=${created.relay_token}\nmcp_url=${created.mcp_url}`;
+        const text = 'profile_id=${created.profile_id}\\nrelay_token=${created.relay_token}\\nmcp_url=${created.mcp_url}';
         navigator.clipboard.writeText(text).then(()=>{document.getElementById('out').textContent='Credentials copied to clipboard.';});
       }
       async function deregister(){

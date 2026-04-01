@@ -32,8 +32,10 @@ Set `BASE_URL` to host+port only.
 Open:
 
 - `/miro` → small enrollment page
-- `/miro/start?display_name=Benji&contact=benji@example.com` → one-click profile creation + OAuth redirect
-- add `&show=1` to display `profile_id`, `relay_token`, `mcp_url` before redirect
+- `/miro/start?display_name=Benji&contact=benji@example.com` → one-click profile creation + token preview page
+- token preview now appears by default (so users can store relay token)
+- click "Continue to Miro OAuth" from preview page
+- optional `&auto=1` skips preview and redirects immediately
 - if `MIRO_START_REQUIRE_ADMIN=true`, also pass `&admin_key=...`
 
 ## API

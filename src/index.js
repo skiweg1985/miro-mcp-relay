@@ -302,14 +302,15 @@ app.get('/miro/start', async (req, res) => {
 
     const created = await createProfile({ display_name, contact });
 
-    // optional show credentials as html before redirect
-    if (String(req.query.show || '') === '1') {
+    // default: always show credentials first so user can store relay token safely
+    // optional: set auto=1 to skip preview and redirect immediately
+    if (String(req.query.auto || '') !== '1') {
       return res.type('html').send(`<!doctype html><html><body style="font-family:sans-serif;max-width:760px;margin:40px auto;line-height:1.45">
         <h2>Profile created</h2>
         <p><b>profile_id:</b> <code>${created.profile_id}</code></p>
-        <p><b>relay_token:</b> <code>${created.relay_token}</code></p>
+        <p><b>relay_token (save now):</b> <code>${created.relay_token}</code></p>
         <p><b>mcp_url:</b> <code>${created.mcp_url}</code></p>
-        <p>Store relay_token now (one-time).</p>
+        <p style="color:#b00020"><b>Important:</b> relay_token is shown one-time. Store it before continuing.</p>
         <p><a href="${created.auth_url}">Continue to Miro OAuth</a></p>
       </body></html>`);
     }

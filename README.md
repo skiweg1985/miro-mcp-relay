@@ -32,7 +32,7 @@ Set `BASE_URL` to host+port only.
 Open:
 
 - `/miro` → enrollment + deregistration web UI
-- `/miro/start?display_name=Benji&contact=benji@example.com` → one-click profile creation + token preview page
+- `/miro/start?display_name=Network+Agent&contact=user@example.com` → one-click profile creation + token preview page
 - token preview now appears by default (so users can store relay token)
 - click "Continue to Miro OAuth" from preview page
 - optional `&auto=1` skips preview and redirects immediately
@@ -48,8 +48,8 @@ X-Admin-Key: <ADMIN_KEY>
 Content-Type: application/json
 
 {
-  "display_name": "Benji Net Agent",
-  "contact": "benji@example.com"
+  "display_name": "Network Automation Agent",
+  "contact": "user@example.com"
 }
 ```
 
@@ -78,9 +78,18 @@ X-Relay-Key: <relay_token>
 
 ### 5) Deregister profile
 
+User self-service:
+
 ```http
 DELETE /miro/profiles/<profile_id>
 X-Relay-Key: <relay_token>
+```
+
+Admin override:
+
+```http
+DELETE /miro/admin/profiles/<profile_id>
+X-Admin-Key: <ADMIN_KEY>
 ```
 
 ## Agent Zero example

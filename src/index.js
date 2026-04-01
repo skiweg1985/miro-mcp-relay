@@ -253,9 +253,9 @@ app.get('/miro', (_req, res) => {
           <p>Creates profile and shows one-time relay token.</p>
           <form method="get" action="/miro/start">
             <label>Display name</label>
-            <input name="display_name" placeholder="Benji Net Agent" required />
+            <input name="display_name" placeholder="Network Automation Agent" required />
             <label>Contact (optional)</label>
-            <input name="contact" placeholder="benji@example.com" />
+            <input name="contact" placeholder="user@example.com" />
             <label>Admin key (optional unless enforced)</label>
             <input name="admin_key" placeholder="MIRO_RELAY_ADMIN_KEY" />
             <input type="hidden" name="show" value="1" />
@@ -267,15 +267,19 @@ app.get('/miro', (_req, res) => {
         </section>
 
         <section class="card">
-          <h2>Deregister Profile</h2>
-          <p>Delete a profile using its own relay token.</p>
+          <h2>Deregister / Admin Tools</h2>
+          <p>Delete a profile via user relay token, or via admin key.</p>
           <label>Profile ID</label>
           <input id="delProfile" placeholder="p_xxxxx" />
           <label>Relay token (X-Relay-Key)</label>
           <input id="delToken" placeholder="one-time relay token" />
+          <label>Admin key (optional override)</label>
+          <input id="adminKey" placeholder="MIRO_RELAY_ADMIN_KEY" />
           <div class="row">
-            <button class="btn-danger" type="button" onclick="doDelete()">Deregister</button>
+            <button class="btn-danger" type="button" onclick="doDelete()">Deregister (profile token)</button>
+            <button class="btn-danger" type="button" onclick="doAdminDelete()">Deregister (admin)</button>
             <button class="btn-secondary" type="button" onclick="doStatus()">Check Status</button>
+            <button class="btn-secondary" type="button" onclick="doListProfiles()">List Profiles (admin)</button>
           </div>
           <div id="out" class="result">Ready.</div>
         </section>
@@ -300,6 +304,23 @@ app.get('/miro', (_req, res) => {
         const r=await fetch('/miro/status/'+encodeURIComponent(id),{headers:{'X-Relay-Key':tk}});
         const t=await r.text();
         out.textContent='STATUS '+r.status+'\n'+t;
+      }
+      async function doAdminDelete(){
+        const id=document.getElementById('delProfile').value.trim();
+        const ak=document.getElementById('adminKey').value.trim();
+        const out=document.getElementById('out');
+        if(!id||!ak){ out.textContent='Please enter profile ID and admin key.'; return; }
+        const r=await fetch('/miro/admin/profiles/'+encodeURIComponent(id),{method:'DELETE',headers:{'X-Admin-Key':ak}});
+        const t=await r.text();
+        out.textContent='ADMIN DELETE '+r.status+'\n'+t;
+      }
+      async function doListProfiles(){
+        const ak=document.getElementById('adminKey').value.trim();
+        const out=document.getElementById('out');
+        if(!ak){ out.textContent='Please enter admin key.'; return; }
+        const r=await fetch('/miro/profiles',{headers:{'X-Admin-Key':ak}});
+        const t=await r.text();
+        out.textContent='LIST '+r.status+'\n'+t;
       }
     </script>
   </body>
@@ -443,6 +464,22 @@ app.get('/miro/profiles', requireAdmin, (req, res) => {
     .filter(([, p]) => !contactFilter || String(p.contact || '').toLowerCase().includes(contactFilter))
     .map(([id, p]) => profilePublic(id, p));
   res.json({ ok: true, profiles: list });
+});
+
+app.delete('/miro/admin/profiles/:profileId', requireAdmin, (req, res) => {
+  const id = req.params.profileId;
+  if (!profiles[id] || profiles[id].status === 'deleted') {
+    return res.status(404).json({ error: 'profile not found' });
+  }
+  profiles[id] = {
+    ...(profiles[id] || {}),
+    status: 'deleted',
+    updated_at: nowIso()
+  };
+  delete tokens[id];
+  delete clients[id];
+  saveAll();
+  res.json({ ok: true, message: `profile ${id} admin-deregistered` });
 });
 
 app.delete('/miro/profiles/:profileId', requireProfileToken, (req, res) => {

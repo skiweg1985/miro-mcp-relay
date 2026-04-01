@@ -256,14 +256,12 @@ app.get('/miro', (_req, res) => {
             <input name="display_name" placeholder="Network Automation Agent" required />
             <label>Contact (optional)</label>
             <input name="contact" placeholder="user@example.com" />
-            <label>Admin key (optional unless enforced)</label>
-            <input name="admin_key" placeholder="MIRO_RELAY_ADMIN_KEY" />
             <input type="hidden" name="show" value="1" />
             <div class="row">
               <button class="btn-primary" type="submit">Create Profile</button>
             </div>
           </form>
-          <div class="hint">Tip: add <code>auto=1</code> if you want direct redirect without preview.</div>
+          <div class="hint">Tip: add <code>auto=1</code> if you want direct redirect without preview. If admin gating is enabled, pass <code>?admin_key=...</code> in URL.</div>
         </section>
 
         <section class="card">

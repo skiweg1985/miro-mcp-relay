@@ -10,6 +10,15 @@ dotenv.config();
 const app = express();
 app.use(express.json({ limit: '2mb' }));
 
+// Basic security headers for HTML/API responses
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  next();
+});
+
 const PORT = Number(process.env.PORT || 8787);
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
 const RELAY_API_KEY = process.env.MIRO_RELAY_API_KEY || '';
@@ -74,6 +83,47 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function safeText(value, max = 120) {
+  return String(value || '').trim().slice(0, max);
+}
+
+function isValidEmailLike(v) {
+  if (!v) return true;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+}
+
+function timingSafeEqualHex(a, b) {
+  try {
+    const ba = Buffer.from(a || '', 'hex');
+    const bb = Buffer.from(b || '', 'hex');
+    if (ba.length !== bb.length || ba.length === 0) return false;
+    return crypto.timingSafeEqual(ba, bb);
+  } catch {
+    return false;
+  }
+}
+
+// Simple in-memory rate-limit by IP + key (good enough for relay edge hardening)
+const rateMap = new Map();
+function rateLimit(key, maxHits, windowMs) {
+  return (req, res, next) => {
+    const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').toString().split(',')[0].trim();
+    const now = Date.now();
+    const bucketKey = `${key}:${ip}`;
+    const bucket = rateMap.get(bucketKey) || { count: 0, resetAt: now + windowMs };
+    if (now > bucket.resetAt) {
+      bucket.count = 0;
+      bucket.resetAt = now + windowMs;
+    }
+    bucket.count += 1;
+    rateMap.set(bucketKey, bucket);
+    if (bucket.count > maxHits) {
+      return res.status(429).json({ error: 'rate_limited', retry_after_ms: Math.max(0, bucket.resetAt - now) });
+    }
+    next();
+  };
+}
+
 // runtime stores
 const pending = new Map(); // state -> { profileId, verifier }
 const tokens = readJson(TOKEN_FILE, {}); // profileId -> oauth token set
@@ -119,7 +169,8 @@ function requireProfileToken(req, res, next) {
   if (!supplied) return res.status(401).json({ error: 'missing relay token' });
 
   const expected = p.relay_token_hash;
-  if (!expected || tokenHash(supplied) !== expected) return res.status(401).json({ error: 'invalid relay token' });
+  const suppliedHash = tokenHash(supplied);
+  if (!expected || !timingSafeEqualHex(suppliedHash, expected)) return res.status(401).json({ error: 'invalid relay token' });
 
   req.profile = p;
   req.profileId = profileId;
@@ -341,12 +392,17 @@ app.get('/miro/status/:profileId', requireProfileToken, (req, res) => {
 
 // v2 provisioning endpoint (admin creates profile + gets one-time relay token)
 async function createProfile({ display_name, contact }) {
+  const safeName = safeText(display_name, 80);
+  const safeContact = safeText(contact, 120);
+  if (!safeName) throw new Error('display_name is required');
+  if (!isValidEmailLike(safeContact)) throw new Error('contact must be a valid email-like value');
+
   const profileId = newProfileId();
   const relayToken = newRelayToken();
 
   profiles[profileId] = {
-    display_name,
-    contact,
+    display_name: safeName,
+    contact: safeContact,
     relay_token_hash: tokenHash(relayToken),
     status: 'pending',
     created_at: nowIso(),
@@ -364,7 +420,7 @@ async function createProfile({ display_name, contact }) {
   };
 }
 
-app.post('/miro/profiles', requireAdmin, async (req, res) => {
+app.post('/miro/profiles', rateLimit('profiles-create', 20, 60_000), requireAdmin, async (req, res) => {
   try {
     const display_name = String(req.body?.display_name || '').trim();
     const contact = String(req.body?.contact || '').trim();
@@ -384,10 +440,10 @@ app.post('/miro/profiles', requireAdmin, async (req, res) => {
 });
 
 // One-click browser enrollment flow (friendlier UX)
-app.get('/miro/start', async (req, res) => {
+app.get('/miro/start', rateLimit('start-enroll', 30, 60_000), async (req, res) => {
   try {
-    const display_name = String(req.query.display_name || '').trim() || 'Miro User';
-    const contact = String(req.query.contact || '').trim();
+    const display_name = safeText(req.query.display_name || 'Miro User', 80) || 'Miro User';
+    const contact = safeText(req.query.contact || '', 120);
     const adminKey = String(req.query.admin_key || req.header('x-admin-key') || '');
 
     if (START_REQUIRE_ADMIN && (!ADMIN_API_KEY || adminKey !== ADMIN_API_KEY)) {
@@ -464,7 +520,7 @@ app.get('/miro/profiles', requireAdmin, (req, res) => {
   res.json({ ok: true, profiles: list });
 });
 
-app.delete('/miro/admin/profiles/:profileId', requireAdmin, (req, res) => {
+app.delete('/miro/admin/profiles/:profileId', rateLimit('admin-delete', 40, 60_000), requireAdmin, (req, res) => {
   const id = req.params.profileId;
   if (!profiles[id] || profiles[id].status === 'deleted') {
     return res.status(404).json({ error: 'profile not found' });
@@ -480,7 +536,7 @@ app.delete('/miro/admin/profiles/:profileId', requireAdmin, (req, res) => {
   res.json({ ok: true, message: `profile ${id} admin-deregistered` });
 });
 
-app.delete('/miro/profiles/:profileId', requireProfileToken, (req, res) => {
+app.delete('/miro/profiles/:profileId', rateLimit('self-delete', 40, 60_000), requireProfileToken, (req, res) => {
   const id = req.profileId;
   profiles[id] = {
     ...(profiles[id] || {}),
@@ -493,7 +549,7 @@ app.delete('/miro/profiles/:profileId', requireProfileToken, (req, res) => {
   res.json({ ok: true, message: `profile ${id} deregistered` });
 });
 
-app.get('/miro/auth/start', async (req, res) => {
+app.get('/miro/auth/start', rateLimit('auth-start', 60, 60_000), async (req, res) => {
   try {
     const profileId = String(req.query.profile || '').trim() || 'default';
 

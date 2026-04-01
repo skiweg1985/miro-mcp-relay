@@ -126,3 +126,5 @@ backend be_miro_relay
 - Rotate keys periodically
 - Optional: set `MIRO_START_REQUIRE_ADMIN=true` to protect browser onboarding
 - Pending profiles are auto-deleted after `MIRO_PENDING_PROFILE_TTL_MINUTES` (default 15)
+- Basic rate limiting is active on enroll/auth/delete endpoints
+- Browser UI supports both self-service deregistration and admin override deregistration

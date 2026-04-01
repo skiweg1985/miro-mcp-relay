@@ -18,7 +18,7 @@ OAuth relay/proxy for `https://mcp.miro.com/`, with multi-profile support.
 
 ```bash
 cp .env.example .env
-# edit BASE_URL, MIRO_RELAY_API_KEY, MIRO_RELAY_ADMIN_KEY
+# edit BASE_URL, MIRO_RELAY_API_KEY, MIRO_RELAY_ADMIN_KEY, MIRO_ADMIN_PASSWORD
 
 docker compose up -d --build
 ```
@@ -35,7 +35,7 @@ Set `BASE_URL` to host+port only.
 
 Open:
 
-- `/miro` → enrollment + deregistration web UI
+- `/miro` → enrollment + deregistration web UI (includes admin password login)
 - `/miro/start?display_name=Network+Agent&contact=user@example.com` → one-click profile creation + token preview page
 - token preview now appears by default (so users can store relay token)
 - click "Continue to Miro OAuth" from preview page
@@ -96,7 +96,22 @@ DELETE /miro/admin/profiles/<profile_id>
 X-Admin-Key: <ADMIN_KEY>
 ```
 
-### 6) Admin governance actions
+### 6) Admin web login session
+
+```http
+POST /miro/admin/login
+Content-Type: application/json
+
+{ "password": "<MIRO_ADMIN_PASSWORD>" }
+```
+
+Or browser form on `/miro`. Logout:
+
+```http
+POST /miro/admin/logout
+```
+
+### 7) Admin governance actions
 
 Rotate profile relay token:
 

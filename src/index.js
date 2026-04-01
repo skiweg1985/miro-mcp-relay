@@ -23,6 +23,7 @@ const PORT = Number(process.env.PORT || 8787);
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
 const RELAY_API_KEY = process.env.MIRO_RELAY_API_KEY || '';
 const ADMIN_API_KEY = process.env.MIRO_RELAY_ADMIN_KEY || RELAY_API_KEY;
+const ADMIN_PASSWORD = process.env.MIRO_ADMIN_PASSWORD || '';
 const START_REQUIRE_ADMIN = String(process.env.MIRO_START_REQUIRE_ADMIN || 'false').toLowerCase() === 'true';
 const PENDING_PROFILE_TTL_MINUTES = Number(process.env.MIRO_PENDING_PROFILE_TTL_MINUTES || 15);
 const DATA_DIR = process.env.DATA_DIR || path.resolve(process.cwd(), 'data');
@@ -154,6 +155,7 @@ const tokens = readJson(TOKEN_FILE, {}); // profileId -> oauth token set
 const clients = readJson(CLIENT_FILE, {}); // profileId -> oauth client
 const profiles = readJson(PROFILE_FILE, {}); // profileId -> metadata
 const breaker = { consecutiveFails: 0, openUntil: 0 };
+const adminSessions = new Map(); // sid -> {expiresAt}
 
 function saveAll() {
   writeJson(TOKEN_FILE, tokens);
@@ -187,12 +189,48 @@ function profilePublic(profileId, p) {
   };
 }
 
-function requireAdmin(req, res, next) {
-  const key = req.header('x-admin-key') || req.header('x-relay-key') || req.header('authorization')?.replace(/^Bearer\s+/i, '');
-  if (!ADMIN_API_KEY || key !== ADMIN_API_KEY) {
-    return res.status(401).json({ error: 'unauthorized admin key' });
+function parseCookies(req) {
+  const raw = req.headers.cookie || '';
+  const out = {};
+  raw.split(';').forEach((p) => {
+    const i = p.indexOf('=');
+    if (i > -1) out[p.slice(0, i).trim()] = decodeURIComponent(p.slice(i + 1).trim());
+  });
+  return out;
+}
+
+function createAdminSession(res) {
+  const sid = b64url(crypto.randomBytes(24));
+  const expiresAt = Date.now() + 8 * 60 * 60 * 1000;
+  adminSessions.set(sid, { expiresAt });
+  res.setHeader('Set-Cookie', `admin_session=${encodeURIComponent(sid)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800`);
+}
+
+function clearAdminSession(req, res) {
+  const cookies = parseCookies(req);
+  const sid = cookies.admin_session;
+  if (sid) adminSessions.delete(sid);
+  res.setHeader('Set-Cookie', 'admin_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0');
+}
+
+function isAdminBySession(req) {
+  const cookies = parseCookies(req);
+  const sid = cookies.admin_session;
+  if (!sid) return false;
+  const s = adminSessions.get(sid);
+  if (!s) return false;
+  if (Date.now() > s.expiresAt) {
+    adminSessions.delete(sid);
+    return false;
   }
-  next();
+  return true;
+}
+
+function requireAdmin(req, res, next) {
+  if (isAdminBySession(req)) return next();
+  const key = req.header('x-admin-key') || req.header('x-relay-key') || req.header('authorization')?.replace(/^Bearer\s+/i, '');
+  if (ADMIN_API_KEY && key === ADMIN_API_KEY) return next();
+  return res.status(401).json({ error: 'unauthorized admin' });
 }
 
 function requireProfileToken(req, res, next) {
@@ -284,6 +322,27 @@ async function getAccessToken(profileId) {
   return t.access_token;
 }
 
+app.post('/miro/admin/login', rateLimit('admin-login', 20, 60_000), (req, res) => {
+  const pw = String(req.body?.password || '');
+  const formPw = String(req.query.password || '');
+  const provided = pw || formPw;
+  if (!ADMIN_PASSWORD || provided !== ADMIN_PASSWORD) {
+    audit('admin_login_failed', {}, req);
+    return res.status(401).json({ error: 'invalid_admin_password' });
+  }
+  createAdminSession(res);
+  audit('admin_login_success', {}, req);
+  if (req.query.redirect === '1') return res.redirect('/miro');
+  res.json({ ok: true, message: 'admin session active' });
+});
+
+app.post('/miro/admin/logout', (req, res) => {
+  clearAdminSession(req, res);
+  audit('admin_logout', {}, req);
+  if (req.query.redirect === '1') return res.redirect('/miro');
+  res.json({ ok: true });
+});
+
 app.get('/miro/status', (req, res) => {
   const out = {};
   for (const [id, p] of Object.entries(profiles)) {
@@ -351,8 +410,22 @@ app.get('/miro', (_req, res) => {
         </section>
 
         <section class="card">
+          <h2>Admin Login</h2>
+          <p>Login once with admin password (session cookie), then use admin actions.</p>
+          <form method="post" action="/miro/admin/login?redirect=1">
+            <label>Admin password</label>
+            <input name="password" type="password" placeholder="MIRO_ADMIN_PASSWORD" />
+            <div class="row">
+              <button class="btn-secondary" type="submit">Admin Login</button>
+              <button class="btn-secondary" type="button" onclick="doAdminLogout()">Admin Logout</button>
+            </div>
+          </form>
+          <div class="hint">Fallback: admin endpoints still accept <code>X-Admin-Key</code> header.</div>
+        </section>
+
+        <section class="card">
           <h2>Deregister / Admin Tools</h2>
-          <p>Delete a profile via user relay token, or via admin key.</p>
+          <p>Delete a profile via user relay token, or via admin session/key.</p>
           <label>Profile ID</label>
           <input id="delProfile" placeholder="p_xxxxx" />
           <label>Relay token (X-Relay-Key)</label>
@@ -374,6 +447,12 @@ app.get('/miro', (_req, res) => {
     </div>
 
     <script>
+      async function doAdminLogout(){
+        const out=document.getElementById('out');
+        const r=await fetch('/miro/admin/logout',{method:'POST'});
+        const t=await r.text();
+        out.textContent='ADMIN LOGOUT '+r.status+'\n'+t;
+      }
       async function doDelete(){
         const id=document.getElementById('delProfile').value.trim();
         const tk=document.getElementById('delToken').value.trim();
@@ -392,46 +471,43 @@ app.get('/miro', (_req, res) => {
         const t=await r.text();
         out.textContent='STATUS '+r.status+'\n'+t;
       }
+      function adminHeaders(){
+        const ak=document.getElementById('adminKey').value.trim();
+        return ak ? {'X-Admin-Key':ak} : {};
+      }
       async function doAdminDelete(){
         const id=document.getElementById('delProfile').value.trim();
-        const ak=document.getElementById('adminKey').value.trim();
         const out=document.getElementById('out');
-        if(!id||!ak){ out.textContent='Please enter profile ID and admin key.'; return; }
-        const r=await fetch('/miro/admin/profiles/'+encodeURIComponent(id),{method:'DELETE',headers:{'X-Admin-Key':ak}});
+        if(!id){ out.textContent='Please enter profile ID.'; return; }
+        const r=await fetch('/miro/admin/profiles/'+encodeURIComponent(id),{method:'DELETE',headers:adminHeaders()});
         const t=await r.text();
         out.textContent='ADMIN DELETE '+r.status+'\n'+t;
       }
       async function doListProfiles(){
-        const ak=document.getElementById('adminKey').value.trim();
         const out=document.getElementById('out');
-        if(!ak){ out.textContent='Please enter admin key.'; return; }
-        const r=await fetch('/miro/profiles',{headers:{'X-Admin-Key':ak}});
+        const r=await fetch('/miro/profiles',{headers:adminHeaders()});
         const t=await r.text();
         out.textContent='LIST '+r.status+'\n'+t;
       }
       async function doRotateToken(){
         const id=document.getElementById('delProfile').value.trim();
-        const ak=document.getElementById('adminKey').value.trim();
         const out=document.getElementById('out');
-        if(!id||!ak){ out.textContent='Please enter profile ID and admin key.'; return; }
-        const r=await fetch('/miro/admin/profiles/'+encodeURIComponent(id)+'/rotate-token',{method:'POST',headers:{'X-Admin-Key':ak}});
+        if(!id){ out.textContent='Please enter profile ID.'; return; }
+        const r=await fetch('/miro/admin/profiles/'+encodeURIComponent(id)+'/rotate-token',{method:'POST',headers:adminHeaders()});
         const t=await r.text();
         out.textContent='ROTATE '+r.status+'\n'+t;
       }
       async function doRevokeOAuth(){
         const id=document.getElementById('delProfile').value.trim();
-        const ak=document.getElementById('adminKey').value.trim();
         const out=document.getElementById('out');
-        if(!id||!ak){ out.textContent='Please enter profile ID and admin key.'; return; }
-        const r=await fetch('/miro/admin/profiles/'+encodeURIComponent(id)+'/revoke-oauth',{method:'POST',headers:{'X-Admin-Key':ak}});
+        if(!id){ out.textContent='Please enter profile ID.'; return; }
+        const r=await fetch('/miro/admin/profiles/'+encodeURIComponent(id)+'/revoke-oauth',{method:'POST',headers:adminHeaders()});
         const t=await r.text();
         out.textContent='REVOKE '+r.status+'\n'+t;
       }
       async function doAudit(){
-        const ak=document.getElementById('adminKey').value.trim();
         const out=document.getElementById('out');
-        if(!ak){ out.textContent='Please enter admin key.'; return; }
-        const r=await fetch('/miro/admin/audit?lines=80',{headers:{'X-Admin-Key':ak}});
+        const r=await fetch('/miro/admin/audit?lines=80',{headers:adminHeaders()});
         const t=await r.text();
         out.textContent='AUDIT '+r.status+'\n'+t;
       }

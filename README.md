@@ -14,6 +14,7 @@ Minimal OAuth relay/proxy for `https://mcp.miro.com/`.
 ```bash
 cp .env.example .env
 # edit BASE_URL and MIRO_RELAY_API_KEY
+# IMPORTANT: BASE_URL must be host+port only (without /miro)
 
 docker compose up -d --build
 ```
@@ -24,6 +25,15 @@ docker compose up -d --build
 - `GET /miro/auth/start?profile=<name>`
 - `GET /miro/auth/callback`
 - `POST /miro/mcp/<profile>` (requires `X-Relay-Key`)
+
+## BASE_URL note (important)
+
+Set `BASE_URL` to host+port only.
+
+- ✅ `BASE_URL=https://oe-a0-01.opus.local:8443`
+- ❌ `BASE_URL=https://oe-a0-01.opus.local:8443/miro`
+
+Why: routes already include `/miro/...`. If you add `/miro` in `BASE_URL`, callback becomes duplicated (`/miro/miro/auth/callback`).
 
 ## First login
 

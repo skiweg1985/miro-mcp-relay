@@ -1,30 +1,23 @@
 # miro-mcp-relay
 
-Minimal OAuth relay/proxy for `https://mcp.miro.com/`.
+OAuth relay/proxy for `https://mcp.miro.com/`, with multi-profile support.
 
-## What it does
+## Features
 
-- Handles Miro OAuth (PKCE) per profile
-- Stores/refreshes tokens automatically
-- Exposes MCP proxy endpoint per profile
-- Protects MCP endpoint with static relay API key
+- Profile-based Miro OAuth (PKCE)
+- Per-profile MCP endpoint: `/miro/mcp/<profile_id>`
+- Per-profile relay token (`X-Relay-Key`)
+- Self-service deregistration per profile
+- Automatic token refresh
 
 ## Run
 
 ```bash
 cp .env.example .env
-# edit BASE_URL and MIRO_RELAY_API_KEY
-# IMPORTANT: BASE_URL must be host+port only (without /miro)
+# edit BASE_URL, MIRO_RELAY_API_KEY, MIRO_RELAY_ADMIN_KEY
 
 docker compose up -d --build
 ```
-
-## Endpoints
-
-- `GET /miro/status`
-- `GET /miro/auth/start?profile=<name>`
-- `GET /miro/auth/callback`
-- `POST /miro/mcp/<profile>` (requires `X-Relay-Key`)
 
 ## BASE_URL note (important)
 
@@ -34,34 +27,66 @@ Set `BASE_URL` to host+port only.
 - ✅ `BASE_URL=https://relay.example.com:8443`
 - ❌ `BASE_URL=https://relay.example.com/miro`
 
-Why: routes already include `/miro/...`. If you add `/miro` in `BASE_URL`, callback becomes duplicated (`/miro/miro/auth/callback`).
+## API
 
-## First login
+### 1) Create profile (admin)
 
-Open in browser:
+```http
+POST /miro/profiles
+X-Admin-Key: <ADMIN_KEY>
+Content-Type: application/json
 
-```text
-https://YOUR_HOST/miro/auth/start?profile=net
+{
+  "display_name": "Benji Net Agent",
+  "contact": "benji@example.com"
+}
 ```
 
-After success, profile `net` is connected.
+Response:
 
-## Agent Zero config
+- `profile_id`
+- `relay_token` (one-time, store it)
+- `auth_url`
+- `mcp_url`
+
+### 2) OAuth login
+
+Open returned `auth_url` in browser.
+
+### 3) Use MCP endpoint
+
+```http
+POST /miro/mcp/<profile_id>
+X-Relay-Key: <relay_token>
+```
+
+### 4) Status
+
+- `GET /miro/status`
+- `GET /miro/status/<profile_id>` (requires `X-Relay-Key`)
+
+### 5) Deregister profile
+
+```http
+DELETE /miro/profiles/<profile_id>
+X-Relay-Key: <relay_token>
+```
+
+## Agent Zero example
 
 ```json
 {
   "mcpServers": {
-    "miro_net": {
-      "url": "https://YOUR_HOST/miro/mcp/net",
+    "miro_personal": {
+      "type": "streamable-http",
+      "url": "https://relay.example.com/miro/mcp/<profile_id>",
       "headers": {
-        "X-Relay-Key": "YOUR_STATIC_RELAY_KEY"
+        "X-Relay-Key": "<relay_token>"
       }
     }
   }
 }
 ```
-
-For multiple identities, add more profiles (`ops`, `docs`, ...), each authenticated separately via `/miro/auth/start?profile=<profile>`.
 
 ## HAProxy snippet (concept)
 
@@ -76,6 +101,6 @@ backend be_miro_relay
 ## Security notes
 
 - Use HTTPS in production
-- Use a long random `MIRO_RELAY_API_KEY`
+- Use long random keys for admin + relay
 - Restrict `/miro/mcp/*` by IP if possible
-- Rotate relay key periodically
+- Rotate keys periodically

@@ -9,6 +9,7 @@ import {
 } from "react";
 
 import { AppProvider, useAppContext } from "./app-context";
+import { ThemeToggle } from "./theme-toggle";
 import { AccessPage } from "./admin/AccessPage";
 import { DashboardPage } from "./admin/DashboardPage";
 import { IntegrationsPage } from "./admin/IntegrationsPage";
@@ -306,6 +307,7 @@ function LoginPage({ onSuccess }: { onSuccess: (path: string) => void }) {
             </button>
           </div>
           {!microsoftEnabled ? <p className="landing-hint">Sign-in is not configured.</p> : null}
+          <ThemeToggle className="landing-theme-toggle" id="landing-theme" />
           <button type="button" className="landing-admin" onClick={() => setAdminModalOpen(true)}>
             Administrator sign-in
           </button>
@@ -400,6 +402,7 @@ function Shell({
         </nav>
 
         <div className="sidebar-foot">
+          <ThemeToggle id="shell-theme" />
           <div className="session-panel">
             <p className="eyebrow">Signed in</p>
             <strong>{session.status === "authenticated" ? session.user.display_name : "Guest"}</strong>

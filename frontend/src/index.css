@@ -937,6 +937,7 @@ select option {
   padding: var(--space-2) var(--space-3);
   background: var(--surface);
   color: var(--ink);
+  cursor: pointer;
 }
 
 .check-option:hover {
@@ -1298,6 +1299,7 @@ select option {
   margin: 0;
   font-size: var(--font-modal-title);
   font-weight: 650;
+  color: var(--ink);
 }
 
 .drawer-close {
@@ -1458,6 +1460,67 @@ select option {
   text-align: right;
   word-break: break-word;
   max-width: 65%;
+}
+
+.theme-toggle {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.theme-toggle-label {
+  margin: 0;
+  font-size: var(--font-caption);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
+.theme-toggle-segments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--bg-subtle);
+}
+
+.theme-toggle-btn {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 36px;
+  padding: var(--space-2) var(--space-2);
+  border: 0;
+  border-radius: calc(var(--radius-sm) - 2px);
+  background: transparent;
+  color: var(--ink-secondary);
+  font: inherit;
+  font-size: var(--font-caption);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.theme-toggle-btn:hover {
+  color: var(--ink);
+  background: var(--surface-muted);
+}
+
+.theme-toggle-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 var(--space-1) var(--focus-ring);
+}
+
+.theme-toggle-btn--active {
+  background: var(--tab-active-bg);
+  color: var(--ink);
+  box-shadow: var(--shadow-sm);
+}
+
+.landing-theme-toggle {
+  width: 100%;
+  margin-top: var(--space-2);
 }
 
 @media (max-width: 1180px) {

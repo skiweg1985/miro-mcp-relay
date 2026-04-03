@@ -4,6 +4,7 @@
 
 ### Added
 
+- Frontend: vollständiges Hell-/Dunkel-Theme über semantische CSS-Variablen (`:root` / `html.dark`), Steuerung **System** / **Hell** / **Dunkel** mit Persistenz (`localStorage`), FOUC-Vorbelegung im `index.html`-Skript; Schalter „Appearance“ in der Shell und auf der Login-Karte.
 - Öffentlicher Endpunkt `GET /api/v1/broker-callback-urls` mit Redirect-URIs für Microsoft Login, Microsoft Graph, Miro und generisches OAuth.
 - Admin-Endpunkt `POST /api/v1/admin/integrations/test` zur Erreichbarkeitsprüfung (Microsoft OpenID Discovery bzw. Miro-Authorize).
 - Platzhalter-Callback `GET /api/v1/connections/provider-oauth/callback` für künftige benutzerdefinierte OAuth-Apps.

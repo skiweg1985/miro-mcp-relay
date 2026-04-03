@@ -1,3 +1,33 @@
+## 2026-04-03 – Cursor Agent – Dark mode & theme tokens
+
+- Done:
+  - Semantische Design-Tokens in `index.css` (`:root`, `html.dark`); harte Farben durch Variablen ersetzt (Surfaces, Inputs, Modals, Toasts, Tabellen, Integration Cards, Wizard, Code-Blöcke, Backdrops).
+  - `theme-context.tsx` (`ThemeProvider`, `useTheme`), Persistenz `broker-theme`, Klasse `dark` auf `documentElement`, `color-scheme`, Reaktion auf `prefers-color-scheme` bei „System“.
+  - FOUC-Skript in `index.html`; `ThemeToggle` (`Appearance` / System, Light, Dark) in Shell-Sidebar und Login-Karte; `main.tsx` um `ThemeProvider` erweitert.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - frontend/src/index.css
+  - frontend/src/theme-context.tsx
+  - frontend/src/theme-toggle.tsx
+  - frontend/src/main.tsx
+  - frontend/src/App.tsx
+  - frontend/index.html
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build`
+  - UI path: `/login`, `/workspace`, `/app/*` (Theme-Schalter; Hell/Dunkel/System)
+- Changelog updated:
+  - yes ([Unreleased] Added)
+- Follow-ups:
+  - keine
+
 ## 2026-04-03 – Cursor Agent – UI spacing & typography audit
 
 - Done:

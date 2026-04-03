@@ -1,3 +1,28 @@
+## 2026-04-03 – Cursor Agent – UI spacing & typography audit
+
+- Done:
+  - `index.css`: `--space-1`–`--space-6`, Typografie-Variablen; Buttons/Inputs min-height 40px; Karten-, Drawer-, Modal-, Tab-, Integrationskarten- und Tabellenabstände vereinheitlicht; `.field-hint--flush`, `.muted-copy`, Abstände zwischen direkten Karten-Kindern; `--radius-md` an `--radius-sm` angeglichen.
+  - `IntegrationsPage.tsx`: `field-hint` ohne Inline-`style`.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - frontend/src/index.css
+  - frontend/src/admin/IntegrationsPage.tsx
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build`
+  - UI path: `/workspace`, `/app/*`, `/login`
+- Changelog updated:
+  - yes ([Unreleased] Changed)
+- Follow-ups:
+  - keine
+
 ## 2026-04-03 – Cursor Agent – Landing /login minimal
 
 - Done:

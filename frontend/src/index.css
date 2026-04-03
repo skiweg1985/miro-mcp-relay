@@ -201,6 +201,10 @@ h3 {
   line-height: var(--line-relaxed);
 }
 
+.page-intro .lede {
+  margin-bottom: 0;
+}
+
 .muted-copy {
   margin: 0;
   font-size: var(--font-caption);
@@ -455,7 +459,8 @@ h3 {
 
 .brand-mark small {
   color: var(--ink-secondary);
-  font-size: 0.85rem;
+  font-size: var(--font-body-sm);
+  line-height: var(--line-relaxed);
 }
 
 .sidebar-nav {
@@ -541,6 +546,10 @@ h3 {
 
 .card {
   padding: var(--space-4) var(--space-5);
+}
+
+.card > :not(.card-header) + :not(.card-header) {
+  margin-top: var(--space-4);
 }
 
 .card-header {
@@ -739,6 +748,10 @@ h3 {
 
 .stack-form-header {
   max-width: 56ch;
+}
+
+.stack-form-header p {
+  margin: 0;
 }
 
 .form-grid {

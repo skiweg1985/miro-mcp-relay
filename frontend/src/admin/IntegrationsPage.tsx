@@ -569,7 +569,7 @@ export function IntegrationsPage() {
             {wizardStep === 1 ? <ReadOnlyCopyField label="Redirect URI" value={urls.microsoft_login} /> : null}
             {wizardStep === 2 ? (
               <>
-                <p className="field-hint" style={{ marginTop: 0 }}>
+                <p className="field-hint field-hint--flush">
                   Confirm values before saving. Run a connection test if you changed credentials or endpoints in Entra ID.
                 </p>
                 <div className="summary-panel">
@@ -665,7 +665,7 @@ export function IntegrationsPage() {
             {wizardStep === 2 ? <ReadOnlyCopyField label="Redirect URI" value={urls.microsoft_graph} /> : null}
             {wizardStep === 3 ? (
               <>
-                <p className="field-hint" style={{ marginTop: 0 }}>
+                <p className="field-hint field-hint--flush">
                   Review scopes derived from your selection, then save or test the connection.
                 </p>
                 <div className="summary-panel">

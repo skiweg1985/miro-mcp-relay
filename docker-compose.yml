@@ -11,6 +11,27 @@ services:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
 
+  haproxy:
+    build:
+      context: ./haproxy
+    container_name: oauth-broker-proxy
+    depends_on:
+      - broker-frontend
+      - broker-backend
+      - miro-mcp-relay
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./devcert:/certs
+    restart: unless-stopped
+
+  broker-frontend:
+    build:
+      context: ./frontend
+    container_name: oauth-broker-frontend
+    restart: unless-stopped
+
   broker-backend:
     build:
       context: ./backend
@@ -19,15 +40,14 @@ services:
       - .env
     environment:
       DATABASE_URL: postgresql+psycopg2://broker:broker@postgres:5432/broker
-      CORS_ORIGINS: http://localhost:5173,http://localhost:8787
-      BROKER_PUBLIC_BASE_URL: http://localhost:8000
-      FRONTEND_BASE_URL: http://localhost:5173
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost}
+      BROKER_PUBLIC_BASE_URL: ${BROKER_PUBLIC_BASE_URL:-http://localhost}
+      FRONTEND_BASE_URL: ${FRONTEND_BASE_URL:-http://localhost}
       LEGACY_MIRO_DATA_DIR: /legacy-data
-      BOOTSTRAP_ADMIN_EMAIL: admin@example.com
-      BOOTSTRAP_ADMIN_PASSWORD: change-me-admin-password
-      SESSION_SECRET: change-me-broker-session-secret
-    ports:
-      - "8000:8000"
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-admin@example.com}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-change-me-admin-password}
+      SESSION_SECRET: ${SESSION_SECRET:-change-me-broker-session-secret}
+      SESSION_SECURE_COOKIE: ${SESSION_SECURE_COOKIE:-false}
     volumes:
       - ./data:/legacy-data
     depends_on:
@@ -39,8 +59,10 @@ services:
     container_name: miro-mcp-relay
     env_file:
       - .env
-    ports:
-      - "8787:8787"
+    environment:
+      PORT: 8787
+      BASE_URL: ${BROKER_PUBLIC_BASE_URL:-http://localhost}
+      DATA_DIR: /app/data
     volumes:
       - ./data:/app/data
     restart: unless-stopped

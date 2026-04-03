@@ -54,6 +54,48 @@ function isApiError(error: unknown): error is ApiError {
   return typeof error === "object" && error !== null && "message" in error;
 }
 
+function connectionTone(connection: ConnectedAccountOut): "neutral" | "success" | "warn" | "danger" {
+  if (connection.status === "revoked") return "warn";
+  if (connection.last_error) return "danger";
+  if (connection.status === "connected") return "success";
+  return "neutral";
+}
+
+function grantState(grant: SelfServiceDelegationGrantOut | DelegationGrantOut): string {
+  if (grant.revoked_at) return "Revoked";
+  if (!grant.is_enabled) return "Disabled";
+  if (grant.expires_at && new Date(grant.expires_at).getTime() <= Date.now()) return "Expired";
+  return "Active";
+}
+
+function grantTone(grant: SelfServiceDelegationGrantOut | DelegationGrantOut): "neutral" | "success" | "warn" | "danger" {
+  const state = grantState(grant);
+  if (state === "Active") return "success";
+  if (state === "Expired") return "danger";
+  if (state === "Revoked") return "warn";
+  return "neutral";
+}
+
+function decisionTone(decision: string): "neutral" | "success" | "warn" | "danger" {
+  if (decision === "issued" || decision === "relayed") return "success";
+  if (decision === "blocked") return "warn";
+  if (decision === "error") return "danger";
+  return "neutral";
+}
+
+function friendlyBrokerMessage(raw: string | null | undefined): string {
+  const message = (raw ?? "").trim();
+  if (!message) return "The broker could not complete the request.";
+  if (message === "Invalid or expired OAuth state") return "The Miro session expired before the callback returned. Start the connection again.";
+  if (message === "Missing or expired Miro callback parameters") return "The Miro callback did not include a usable authorization result. Please try again.";
+  if (message === "Miro authorization was denied.") return "Miro authorization was cancelled before the broker could connect your account.";
+  if (message.includes("did not match expected email")) return "The signed-in Miro identity did not match the expected account. Retry with the correct Miro user.";
+  if (message.startsWith("miro_token_exchange_failed")) return "Miro accepted the login but the broker could not finish token exchange. Please retry.";
+  if (message.startsWith("miro_refresh_failed")) return "The broker could not refresh the stored Miro credentials. Reconnect the account.";
+  if (message.startsWith("token_context_")) return "The broker reached Miro but could not verify the token context. Retry once, then reconnect if needed.";
+  return message;
+}
+
 function usePathname() {
   const [route, setRoute] = useState<RouteMatch>(() => matchesRoute(window.location.pathname));
 
@@ -745,7 +787,14 @@ function AdminConnectionsPage() {
   const [users, setUsers] = useState<UserOut[]>([]);
   const [providerApps, setProviderApps] = useState<ProviderAppOut[]>([]);
   const [connections, setConnections] = useState<ConnectedAccountOut[]>([]);
+  const [probeResult, setProbeResult] = useState<ConnectionProbeResult | null>(null);
+  const [busyAction, setBusyAction] = useState("");
   const [pending, setPending] = useState(false);
+  const [filters, setFilters] = useState({
+    userEmail: "",
+    providerAppKey: "",
+    status: "",
+  });
   const [form, setForm] = useState<ConnectedAccountFormValues>({
     user_email: "",
     provider_app_key: "",
@@ -765,7 +814,7 @@ function AdminConnectionsPage() {
     const [userData, providerAppData, connectionData] = await Promise.all([
       api.adminUsers(session.csrfToken),
       api.providerApps(session.csrfToken),
-      api.connectedAccounts(session.csrfToken),
+      api.filteredConnectedAccounts(session.csrfToken, filters),
     ]);
     setUsers(userData);
     setProviderApps(providerAppData);
@@ -786,6 +835,26 @@ function AdminConnectionsPage() {
       }),
     );
   }, [notify, session]);
+
+  useEffect(() => {
+    if (session.status !== "authenticated") return;
+    void load().catch((error) =>
+      notify({
+        tone: "error",
+        title: "Failed to apply connection filters",
+        description: isApiError(error) ? error.message : "Unexpected connection filter error.",
+      }),
+    );
+  }, [filters, notify, session]);
+
+  const runAction = async (actionKey: string, action: () => Promise<void>) => {
+    setBusyAction(actionKey);
+    try {
+      await action();
+    } finally {
+      setBusyAction("");
+    }
+  };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -830,6 +899,38 @@ function AdminConnectionsPage() {
     }
   };
 
+  const handleRefresh = async (connectionId: string) => {
+    if (session.status !== "authenticated") return;
+    await runAction(`refresh:${connectionId}`, async () => {
+      await api.refreshConnection(session.csrfToken, connectionId);
+      notify({ tone: "success", title: "Connected account refreshed" });
+      await load();
+    });
+  };
+
+  const handleProbe = async (connectionId: string) => {
+    if (session.status !== "authenticated") return;
+    await runAction(`probe:${connectionId}`, async () => {
+      const result = await api.probeConnection(session.csrfToken, connectionId);
+      setProbeResult(result);
+      notify({
+        tone: result.ok ? "success" : "error",
+        title: result.ok ? "Connection probe succeeded" : "Connection probe failed",
+        description: result.ok ? "The broker could still reach the provider with the stored credentials." : friendlyBrokerMessage(result.message),
+      });
+      await load();
+    });
+  };
+
+  const handleRevoke = async (connectionId: string) => {
+    if (session.status !== "authenticated") return;
+    await runAction(`revoke:${connectionId}`, async () => {
+      await api.revokeConnection(session.csrfToken, connectionId);
+      notify({ tone: "info", title: "Connected account revoked" });
+      await load();
+    });
+  };
+
   const userById = useMemo(() => Object.fromEntries(users.map((user) => [user.id, user])), [users]);
   const appById = useMemo(() => Object.fromEntries(providerApps.map((app) => [app.id, app])), [providerApps]);
 
@@ -838,32 +939,88 @@ function AdminConnectionsPage() {
       <PageIntro
         eyebrow="Connections"
         title="Store and inspect delegated account state"
-        description="Manual connection bootstrap remains available for migration and operator workflows, while end users now get their own self-service workspace."
+        description="Manage connected accounts as an operator surface: filter the broker-held inventory, test live credentials, and fall back to manual bootstrap only when migration or recovery requires it."
       />
       <div className="two-column">
-        <Card title="Connected accounts" description="Current broker-held identities and their status.">
+        <Card title="Connected accounts" description="Current broker-held identities, filterable by user, provider app, and lifecycle state.">
+          <div className="filter-row">
+            <Field label="User">
+              <select value={filters.userEmail} onChange={(event) => setFilters((current) => ({ ...current, userEmail: event.target.value }))}>
+                <option value="">All users</option>
+                {users.map((user) => (
+                  <option key={user.id} value={user.email}>
+                    {user.email}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Provider app">
+              <select value={filters.providerAppKey} onChange={(event) => setFilters((current) => ({ ...current, providerAppKey: event.target.value }))}>
+                <option value="">All provider apps</option>
+                {providerApps.map((app) => (
+                  <option key={app.id} value={app.key}>
+                    {app.display_name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Status">
+              <select value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}>
+                <option value="">All states</option>
+                <option value="connected">Connected</option>
+                <option value="revoked">Revoked</option>
+              </select>
+            </Field>
+          </div>
           <DataTable
-            columns={["User", "Provider app", "External email", "Connected", "Status"]}
+            columns={["User", "Provider app", "Account", "Connected", "Status", "Last error", "Actions"]}
             rows={connections.map((connection) => [
               userById[connection.user_id]?.email ?? connection.user_id,
               appById[connection.provider_app_id]?.display_name ?? connection.provider_app_id,
-              connection.external_email ?? "Not set",
+              connection.display_name || connection.external_email || connection.external_account_ref || connection.id,
               formatDateTime(connection.connected_at),
               <StatusBadge
                 key={connection.id}
-                tone={connection.status === "connected" ? "success" : connection.status === "revoked" ? "warn" : "neutral"}
+                tone={connectionTone(connection)}
               >
-                {connection.status}
+                {connection.status === "connected" && connection.last_error ? "attention" : connection.status}
               </StatusBadge>,
+              connection.last_error ? friendlyBrokerMessage(connection.last_error) : "No recent error",
+              <div className="inline-actions" key={`${connection.id}-actions`}>
+                <button
+                  type="button"
+                  className="ghost-button"
+                  disabled={busyAction === `refresh:${connection.id}`}
+                  onClick={() => void handleRefresh(connection.id)}
+                >
+                  {busyAction === `refresh:${connection.id}` ? "Refreshing..." : "Refresh"}
+                </button>
+                <button
+                  type="button"
+                  className="ghost-button"
+                  disabled={busyAction === `probe:${connection.id}`}
+                  onClick={() => void handleProbe(connection.id)}
+                >
+                  {busyAction === `probe:${connection.id}` ? "Probing..." : "Probe"}
+                </button>
+                <button
+                  type="button"
+                  className="ghost-button"
+                  disabled={busyAction === `revoke:${connection.id}`}
+                  onClick={() => void handleRevoke(connection.id)}
+                >
+                  {busyAction === `revoke:${connection.id}` ? "Revoking..." : "Revoke"}
+                </button>
+              </div>,
             ])}
             emptyTitle="No connected accounts"
-            emptyBody="Use the manual bootstrap form to seed the first broker-held accounts."
+            emptyBody="Adjust the filters or use the fallback bootstrap form if you still need to seed a first broker-held account."
           />
         </Card>
-        <Card title="Manual connection bootstrap" description="Store provider tokens in the broker for migration or initial setup.">
+        <Card title="Manual connection bootstrap" description="Fallback path for migration and recovery when a self-service or refresh path is not available.">
           <InlineForm
             title="New connected account"
-            description="This path mirrors the current FastAPI admin endpoint and keeps refresh tokens inside the broker."
+            description="This stores provider token material in the broker directly. Prefer normal end-user connect whenever possible."
             onSubmit={handleSubmit}
           >
             <Field label="User email">
@@ -955,6 +1112,24 @@ function AdminConnectionsPage() {
           </InlineForm>
         </Card>
       </div>
+      {probeResult ? (
+        <Card title="Latest probe result" description="Operator-facing result from the most recent admin probe action.">
+          <div className="stack-list">
+            <div className="stack-cell">
+              <strong>Status</strong>
+              <span>{probeResult.ok ? "Healthy connection" : friendlyBrokerMessage(probeResult.message)}</span>
+            </div>
+            <div className="stack-cell">
+              <strong>Checked</strong>
+              <span>{formatDateTime(probeResult.checked_at)}</span>
+            </div>
+            <div className="stack-cell">
+              <strong>Resolved provider identity</strong>
+              <span>{probeResult.external_user_name || probeResult.external_user_id || "Not returned"}</span>
+            </div>
+          </div>
+        </Card>
+      ) : null}
     </>
   );
 }
@@ -1253,9 +1428,9 @@ function AdminDelegationPage() {
               `${formatDateTime(grant.expires_at)} (${relativeTime(grant.expires_at)})`,
               <StatusBadge
                 key={grant.id}
-                tone={grant.revoked_at ? "warn" : grant.is_enabled ? "success" : "neutral"}
+                tone={grantTone(grant)}
               >
-                {grant.revoked_at ? "Revoked" : grant.is_enabled ? "Active" : "Disabled"}
+                {grantState(grant)}
               </StatusBadge>,
               grant.revoked_at ? (
                 "Closed"
@@ -1383,17 +1558,41 @@ function AdminDelegationPage() {
 function AuditPage() {
   const { notify, session } = useAppContext();
   const [events, setEvents] = useState<AuditEventOut[]>([]);
+  const [users, setUsers] = useState<UserOut[]>([]);
+  const [providerApps, setProviderApps] = useState<ProviderAppOut[]>([]);
+  const [serviceClients, setServiceClients] = useState<ServiceClientOut[]>([]);
+  const [tokenIssues, setTokenIssues] = useState<TokenIssueEventOut[]>([]);
   const [limit, setLimit] = useState(200);
   const [actionFilter, setActionFilter] = useState("");
   const [actorFilter, setActorFilter] = useState("");
+  const [tokenIssueUserId, setTokenIssueUserId] = useState("");
+  const [tokenIssueServiceClientId, setTokenIssueServiceClientId] = useState("");
+  const [tokenIssueProviderAppId, setTokenIssueProviderAppId] = useState("");
+  const [tokenIssueDecision, setTokenIssueDecision] = useState("");
   const [loading, setLoading] = useState(true);
 
   const load = async (requestedLimit: number) => {
     if (session.status !== "authenticated") return;
     setLoading(true);
     try {
-      const data = await api.auditEvents(session.csrfToken, requestedLimit);
-      setEvents(data);
+      const [auditData, userData, providerAppData, serviceClientData, tokenIssueData] = await Promise.all([
+        api.auditEvents(session.csrfToken, requestedLimit),
+        api.adminUsers(session.csrfToken),
+        api.providerApps(session.csrfToken),
+        api.serviceClients(session.csrfToken),
+        api.adminTokenIssues(session.csrfToken, {
+          userId: tokenIssueUserId || undefined,
+          serviceClientId: tokenIssueServiceClientId || undefined,
+          providerAppId: tokenIssueProviderAppId || undefined,
+          decision: tokenIssueDecision || undefined,
+          limit: requestedLimit,
+        }),
+      ]);
+      setEvents(auditData);
+      setUsers(userData);
+      setProviderApps(providerAppData);
+      setServiceClients(serviceClientData);
+      setTokenIssues(tokenIssueData);
     } catch (error) {
       notify({
         tone: "error",
@@ -1407,7 +1606,7 @@ function AuditPage() {
 
   useEffect(() => {
     void load(limit);
-  }, [limit, notify, session]);
+  }, [limit, notify, session, tokenIssueDecision, tokenIssueProviderAppId, tokenIssueServiceClientId, tokenIssueUserId]);
 
   const filtered = events.filter((event) => {
     const actionMatches = actionFilter ? event.action.toLowerCase().includes(actionFilter.toLowerCase()) : true;
@@ -1445,6 +1644,71 @@ function AuditPage() {
             </select>
           </Field>
         </div>
+      </Card>
+      <Card title="Token issue diagnostics" description="Operator view of issued, blocked, and errored access decisions across the organization.">
+        <div className="filter-row">
+          <Field label="User">
+            <select value={tokenIssueUserId} onChange={(event) => setTokenIssueUserId(event.target.value)}>
+              <option value="">All users</option>
+              {users.map((user) => (
+                <option key={user.id} value={user.id}>
+                  {user.email}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Service client">
+            <select value={tokenIssueServiceClientId} onChange={(event) => setTokenIssueServiceClientId(event.target.value)}>
+              <option value="">All service clients</option>
+              {serviceClients.map((client) => (
+                <option key={client.id} value={client.id}>
+                  {client.display_name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Provider app">
+            <select value={tokenIssueProviderAppId} onChange={(event) => setTokenIssueProviderAppId(event.target.value)}>
+              <option value="">All provider apps</option>
+              {providerApps.map((app) => (
+                <option key={app.id} value={app.id}>
+                  {app.display_name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Decision">
+            <select value={tokenIssueDecision} onChange={(event) => setTokenIssueDecision(event.target.value)}>
+              <option value="">All decisions</option>
+              <option value="issued">Issued</option>
+              <option value="relayed">Relayed</option>
+              <option value="blocked">Blocked</option>
+              <option value="error">Error</option>
+            </select>
+          </Field>
+        </div>
+        {loading ? (
+          <LoadingScreen label="Loading token issue diagnostics..." />
+        ) : (
+          <DataTable
+            columns={["Time", "Service client", "Provider", "Connection", "Decision", "Scopes", "Metadata"]}
+            rows={tokenIssues.map((issue) => [
+              formatDateTime(issue.created_at),
+              issue.service_client_display_name ?? issue.service_client_id ?? "Unknown",
+              issue.provider_app_display_name ?? issue.provider_app_id ?? "Unknown",
+              issue.connected_account_display_name ?? issue.connected_account_id ?? "Auto-select",
+              <StatusBadge key={issue.id} tone={decisionTone(issue.decision)}>
+                {issue.reason ? `${issue.decision}: ${issue.reason}` : issue.decision}
+              </StatusBadge>,
+              issue.scopes.length ? issue.scopes.join(", ") : "Inherited",
+              <pre className="audit-metadata" key={`${issue.id}-metadata`}>
+                {JSON.stringify(issue.metadata, null, 2)}
+              </pre>,
+            ])}
+            emptyTitle="No token issue diagnostics"
+            emptyBody="Run a token issuance or relay flow to populate operator-facing diagnostics."
+          />
+        )}
       </Card>
       <Card title="Audit events" description="Events are recorded by the backend on state-changing operations.">
         {loading ? (
@@ -1530,7 +1794,7 @@ function WorkspacePage({ onNavigate }: { onNavigate: (path: string) => void }) {
       notify({
         tone: result.ok ? "success" : "error",
         title: result.ok ? "Connection probe succeeded" : "Connection probe failed",
-        description: result.ok ? "The broker could reach the provider with the stored credentials." : result.message ?? "Probe failed.",
+        description: result.ok ? "The broker could reach the provider with the stored credentials." : friendlyBrokerMessage(result.message),
       });
       await load();
     });
@@ -1598,20 +1862,20 @@ function WorkspacePage({ onNavigate }: { onNavigate: (path: string) => void }) {
       ) : null}
 
       <Card title="Your connections" description="Refresh keeps credentials current, probe checks connectivity, and revoke removes access from the broker.">
-        <DataTable
-          columns={["Provider", "Account", "Connected", "Status", "Last error", "Actions"]}
-          rows={connections.map((connection) => [
-            providerAppById[connection.provider_app_id]?.display_name ?? connection.provider_app_id,
-            connection.display_name || connection.external_email || connection.external_account_ref || connection.id,
-            formatDateTime(connection.connected_at),
-            <StatusBadge
-              key={connection.id}
-              tone={connection.status === "connected" ? "success" : connection.status === "revoked" ? "warn" : "neutral"}
-            >
-              {connection.status}
-            </StatusBadge>,
-            connection.last_error ?? "No recent error",
-            <div className="inline-actions" key={`${connection.id}-actions`}>
+          <DataTable
+            columns={["Provider", "Account", "Connected", "Status", "Last error", "Actions"]}
+            rows={connections.map((connection) => [
+              providerAppById[connection.provider_app_id]?.display_name ?? connection.provider_app_id,
+              connection.display_name || connection.external_email || connection.external_account_ref || connection.id,
+              formatDateTime(connection.connected_at),
+              <StatusBadge
+                key={connection.id}
+                tone={connectionTone(connection)}
+              >
+                {connection.status === "connected" && connection.last_error ? "attention" : connection.status}
+              </StatusBadge>,
+              connection.last_error ? friendlyBrokerMessage(connection.last_error) : "No recent error",
+              <div className="inline-actions" key={`${connection.id}-actions`}>
               <button
                 type="button"
                 className="ghost-button"
@@ -1688,7 +1952,7 @@ function ConnectMiroPage({ onNavigate }: { onNavigate: (path: string) => void })
       notify({
         tone: "error",
         title: "Could not start Miro connect",
-        description: isApiError(error) ? error.message : "Unexpected Miro connect error.",
+        description: isApiError(error) ? friendlyBrokerMessage(error.message) : "Unexpected Miro connect error.",
       });
     }
   };
@@ -1735,11 +1999,15 @@ function ConnectMiroPage({ onNavigate }: { onNavigate: (path: string) => void })
               </div>
               <div className="stack-cell">
                 <strong>Status</strong>
-                <span>{existingMiro.status}</span>
+                <span>{existingMiro.status === "connected" && existingMiro.last_error ? "Connected with attention needed" : existingMiro.status}</span>
               </div>
               <div className="stack-cell">
                 <strong>Connected</strong>
                 <span>{formatDateTime(existingMiro.connected_at)}</span>
+              </div>
+              <div className="stack-cell">
+                <strong>Last broker note</strong>
+                <span>{existingMiro.last_error ? friendlyBrokerMessage(existingMiro.last_error) : "No recent issue recorded"}</span>
               </div>
             </div>
           ) : (
@@ -1904,12 +2172,15 @@ function GrantsPage() {
       <div className="two-column">
         <Card title="Your grants" description="Only your own grants appear here, and you can revoke them whenever a downstream consumer should lose access.">
           <DataTable
-            columns={["Service client", "Provider", "Connection", "Modes", "Expires", "Policy", "Action"]}
+            columns={["Service client", "Provider", "Connection", "Modes", "State", "Expires", "Policy", "Action"]}
             rows={grants.map((grant) => [
               grant.service_client_display_name,
               grant.provider_app_display_name,
               grant.connected_account_display_name ?? "Auto-select at issue time",
               grant.allowed_access_modes.join(", "),
+              <StatusBadge key={`${grant.id}-state`} tone={grantTone(grant)}>
+                {grantState(grant)}
+              </StatusBadge>,
               `${formatDateTime(grant.expires_at)} (${relativeTime(grant.expires_at)})`,
               <div className="stack-cell" key={`${grant.id}-policy`}>
                 <strong>Scopes</strong>
@@ -2037,6 +2308,7 @@ function TokenAccessPage() {
   const [probeResult, setProbeResult] = useState<ConnectionProbeResult | null>(null);
   const [serviceClientFilter, setServiceClientFilter] = useState("");
   const [grantFilter, setGrantFilter] = useState("");
+  const [decisionFilter, setDecisionFilter] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -2072,6 +2344,8 @@ function TokenAccessPage() {
     void load();
   }, [notify, session, serviceClientFilter, grantFilter]);
 
+  const filteredIssues = issues.filter((issue) => (decisionFilter ? issue.decision === decisionFilter : true));
+
   const runProbe = async () => {
     if (session.status !== "authenticated" || !probeConnectionId) return;
     setProbePending(true);
@@ -2081,7 +2355,7 @@ function TokenAccessPage() {
       notify({
         tone: result.ok ? "success" : "error",
         title: result.ok ? "Probe successful" : "Probe failed",
-        description: result.ok ? "The broker could reach the provider using the stored connection." : result.message ?? "Probe failed.",
+        description: result.ok ? "The broker could reach the provider using the stored connection." : friendlyBrokerMessage(result.message),
       });
       await load();
     } catch (error) {
@@ -2135,6 +2409,15 @@ function TokenAccessPage() {
                 ))}
               </select>
             </Field>
+            <Field label="Decision">
+              <select value={decisionFilter} onChange={(event) => setDecisionFilter(event.target.value)}>
+                <option value="">All decisions</option>
+                <option value="issued">Issued</option>
+                <option value="relayed">Relayed</option>
+                <option value="blocked">Blocked</option>
+                <option value="error">Error</option>
+              </select>
+            </Field>
           </div>
         </Card>
 
@@ -2158,7 +2441,7 @@ function TokenAccessPage() {
               <div className="stack-list">
                 <div className="stack-cell">
                   <strong>Status</strong>
-                  <span>{probeResult.ok ? "Healthy connection" : probeResult.message ?? "Probe failed"}</span>
+                  <span>{probeResult.ok ? "Healthy connection" : friendlyBrokerMessage(probeResult.message)}</span>
                 </div>
                 <div className="stack-cell">
                   <strong>Checked</strong>
@@ -2177,13 +2460,13 @@ function TokenAccessPage() {
       <Card title="Token issue history" description="Read-only audit trail of broker token issuance decisions for your own grants.">
         <DataTable
           columns={["Time", "Service client", "Grant", "Provider", "Decision", "Scopes", "Metadata"]}
-          rows={issues.map((issue) => [
+          rows={filteredIssues.map((issue) => [
             formatDateTime(issue.created_at),
             issue.service_client_display_name ?? issue.service_client_id ?? "Unknown",
             issue.delegation_grant_id ?? "Unknown",
             issue.provider_app_display_name ?? issue.provider_app_id ?? "Unknown",
-            <StatusBadge key={issue.id} tone={issue.decision === "issued" ? "success" : "warn"}>
-              {issue.reason ? `${issue.decision}: ${issue.reason}` : issue.decision}
+            <StatusBadge key={issue.id} tone={decisionTone(issue.decision)}>
+              {issue.reason ? `${issue.decision}: ${friendlyBrokerMessage(issue.reason)}` : issue.decision}
             </StatusBadge>,
             issue.scopes.length ? issue.scopes.join(", ") : "Inherited",
             <pre className="audit-metadata" key={`${issue.id}-metadata`}>
@@ -2229,6 +2512,7 @@ function AuthenticatedApp() {
     const miroStatus = params.get("miro_status");
     const message = params.get("message");
     const connectedAccountId = params.get("connected_account_id");
+    const friendlyMessage = friendlyBrokerMessage(message);
 
     if (loginStatus === "success") {
       notify({
@@ -2242,7 +2526,7 @@ function AuthenticatedApp() {
       notify({
         tone: "error",
         title: "Microsoft sign-in failed",
-        description: message ?? "The Microsoft callback could not complete.",
+        description: friendlyMessage,
       });
     }
 
@@ -2258,7 +2542,7 @@ function AuthenticatedApp() {
       notify({
         tone: "error",
         title: "Miro connect failed",
-        description: message ?? "The provider callback could not complete.",
+        description: friendlyMessage,
       });
     }
 

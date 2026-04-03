@@ -7,7 +7,7 @@ from starlette.responses import RedirectResponse
 from urllib.parse import quote
 
 from app.database import get_db
-from app.deps import authenticate_service, get_current_user, record_audit, require_csrf
+from app.deps import diagnose_service_access, get_current_user, record_audit, record_service_access_decision, require_csrf
 from app.miro import fetch_miro_token_context, finalize_miro_callback, get_miro_provider_app, refresh_connected_account, relay_miro_request, start_miro_connection
 from app.models import AccessMode, ConnectedAccount, ProviderApp, TokenMaterial, User
 from app.schemas import ConnectedAccountOut, ConnectionProbeResponse, MiroConnectStartRequest, MiroConnectStartResponse, ProviderAppOut
@@ -68,15 +68,32 @@ async def start_miro(
 
 
 @router.get("/connections/miro/callback")
-async def miro_callback(code: str, state: str, db: Session = Depends(get_db)):
+async def miro_callback(
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+    error_description: str | None = None,
+    db: Session = Depends(get_db),
+):
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    if error:
+        message = "Miro authorization was denied." if error == "access_denied" else (error_description or "Miro returned an authorization error.")
+        return RedirectResponse(
+            url=f"{settings.frontend_base_url.rstrip('/')}/connect/miro?miro_status=error&message={quote(message)}",
+            status_code=302,
+        )
+    if not code or not state:
+        return RedirectResponse(
+            url=f"{settings.frontend_base_url.rstrip('/')}/connect/miro?miro_status=error&message={quote('Missing or expired Miro callback parameters')}",
+            status_code=302,
+        )
     try:
         return await finalize_miro_callback(db, state, code)
     except HTTPException as exc:
-        from app.core.config import get_settings
-
-        settings = get_settings()
         return RedirectResponse(
-            url=f"{settings.frontend_base_url.rstrip('/')}/workspace?miro_status=error&message={quote(str(exc.detail))}",
+            url=f"{settings.frontend_base_url.rstrip('/')}/connect/miro?miro_status=error&message={quote(str(exc.detail))}",
             status_code=302,
         )
 
@@ -222,7 +239,7 @@ async def broker_proxy_miro(
     if not provider_app or provider_app.key != "miro-default":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Connected account is not a Miro connection")
 
-    service_client, grant, _, _, _ = authenticate_service(
+    auth_context, auth_error = diagnose_service_access(
         db=db,
         provider_app_key=provider_app.key,
         delegated_credential=x_delegated_credential,
@@ -231,13 +248,77 @@ async def broker_proxy_miro(
         required_mode=AccessMode.RELAY.value,
         connected_account_id=connected_account.id,
     )
+    if auth_error:
+        event = record_service_access_decision(
+            db,
+            auth_context=auth_context,
+            provider_app_key=provider_app.key,
+            requested_scopes=[],
+            decision="blocked",
+            reason=str(auth_error.detail),
+            metadata={"required_mode": AccessMode.RELAY.value, "channel": "miro_proxy"},
+        )
+        if event and auth_context.service_client:
+            record_audit(
+                db,
+                action="service.miro.relay.blocked",
+                actor_type="service_client",
+                actor_id=auth_context.service_client.id,
+                organization_id=event.organization_id,
+                metadata={"token_issue_event_id": event.id, "reason": str(auth_error.detail)},
+            )
+            db.commit()
+        raise auth_error
+
+    try:
+        response = await relay_miro_request(db, connected_account, request)
+    except HTTPException as exc:
+        event = record_service_access_decision(
+            db,
+            auth_context=auth_context,
+            provider_app_key=provider_app.key,
+            requested_scopes=[],
+            decision="error",
+            reason=str(exc.detail),
+            metadata={"required_mode": AccessMode.RELAY.value, "channel": "miro_proxy"},
+        )
+        if event:
+            record_audit(
+                db,
+                action="service.miro.relay.error",
+                actor_type="service_client",
+                actor_id=auth_context.service_client.id,
+                organization_id=event.organization_id,
+                metadata={
+                    "grant_id": auth_context.grant.id,
+                    "connected_account_id": connected_account.id,
+                    "token_issue_event_id": event.id,
+                },
+            )
+            db.commit()
+        raise
+
+    event = record_service_access_decision(
+        db,
+        auth_context=auth_context,
+        provider_app_key=provider_app.key,
+        requested_scopes=[],
+        decision="relayed" if response.status_code < 400 else "error",
+        reason=None if response.status_code < 400 else f"miro_upstream_{response.status_code}",
+        metadata={"required_mode": AccessMode.RELAY.value, "channel": "miro_proxy", "upstream_status": response.status_code},
+    )
     record_audit(
         db,
         action="service.miro.relay",
         actor_type="service_client",
-        actor_id=service_client.id,
-        organization_id=grant.organization_id,
-        metadata={"grant_id": grant.id, "connected_account_id": connected_account.id},
+        actor_id=auth_context.service_client.id,
+        organization_id=auth_context.grant.organization_id,
+        metadata={
+            "grant_id": auth_context.grant.id,
+            "connected_account_id": connected_account.id,
+            "token_issue_event_id": event.id if event else None,
+            "upstream_status": response.status_code,
+        },
     )
     db.commit()
-    return await relay_miro_request(db, connected_account, request)
+    return response

@@ -35,9 +35,10 @@ Follow these repo-specific conventions and commands first.
 
 - Build + run in background: `docker compose up -d --build`
 - Run in foreground: `docker compose up --build`
+- Optional pre-generation of the dev certificate: `./scripts/generate-dev-cert.sh`
 - Stop stack: `docker compose down`
 - Rebuild image only: `docker compose build`
-- Tail logs: `docker compose logs -f miro-mcp-relay`
+- Tail logs: `docker compose logs -f haproxy broker-frontend broker-backend miro-mcp-relay`
 
 ## Build / Lint / Test Status
 
@@ -51,9 +52,11 @@ Follow these repo-specific conventions and commands first.
 
 - Syntax check: `node --check src/index.js`
 - Run service smoke test after start:
-  - `curl -sS http://localhost:8787/healthz`
-  - `curl -sS http://localhost:8787/readyz`
-- Root endpoint check: `curl -sS http://localhost:8787/`
+  - `curl -sS http://localhost/api/v1/health`
+  - `curl -sS http://localhost/healthz`
+  - `curl -sS http://localhost/readyz`
+- Root endpoint check: `curl -sS http://localhost/`
+- HTTPS dev smoke test: `curl -k -sS https://localhost/api/v1/health`
 
 ## Testing Guidance (Especially Single Test)
 
@@ -70,12 +73,14 @@ If a test framework is introduced later, mirror the framework-native single-test
 ## Environment and Config Conventions
 
 - Copy `.env.example` to `.env` for local runs.
-- `BASE_URL` must be host(+port) only, without `/miro` suffix.
+- `BROKER_PUBLIC_BASE_URL` and `FRONTEND_BASE_URL` should point at the externally visible broker origin, without an extra path suffix.
+- `CORS_ORIGINS` should normally match the public frontend origin exposed by the proxy or load balancer.
+- `SESSION_SECURE_COOKIE=true` is appropriate whenever the browser-facing origin is HTTPS, even if TLS is terminated before the app-local HAProxy.
 - Treat secrets as sensitive:
   - `MIRO_RELAY_API_KEY`
   - `MIRO_RELAY_ADMIN_KEY`
   - `MIRO_ADMIN_PASSWORD`
-- Persisted runtime data is under `DATA_DIR` (default `/app/data` in container).
+- Persisted runtime data is under `DATA_DIR` (default `/app/data` in container); the legacy relay `BASE_URL` is injected from `BROKER_PUBLIC_BASE_URL` by Docker Compose.
 
 ## Code Style and Structure
 

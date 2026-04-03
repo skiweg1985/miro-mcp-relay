@@ -66,14 +66,15 @@ export function classNames(...tokens: Array<string | false | null | undefined>):
 }
 
 export function matchesRoute(pathname: string): RouteMatch {
-  if (pathname === "/login") return { name: "login", path: "/login" };
-  if (pathname === "/app" || pathname === "/") return { name: "dashboard", path: "/app" };
+  if (pathname === "/" || pathname === "/login") return { name: "login", path: "/login" };
+  if (pathname === "/app") return { name: "dashboard", path: "/app" };
   if (pathname === "/app/providers") return { name: "providers", path: "/app/providers" };
   if (pathname === "/app/connections") return { name: "connections", path: "/app/connections" };
   if (pathname === "/app/service-clients") return { name: "serviceClients", path: "/app/service-clients" };
   if (pathname === "/app/delegation") return { name: "delegation", path: "/app/delegation" };
   if (pathname === "/app/audit") return { name: "audit", path: "/app/audit" };
   if (pathname === "/workspace") return { name: "workspace", path: "/workspace" };
+  if (pathname === "/grants") return { name: "grants", path: "/grants" };
   if (pathname === "/token-access") return { name: "tokenAccess", path: "/token-access" };
   if (pathname.startsWith("/connect/")) {
     const providerKey = pathname.slice("/connect/".length).trim();

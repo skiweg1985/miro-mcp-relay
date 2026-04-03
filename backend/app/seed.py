@@ -12,6 +12,8 @@ from app.security import dumps_json, encrypt_text, hash_secret
 def init_db() -> None:
     Base.metadata.create_all(bind=engine)
     settings = get_settings()
+    microsoft_authority = f"{settings.microsoft_broker_authority_base.rstrip('/')}/{settings.microsoft_broker_tenant_id.strip('/')}"
+    microsoft_redirect_uri = f"{settings.broker_public_base_url.rstrip('/')}{settings.api_v1_prefix}/auth/microsoft/callback"
     with Session(engine) as db:
         org = db.scalar(select(Organization).where(Organization.slug == settings.default_org_slug))
         if not org:
@@ -81,6 +83,9 @@ def init_db() -> None:
             key="microsoft-broker-auth",
             display_name="Microsoft Broker Login",
             role=ProviderRole.BROKER_AUTH.value,
+            issuer=f"{microsoft_authority}/v2.0",
+            authorization_endpoint=f"{microsoft_authority}/oauth2/v2.0/authorize",
+            token_endpoint=f"{microsoft_authority}/oauth2/v2.0/token",
         )
         _ensure_provider_app(
             db,
@@ -93,6 +98,9 @@ def init_db() -> None:
             allow_direct_token_return=False,
             default_scopes=["openid", "profile", "email"],
             scope_ceiling=["openid", "profile", "email"],
+            client_id=settings.microsoft_broker_client_id or None,
+            client_secret=settings.microsoft_broker_client_secret or None,
+            redirect_uris=[microsoft_redirect_uri] if settings.microsoft_broker_client_id else None,
         )
 
         microsoft_graph = _ensure_provider_instance(
@@ -152,6 +160,14 @@ def _ensure_provider_instance(
 ) -> ProviderInstance:
     provider_instance = db.scalar(select(ProviderInstance).where(ProviderInstance.organization_id == organization_id, ProviderInstance.key == key))
     if provider_instance:
+        if issuer:
+            provider_instance.issuer = issuer
+        if authorization_endpoint:
+            provider_instance.authorization_endpoint = authorization_endpoint
+        if token_endpoint:
+            provider_instance.token_endpoint = token_endpoint
+        if userinfo_endpoint:
+            provider_instance.userinfo_endpoint = userinfo_endpoint
         return provider_instance
     provider_instance = ProviderInstance(
         organization_id=organization_id,
@@ -182,17 +198,27 @@ def _ensure_provider_app(
     default_scopes: list[str],
     scope_ceiling: list[str],
     relay_protocol: str | None = None,
+    client_id: str | None = None,
+    client_secret: str | None = None,
+    redirect_uris: list[str] | None = None,
 ) -> ProviderApp:
     provider_app = db.scalar(select(ProviderApp).where(ProviderApp.organization_id == organization_id, ProviderApp.key == key))
     if provider_app:
+        if client_id:
+            provider_app.client_id = client_id
+        if client_secret:
+            provider_app.encrypted_client_secret = encrypt_text(client_secret)
+        if redirect_uris:
+            provider_app.redirect_uris_json = dumps_json(redirect_uris)
         return provider_app
     provider_app = ProviderApp(
         organization_id=organization_id,
         provider_instance_id=provider_instance_id,
         key=key,
         display_name=display_name,
-        encrypted_client_secret=encrypt_text(None),
-        redirect_uris_json=dumps_json([]),
+        client_id=client_id,
+        encrypted_client_secret=encrypt_text(client_secret),
+        redirect_uris_json=dumps_json(redirect_uris or []),
         default_scopes_json=dumps_json(default_scopes),
         scope_ceiling_json=dumps_json(scope_ceiling),
         access_mode=access_mode,

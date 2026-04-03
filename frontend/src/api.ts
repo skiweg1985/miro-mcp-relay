@@ -1,6 +1,8 @@
 import type {
   ApiError,
   AuditEventOut,
+  AuthFlowStartResponse,
+  ConnectionProbeResult,
   ConnectedAccountOut,
   DelegationGrantCreateResult,
   DelegationGrantOut,
@@ -8,10 +10,14 @@ import type {
   ProviderAppOut,
   ProviderDefinitionOut,
   ProviderInstanceOut,
+  SelfServiceDelegationGrantCreateResult,
+  SelfServiceDelegationGrantOut,
   ServiceClientCreateResult,
   ServiceClientOut,
   SessionResponse,
+  TokenIssueEventOut,
   UserOut,
+  VisibleServiceClientOut,
 } from "./types";
 
 type HttpMethod = "GET" | "POST";
@@ -71,6 +77,11 @@ export const api = {
   health() {
     return request<Health>("/api/v1/health");
   },
+  startMicrosoftLogin() {
+    return request<AuthFlowStartResponse>("/api/v1/auth/microsoft/start", {
+      method: "POST",
+    });
+  },
   login(email: string, password: string) {
     return request<SessionResponse>("/api/v1/auth/login", {
       method: "POST",
@@ -88,6 +99,73 @@ export const api = {
   },
   providerDefinitions() {
     return request<ProviderDefinitionOut[]>("/api/v1/provider-definitions");
+  },
+  providerAppsForUser() {
+    return request<ProviderAppOut[]>("/api/v1/provider-apps");
+  },
+  myConnections() {
+    return request<ConnectedAccountOut[]>("/api/v1/connections");
+  },
+  startMiroConnection(csrfToken: string, body: unknown = {}) {
+    return request<{ ok: boolean; auth_url: string; state: string }>("/api/v1/connections/miro/start", {
+      method: "POST",
+      csrfToken,
+      body,
+    });
+  },
+  refreshConnection(csrfToken: string, connectionId: string) {
+    return request<ConnectedAccountOut>(`/api/v1/connections/${connectionId}/refresh`, {
+      method: "POST",
+      csrfToken,
+    });
+  },
+  revokeConnection(csrfToken: string, connectionId: string) {
+    return request<ConnectedAccountOut>(`/api/v1/connections/${connectionId}/revoke`, {
+      method: "POST",
+      csrfToken,
+    });
+  },
+  probeConnection(csrfToken: string, connectionId: string) {
+    return request<ConnectionProbeResult>(`/api/v1/connections/${connectionId}/probe`, {
+      method: "POST",
+      csrfToken,
+    });
+  },
+  visibleServiceClients() {
+    return request<VisibleServiceClientOut[]>("/api/v1/service-clients");
+  },
+  myDelegationGrants() {
+    return request<SelfServiceDelegationGrantOut[]>("/api/v1/delegation-grants");
+  },
+  createMyDelegationGrant(csrfToken: string, body: unknown) {
+    return request<SelfServiceDelegationGrantCreateResult>("/api/v1/delegation-grants", {
+      method: "POST",
+      csrfToken,
+      body,
+    });
+  },
+  revokeMyDelegationGrant(csrfToken: string, grantId: string) {
+    return request<SelfServiceDelegationGrantOut>(`/api/v1/delegation-grants/${grantId}/revoke`, {
+      method: "POST",
+      csrfToken,
+    });
+  },
+  myTokenIssues(
+    params: {
+      serviceClientId?: string;
+      delegationGrantId?: string;
+      fromTime?: string;
+      toTime?: string;
+      limit?: number;
+    } = {},
+  ) {
+    const search = new URLSearchParams();
+    if (params.serviceClientId) search.set("service_client_id", params.serviceClientId);
+    if (params.delegationGrantId) search.set("delegation_grant_id", params.delegationGrantId);
+    if (params.fromTime) search.set("from_time", params.fromTime);
+    if (params.toTime) search.set("to_time", params.toTime);
+    search.set("limit", String(params.limit ?? 100));
+    return request<TokenIssueEventOut[]>(`/api/v1/token-issues?${search.toString()}`);
   },
   adminUsers(csrfToken: string) {
     return request<UserOut[]>("/api/v1/admin/users", { csrfToken });

@@ -3,7 +3,6 @@ import { startTransition, useEffect, useMemo, useState, type FormEvent, type Rea
 import { AppProvider, useAppContext } from "./app-context";
 import { api } from "./api";
 import {
-  CapabilityGate,
   Card,
   DataTable,
   EmptyState,
@@ -21,6 +20,7 @@ import type {
   AuditEventOut,
   ConnectedAccountFormValues,
   ConnectedAccountOut,
+  ConnectionProbeResult,
   DelegationGrantCreateResult,
   DelegationGrantFormValues,
   DelegationGrantOut,
@@ -31,10 +31,15 @@ import type {
   ProviderInstanceFormValues,
   ProviderInstanceOut,
   RouteMatch,
+  SelfServiceDelegationGrantCreateResult,
+  SelfServiceDelegationGrantFormValues,
+  SelfServiceDelegationGrantOut,
   ServiceClientCreateResult,
   ServiceClientFormValues,
   ServiceClientOut,
+  TokenIssueEventOut,
   UserOut,
+  VisibleServiceClientOut,
 } from "./types";
 import {
   formatDateTime,
@@ -95,18 +100,19 @@ function NavLink({
   );
 }
 
-function LoginPage({ onSuccess }: { onSuccess: () => void }) {
-  const { capabilities, login, notify } = useAppContext();
+function LoginPage({ onSuccess }: { onSuccess: (path: string) => void }) {
+  const { login, notify } = useAppContext();
   const [email, setEmail] = useState("admin@example.com");
   const [password, setPassword] = useState("change-me-admin-password");
   const [pending, setPending] = useState(false);
+  const [microsoftPending, setMicrosoftPending] = useState(false);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setPending(true);
     try {
       await login(email, password);
-      onSuccess();
+      onSuccess("/app");
     } catch (error) {
       notify({
         tone: "error",
@@ -118,30 +124,62 @@ function LoginPage({ onSuccess }: { onSuccess: () => void }) {
     }
   };
 
+  const handleMicrosoftLogin = async () => {
+    setMicrosoftPending(true);
+    try {
+      const result = await api.startMicrosoftLogin();
+      window.location.assign(result.auth_url);
+    } catch (error) {
+      setMicrosoftPending(false);
+      notify({
+        tone: "error",
+        title: "Microsoft sign-in unavailable",
+        description: isApiError(error) ? error.message : "Unexpected Microsoft login error.",
+      });
+    }
+  };
+
   return (
     <main className="login-layout">
       <section className="hero-card login-hero">
-        <p className="eyebrow">Broker Platform</p>
-        <h1>Admin-first control plane for provider access, delegation, and future end-user onboarding.</h1>
+        <p className="eyebrow">OAuth Broker</p>
+        <h1>End-user workspace for brokered connections, grants, and access diagnostics.</h1>
         <p className="lede">
-          The new broker UI is now the central shell for operating provider apps, connected accounts,
-          service clients, and delegation grants. User-facing journeys are already reserved in the
-          information architecture and will light up as FastAPI capabilities land.
+          Users sign in with Microsoft, connect Miro, create their own delegated credentials for approved service
+          clients, and inspect token access without ever seeing raw secrets.
         </p>
         <div className="hero-chip-row">
-          <StatusBadge tone="success">FastAPI-backed admin surfaces</StatusBadge>
-          <StatusBadge tone={capabilities.microsoftBrokerAuth ? "success" : "warn"}>
-            Microsoft broker login {capabilities.microsoftBrokerAuth ? "enabled" : "planned"}
-          </StatusBadge>
-          <StatusBadge tone={capabilities.providerOAuthConnect ? "success" : "warn"}>
-            Provider connect {capabilities.providerOAuthConnect ? "enabled" : "planned"}
-          </StatusBadge>
+          <StatusBadge tone="success">Microsoft user login</StatusBadge>
+          <StatusBadge tone="success">Miro self-service connect</StatusBadge>
+          <StatusBadge tone="success">Grant and probe workflows</StatusBadge>
         </div>
       </section>
 
       <section className="login-panel">
         <div className="auth-card-list">
-          <Card title="Local admin login" description="Use the seeded broker admin to operate the platform today.">
+          <Card
+            title="User sign-in"
+            description="Primary end-user entry point. The backend creates or links your broker account on the Microsoft callback."
+          >
+            <div className="stack-form">
+              <p className="lede">
+                Use your Microsoft identity to enter the workspace, manage your own provider connections, and create
+                grants for approved broker consumers.
+              </p>
+              <div className="inline-actions">
+                <button
+                  type="button"
+                  className="primary-button"
+                  disabled={microsoftPending}
+                  onClick={() => void handleMicrosoftLogin()}
+                >
+                  {microsoftPending ? "Redirecting..." : "Continue with Microsoft"}
+                </button>
+              </div>
+            </div>
+          </Card>
+
+          <Card title="Admin local login" description="Operator-only path for the control deck and platform governance.">
             <form className="stack-form" onSubmit={handleSubmit}>
               <div className="form-grid">
                 <Field label="Email">
@@ -156,18 +194,8 @@ function LoginPage({ onSuccess }: { onSuccess: () => void }) {
                   />
                 </Field>
               </div>
-              <FormActions pending={pending} submitLabel="Sign in" />
+              <FormActions pending={pending} submitLabel="Sign in as admin" />
             </form>
-          </Card>
-
-          <Card
-            title="Microsoft broker login"
-            description="Route shape and capability model are reserved, but the backend flow is not active yet."
-          >
-            <CapabilityGate
-              title="Broker auth is planned"
-              body="The UI is already structured for a second login provider, but the FastAPI auth initiation and callback endpoints still need to be implemented."
-            />
           </Card>
         </div>
       </section>
@@ -177,30 +205,42 @@ function LoginPage({ onSuccess }: { onSuccess: () => void }) {
 
 function Shell({
   currentPath,
+  navItems,
   onNavigate,
   children,
+  kicker,
+  title,
+  subtitle,
 }: {
   currentPath: string;
+  navItems: Array<{ href: string; label: string }>;
   onNavigate: (path: string) => void;
   children: ReactNode;
+  kicker: string;
+  title: string;
+  subtitle: string;
 }) {
   const { logout, session } = useAppContext();
+
   return (
     <div className="app-frame">
       <aside className="sidebar">
         <div className="brand-mark">
-          <span className="brand-kicker">OAuth Broker</span>
-          <strong>Control deck</strong>
-          <small>Admin-first orchestration</small>
+          <span className="brand-kicker">{kicker}</span>
+          <strong>{title}</strong>
+          <small>{subtitle}</small>
         </div>
 
         <nav className="sidebar-nav">
-          <NavLink currentPath={currentPath} href="/app" label="Overview" onNavigate={onNavigate} />
-          <NavLink currentPath={currentPath} href="/app/providers" label="Providers" onNavigate={onNavigate} />
-          <NavLink currentPath={currentPath} href="/app/connections" label="Connections" onNavigate={onNavigate} />
-          <NavLink currentPath={currentPath} href="/app/service-clients" label="Service clients" onNavigate={onNavigate} />
-          <NavLink currentPath={currentPath} href="/app/delegation" label="Delegation" onNavigate={onNavigate} />
-          <NavLink currentPath={currentPath} href="/app/audit" label="Audit" onNavigate={onNavigate} />
+          {navItems.map((item) => (
+            <NavLink
+              key={item.href}
+              currentPath={currentPath}
+              href={item.href}
+              label={item.label}
+              onNavigate={onNavigate}
+            />
+          ))}
         </nav>
 
         <div className="sidebar-foot">
@@ -217,6 +257,16 @@ function Shell({
 
       <main className="page-shell">{children}</main>
     </div>
+  );
+}
+
+function MetricCard({ label, value, caption }: { label: string; value: string; caption: string }) {
+  return (
+    <article className="metric-card">
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>{caption}</small>
+    </article>
   );
 }
 
@@ -266,7 +316,7 @@ function DashboardPage() {
       <PageIntro
         eyebrow="Overview"
         title="Operate the broker from one place"
-        description="Track the current platform footprint, then dive into providers, connections, service clients, delegation grants, and audit events without leaving the new shell."
+        description="Track the current platform footprint, then dive into providers, connections, service clients, delegation grants, and audit events without leaving the control deck."
       />
       <div className="metric-grid">
         <MetricCard label="Backend status" value={health?.ok ? "Online" : "Unavailable"} caption={health?.service ?? "Health unknown"} />
@@ -292,16 +342,6 @@ function DashboardPage() {
         />
       </Card>
     </>
-  );
-}
-
-function MetricCard({ label, value, caption }: { label: string; value: string; caption: string }) {
-  return (
-    <article className="metric-card">
-      <span>{label}</span>
-      <strong>{value}</strong>
-      <small>{caption}</small>
-    </article>
   );
 }
 
@@ -446,10 +486,6 @@ function ProvidersPage() {
     }
   };
 
-  const definitionLabel = useMemo(
-    () => Object.fromEntries(definitions.map((definition) => [definition.key, definition.display_name])),
-    [definitions],
-  );
   const instanceLabelById = useMemo(
     () => Object.fromEntries(instances.map((instance) => [instance.id, instance.display_name])),
     [instances],
@@ -704,7 +740,7 @@ function ProvidersPage() {
   );
 }
 
-function ConnectionsPage() {
+function AdminConnectionsPage() {
   const { notify, session } = useAppContext();
   const [users, setUsers] = useState<UserOut[]>([]);
   const [providerApps, setProviderApps] = useState<ProviderAppOut[]>([]);
@@ -802,7 +838,7 @@ function ConnectionsPage() {
       <PageIntro
         eyebrow="Connections"
         title="Store and inspect delegated account state"
-        description="Today the new backend supports manual connection creation for migration and bootstrap. The UI keeps that flow usable and ready for later OAuth-based onboarding."
+        description="Manual connection bootstrap remains available for migration and operator workflows, while end users now get their own self-service workspace."
       />
       <div className="two-column">
         <Card title="Connected accounts" description="Current broker-held identities and their status.">
@@ -1066,7 +1102,7 @@ function ServiceClientsPage() {
   );
 }
 
-function DelegationPage() {
+function AdminDelegationPage() {
   const { notify, session } = useAppContext();
   const [users, setUsers] = useState<UserOut[]>([]);
   const [providerApps, setProviderApps] = useState<ProviderAppOut[]>([]);
@@ -1196,7 +1232,7 @@ function DelegationPage() {
       <PageIntro
         eyebrow="Delegation"
         title="Issue constrained delegated credentials"
-        description="Create broker-side grants that bind a user, provider app, service client, optional connection, and access-mode/scope policy into one operator-managed artifact."
+        description="Create broker-side grants that bind a user, provider app, service client, optional connection, and access-mode or scope policy into one operator-managed artifact."
       />
       {createdResult ? (
         <SecretPanel
@@ -1237,7 +1273,7 @@ function DelegationPage() {
         <Card title="Create delegation grant" description="Bind a service to a provider app and access policy on behalf of a user.">
           <InlineForm
             title="New delegation grant"
-            description="The current backend supports direct-token delegation policy today; user-facing setup flows can attach later."
+            description="The user-facing workspace now owns self-service grants; this admin path remains available for operator setup and bootstrap."
             onSubmit={handleSubmit}
           >
             <Field label="User email">
@@ -1433,36 +1469,746 @@ function AuditPage() {
   );
 }
 
-function FuturePage({
-  title,
-  body,
-  action,
-}: {
-  title: string;
-  body: string;
-  action?: ReactNode;
-}) {
+function WorkspacePage({ onNavigate }: { onNavigate: (path: string) => void }) {
+  const { notify, session } = useAppContext();
+  const [providerApps, setProviderApps] = useState<ProviderAppOut[]>([]);
+  const [connections, setConnections] = useState<ConnectedAccountOut[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [probeResult, setProbeResult] = useState<ConnectionProbeResult | null>(null);
+  const [busyAction, setBusyAction] = useState("");
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [providerAppData, connectionData] = await Promise.all([api.providerAppsForUser(), api.myConnections()]);
+      setProviderApps(providerAppData);
+      setConnections(connectionData);
+    } catch (error) {
+      notify({
+        tone: "error",
+        title: "Failed to load workspace",
+        description: isApiError(error) ? error.message : "Unexpected workspace loading error.",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (session.status !== "authenticated") return;
+    void load();
+  }, [notify, session]);
+
+  const providerAppById = useMemo(
+    () => Object.fromEntries(providerApps.map((app) => [app.id, app])),
+    [providerApps],
+  );
+
+  const runAction = async (actionKey: string, fn: () => Promise<void>) => {
+    setBusyAction(actionKey);
+    try {
+      await fn();
+    } finally {
+      setBusyAction("");
+    }
+  };
+
+  const handleRefresh = async (connectionId: string) => {
+    if (session.status !== "authenticated") return;
+    await runAction(`refresh:${connectionId}`, async () => {
+      await api.refreshConnection(session.csrfToken, connectionId);
+      notify({ tone: "success", title: "Connection refreshed" });
+      await load();
+    });
+  };
+
+  const handleProbe = async (connectionId: string) => {
+    if (session.status !== "authenticated") return;
+    await runAction(`probe:${connectionId}`, async () => {
+      const result = await api.probeConnection(session.csrfToken, connectionId);
+      setProbeResult(result);
+      notify({
+        tone: result.ok ? "success" : "error",
+        title: result.ok ? "Connection probe succeeded" : "Connection probe failed",
+        description: result.ok ? "The broker could reach the provider with the stored credentials." : result.message ?? "Probe failed.",
+      });
+      await load();
+    });
+  };
+
+  const handleRevoke = async (connectionId: string) => {
+    if (session.status !== "authenticated") return;
+    await runAction(`revoke:${connectionId}`, async () => {
+      await api.revokeConnection(session.csrfToken, connectionId);
+      notify({ tone: "info", title: "Connection revoked" });
+      await load();
+    });
+  };
+
+  if (loading) return <LoadingScreen label="Loading your workspace..." />;
+
   return (
     <>
-      <PageIntro eyebrow="Reserved route" title={title} description={body} />
-      <Card title="Capability status" description="This route is intentionally present now so the frontend architecture does not need a later rewrite.">
-        <CapabilityGate title={title} body={body} cta={action} />
+      <PageIntro
+        eyebrow="Workspace"
+        title="Manage your provider access"
+        description="See your broker-held provider connections, refresh or revoke them, and run a safe connectivity probe before downstream consumers request access."
+        actions={
+          <div className="inline-actions">
+            <button type="button" className="primary-button" onClick={() => onNavigate("/connect/miro")}>
+              Connect Miro
+            </button>
+          </div>
+        }
+      />
+
+      <div className="metric-grid">
+        <MetricCard label="Active connections" value={String(connections.filter((connection) => connection.status === "connected").length)} caption="Currently usable accounts" />
+        <MetricCard label="Provider apps" value={String(providerApps.length)} caption="Visible self-service targets" />
+        <MetricCard
+          label="Last probe"
+          value={probeResult ? (probeResult.ok ? "Healthy" : "Needs attention") : "Not run"}
+          caption={probeResult ? formatDateTime(probeResult.checked_at) : "Run a probe from a connection row"}
+        />
+        <MetricCard
+          label="Errors"
+          value={String(connections.filter((connection) => Boolean(connection.last_error)).length)}
+          caption="Connections with stored issues"
+        />
+        <MetricCard label="Workspace status" value="Ready" caption="User self-service is active" />
+      </div>
+
+      {probeResult ? (
+        <Card title="Latest probe result" description="The probe uses the broker backend and never returns raw provider tokens.">
+          <div className="stack-list">
+            <div className="stack-cell">
+              <strong>Status</strong>
+              <span>{probeResult.ok ? "Connected successfully" : probeResult.message ?? "Probe failed"}</span>
+            </div>
+            <div className="stack-cell">
+              <strong>Checked</strong>
+              <span>{formatDateTime(probeResult.checked_at)}</span>
+            </div>
+            <div className="stack-cell">
+              <strong>Provider identity</strong>
+              <span>{probeResult.external_user_name || probeResult.external_user_id || "Not returned"}</span>
+            </div>
+          </div>
+        </Card>
+      ) : null}
+
+      <Card title="Your connections" description="Refresh keeps credentials current, probe checks connectivity, and revoke removes access from the broker.">
+        <DataTable
+          columns={["Provider", "Account", "Connected", "Status", "Last error", "Actions"]}
+          rows={connections.map((connection) => [
+            providerAppById[connection.provider_app_id]?.display_name ?? connection.provider_app_id,
+            connection.display_name || connection.external_email || connection.external_account_ref || connection.id,
+            formatDateTime(connection.connected_at),
+            <StatusBadge
+              key={connection.id}
+              tone={connection.status === "connected" ? "success" : connection.status === "revoked" ? "warn" : "neutral"}
+            >
+              {connection.status}
+            </StatusBadge>,
+            connection.last_error ?? "No recent error",
+            <div className="inline-actions" key={`${connection.id}-actions`}>
+              <button
+                type="button"
+                className="ghost-button"
+                disabled={busyAction === `refresh:${connection.id}`}
+                onClick={() => void handleRefresh(connection.id)}
+              >
+                {busyAction === `refresh:${connection.id}` ? "Refreshing..." : "Refresh"}
+              </button>
+              <button
+                type="button"
+                className="ghost-button"
+                disabled={busyAction === `probe:${connection.id}`}
+                onClick={() => void handleProbe(connection.id)}
+              >
+                {busyAction === `probe:${connection.id}` ? "Probing..." : "Probe"}
+              </button>
+              <button
+                type="button"
+                className="ghost-button"
+                disabled={busyAction === `revoke:${connection.id}`}
+                onClick={() => void handleRevoke(connection.id)}
+              >
+                {busyAction === `revoke:${connection.id}` ? "Revoking..." : "Revoke"}
+              </button>
+            </div>,
+          ])}
+          emptyTitle="No provider connections yet"
+          emptyBody="Start with Miro to give the broker an account it can refresh, relay, and issue against for your downstream service grants."
+        />
       </Card>
     </>
   );
 }
 
-function NotFoundPage({ onNavigate }: { onNavigate: (path: string) => void }) {
+function ConnectMiroPage({ onNavigate }: { onNavigate: (path: string) => void }) {
+  const { notify, session } = useAppContext();
+  const [providerApps, setProviderApps] = useState<ProviderAppOut[]>([]);
+  const [connections, setConnections] = useState<ConnectedAccountOut[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [pending, setPending] = useState(false);
+
+  useEffect(() => {
+    if (session.status !== "authenticated") return;
+    setLoading(true);
+    Promise.all([api.providerAppsForUser(), api.myConnections()])
+      .then(([providerAppData, connectionData]) => {
+        setProviderApps(providerAppData);
+        setConnections(connectionData);
+      })
+      .catch((error) =>
+        notify({
+          tone: "error",
+          title: "Failed to load connect flow",
+          description: isApiError(error) ? error.message : "Unexpected connect loading error.",
+        }),
+      )
+      .finally(() => setLoading(false));
+  }, [notify, session]);
+
+  const providerAppById = useMemo(
+    () => Object.fromEntries(providerApps.map((app) => [app.id, app])),
+    [providerApps],
+  );
+  const existingMiro = connections.find((connection) => providerAppById[connection.provider_app_id]?.key === "miro-default");
+
+  const startConnect = async () => {
+    if (session.status !== "authenticated") return;
+    setPending(true);
+    try {
+      const result = await api.startMiroConnection(session.csrfToken, existingMiro ? { connected_account_id: existingMiro.id } : {});
+      window.location.assign(result.auth_url);
+    } catch (error) {
+      setPending(false);
+      notify({
+        tone: "error",
+        title: "Could not start Miro connect",
+        description: isApiError(error) ? error.message : "Unexpected Miro connect error.",
+      });
+    }
+  };
+
+  if (loading) return <LoadingScreen label="Preparing Miro connect..." />;
+
+  return (
+    <>
+      <PageIntro
+        eyebrow="Connect"
+        title="Connect your Miro account"
+        description="The broker stores the provider token material server-side, then returns you to the workspace with a verified connection state."
+        actions={
+          <div className="inline-actions">
+            <button type="button" className="ghost-button" onClick={() => onNavigate("/workspace")}>
+              Back to workspace
+            </button>
+          </div>
+        }
+      />
+
+      <div className="two-column">
+        <Card title="Miro authorization" description="This flow uses the broker backend callback and comes back into your workspace automatically.">
+          <div className="stack-form">
+            <p className="lede">
+              {existingMiro
+                ? "An existing Miro connection was found. Reconnect to refresh stored credentials and keep the same broker-side identity."
+                : "No Miro connection exists yet. Start the flow to create your first broker-held account."}
+            </p>
+            <div className="inline-actions">
+              <button type="button" className="primary-button" disabled={pending} onClick={() => void startConnect()}>
+                {pending ? "Redirecting..." : existingMiro ? "Reconnect Miro" : "Connect Miro"}
+              </button>
+            </div>
+          </div>
+        </Card>
+
+        <Card title="Current Miro state" description="If you already have a connection, you can see the current broker-held record before reconnecting.">
+          {existingMiro ? (
+            <div className="stack-list">
+              <div className="stack-cell">
+                <strong>Account</strong>
+                <span>{existingMiro.display_name || existingMiro.external_email || existingMiro.id}</span>
+              </div>
+              <div className="stack-cell">
+                <strong>Status</strong>
+                <span>{existingMiro.status}</span>
+              </div>
+              <div className="stack-cell">
+                <strong>Connected</strong>
+                <span>{formatDateTime(existingMiro.connected_at)}</span>
+              </div>
+            </div>
+          ) : (
+            <EmptyState
+              title="No Miro connection yet"
+              body="Start the authorization flow to create a broker-managed Miro connection for your workspace."
+            />
+          )}
+        </Card>
+      </div>
+    </>
+  );
+}
+
+function GrantsPage() {
+  const { notify, session } = useAppContext();
+  const [serviceClients, setServiceClients] = useState<VisibleServiceClientOut[]>([]);
+  const [providerApps, setProviderApps] = useState<ProviderAppOut[]>([]);
+  const [connections, setConnections] = useState<ConnectedAccountOut[]>([]);
+  const [grants, setGrants] = useState<SelfServiceDelegationGrantOut[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [pending, setPending] = useState(false);
+  const [createdResult, setCreatedResult] = useState<SelfServiceDelegationGrantCreateResult | null>(null);
+  const [form, setForm] = useState<SelfServiceDelegationGrantFormValues>({
+    service_client_key: "",
+    provider_app_key: "",
+    connected_account_id: "",
+    allowed_access_modes: ["direct_token"],
+    scope_ceiling_text: "",
+    environment: "",
+    expires_in_hours: 24,
+    capabilities_text: "",
+  });
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [serviceClientData, providerAppData, connectionData, grantData] = await Promise.all([
+        api.visibleServiceClients(),
+        api.providerAppsForUser(),
+        api.myConnections(),
+        api.myDelegationGrants(),
+      ]);
+      setServiceClients(serviceClientData);
+      setProviderApps(providerAppData);
+      setConnections(connectionData);
+      setGrants(grantData);
+
+      const firstProviderApp =
+        providerAppData.find((app) => connectionData.some((connection) => connection.provider_app_id === app.id))?.key ?? "";
+      setForm((current) => ({
+        ...current,
+        service_client_key: current.service_client_key || serviceClientData[0]?.key || "",
+        provider_app_key: current.provider_app_key || firstProviderApp,
+      }));
+    } catch (error) {
+      notify({
+        tone: "error",
+        title: "Failed to load grants",
+        description: isApiError(error) ? error.message : "Unexpected grant loading error.",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (session.status !== "authenticated") return;
+    void load();
+  }, [notify, session]);
+
+  const providerAppById = useMemo(
+    () => Object.fromEntries(providerApps.map((app) => [app.id, app])),
+    [providerApps],
+  );
+  const availableProviderApps = providerApps.filter((app) =>
+    connections.some((connection) => connection.provider_app_id === app.id && connection.status === "connected"),
+  );
+  const eligibleConnections = connections.filter(
+    (connection) => !form.provider_app_key || providerAppById[connection.provider_app_id]?.key === form.provider_app_key,
+  );
+
+  const toggleMode = (mode: string) => {
+    setForm((current) => ({
+      ...current,
+      allowed_access_modes: current.allowed_access_modes.includes(mode)
+        ? current.allowed_access_modes.filter((entry) => entry !== mode)
+        : [...current.allowed_access_modes, mode],
+    }));
+  };
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (session.status !== "authenticated") return;
+    setPending(true);
+    try {
+      const result = await api.createMyDelegationGrant(session.csrfToken, {
+        service_client_key: form.service_client_key,
+        provider_app_key: form.provider_app_key,
+        connected_account_id: form.connected_account_id || null,
+        allowed_access_modes: form.allowed_access_modes,
+        scope_ceiling: parseLines(form.scope_ceiling_text),
+        environment: form.environment || null,
+        expires_in_hours: form.expires_in_hours,
+        capabilities: parseLines(form.capabilities_text),
+      });
+      setCreatedResult(result);
+      notify({ tone: "success", title: "Delegated credential created" });
+      setForm((current) => ({
+        ...current,
+        connected_account_id: "",
+        scope_ceiling_text: "",
+        environment: "",
+        expires_in_hours: 24,
+        capabilities_text: "",
+      }));
+      await load();
+    } catch (error) {
+      notify({
+        tone: "error",
+        title: "Could not create grant",
+        description: isApiError(error) ? error.message : "Unexpected grant creation error.",
+      });
+    } finally {
+      setPending(false);
+    }
+  };
+
+  const revokeGrant = async (grantId: string) => {
+    if (session.status !== "authenticated") return;
+    try {
+      await api.revokeMyDelegationGrant(session.csrfToken, grantId);
+      notify({ tone: "info", title: "Grant revoked" });
+      await load();
+    } catch (error) {
+      notify({
+        tone: "error",
+        title: "Could not revoke grant",
+        description: isApiError(error) ? error.message : "Unexpected revoke error.",
+      });
+    }
+  };
+
+  if (loading) return <LoadingScreen label="Loading your grants..." />;
+
+  return (
+    <>
+      <PageIntro
+        eyebrow="My Grants"
+        title="Create delegated access for approved service clients"
+        description="Choose one of the service clients your organization has already approved, bind it to your own connection, and define the access modes and scope ceiling it can use."
+      />
+
+      {createdResult ? (
+        <SecretPanel
+          title="Delegated credential available"
+          body={`Store the delegated credential for ${createdResult.delegation_grant.service_client_display_name} now. It will not be shown again later.`}
+          value={createdResult.delegated_credential}
+        />
+      ) : null}
+
+      <div className="two-column">
+        <Card title="Your grants" description="Only your own grants appear here, and you can revoke them whenever a downstream consumer should lose access.">
+          <DataTable
+            columns={["Service client", "Provider", "Connection", "Modes", "Expires", "Policy", "Action"]}
+            rows={grants.map((grant) => [
+              grant.service_client_display_name,
+              grant.provider_app_display_name,
+              grant.connected_account_display_name ?? "Auto-select at issue time",
+              grant.allowed_access_modes.join(", "),
+              `${formatDateTime(grant.expires_at)} (${relativeTime(grant.expires_at)})`,
+              <div className="stack-cell" key={`${grant.id}-policy`}>
+                <strong>Scopes</strong>
+                <span>{grant.scope_ceiling.length ? grant.scope_ceiling.join(", ") : "Inherited from provider app"}</span>
+                <strong>Capabilities</strong>
+                <span>{grant.capabilities.length ? grant.capabilities.join(", ") : "No extra capabilities"}</span>
+              </div>,
+              grant.revoked_at ? (
+                "Closed"
+              ) : (
+                <button type="button" className="ghost-button" onClick={() => void revokeGrant(grant.id)}>
+                  Revoke
+                </button>
+              ),
+            ])}
+            emptyTitle="No grants yet"
+            emptyBody="Create your first delegated credential once you have a provider connection and an approved service client to target."
+          />
+        </Card>
+
+        <Card title="Create a grant" description="This creates a one-time delegated credential for your own connected account.">
+          <InlineForm
+            title="New self-service grant"
+            description="Service clients are pre-created by admins. You choose the provider app, access modes, and any narrower scope ceiling."
+            onSubmit={handleSubmit}
+          >
+            <Field label="Service client">
+              <select
+                value={form.service_client_key}
+                onChange={(event) => setForm((current) => ({ ...current, service_client_key: event.target.value }))}
+              >
+                {serviceClients.map((client) => (
+                  <option key={client.id} value={client.key}>
+                    {client.display_name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Provider app">
+              <select
+                value={form.provider_app_key}
+                onChange={(event) => setForm((current) => ({ ...current, provider_app_key: event.target.value, connected_account_id: "" }))}
+              >
+                {availableProviderApps.map((app) => (
+                  <option key={app.id} value={app.key}>
+                    {app.display_name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Connection">
+              <select
+                value={form.connected_account_id}
+                onChange={(event) => setForm((current) => ({ ...current, connected_account_id: event.target.value }))}
+              >
+                <option value="">Auto-select matching active connection</option>
+                {eligibleConnections.map((connection) => (
+                  <option key={connection.id} value={connection.id}>
+                    {connection.display_name || connection.external_email || connection.id}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Allowed access modes">
+              <div className="check-grid compact">
+                {["relay", "direct_token"].map((mode) => (
+                  <label key={mode} className="check-option">
+                    <input
+                      type="checkbox"
+                      checked={form.allowed_access_modes.includes(mode)}
+                      onChange={() => toggleMode(mode)}
+                    />
+                    <span>{mode}</span>
+                  </label>
+                ))}
+              </div>
+            </Field>
+            <Field label="Scope ceiling" hint="Comma or newline separated">
+              <textarea
+                value={form.scope_ceiling_text}
+                onChange={(event) => setForm((current) => ({ ...current, scope_ceiling_text: event.target.value }))}
+              />
+            </Field>
+            <Field label="Capabilities" hint="Comma or newline separated">
+              <textarea
+                value={form.capabilities_text}
+                onChange={(event) => setForm((current) => ({ ...current, capabilities_text: event.target.value }))}
+              />
+            </Field>
+            <Field label="Environment">
+              <input
+                value={form.environment}
+                onChange={(event) => setForm((current) => ({ ...current, environment: event.target.value }))}
+                placeholder="production"
+              />
+            </Field>
+            <Field label="Expiry (hours)">
+              <input
+                type="number"
+                min={1}
+                max={24 * 365}
+                value={form.expires_in_hours}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, expires_in_hours: Number(event.target.value) || 24 }))
+                }
+              />
+            </Field>
+            <FormActions pending={pending} submitLabel="Create delegated credential" />
+          </InlineForm>
+        </Card>
+      </div>
+    </>
+  );
+}
+
+function TokenAccessPage() {
+  const { notify, session } = useAppContext();
+  const [serviceClients, setServiceClients] = useState<VisibleServiceClientOut[]>([]);
+  const [grants, setGrants] = useState<SelfServiceDelegationGrantOut[]>([]);
+  const [connections, setConnections] = useState<ConnectedAccountOut[]>([]);
+  const [issues, setIssues] = useState<TokenIssueEventOut[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [probePending, setProbePending] = useState(false);
+  const [probeConnectionId, setProbeConnectionId] = useState("");
+  const [probeResult, setProbeResult] = useState<ConnectionProbeResult | null>(null);
+  const [serviceClientFilter, setServiceClientFilter] = useState("");
+  const [grantFilter, setGrantFilter] = useState("");
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [clientData, grantData, connectionData, issueData] = await Promise.all([
+        api.visibleServiceClients(),
+        api.myDelegationGrants(),
+        api.myConnections(),
+        api.myTokenIssues({
+          serviceClientId: serviceClientFilter || undefined,
+          delegationGrantId: grantFilter || undefined,
+          limit: 200,
+        }),
+      ]);
+      setServiceClients(clientData);
+      setGrants(grantData);
+      setConnections(connectionData);
+      setIssues(issueData);
+      setProbeConnectionId((current) => current || connectionData[0]?.id || "");
+    } catch (error) {
+      notify({
+        tone: "error",
+        title: "Failed to load token access diagnostics",
+        description: isApiError(error) ? error.message : "Unexpected diagnostics loading error.",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (session.status !== "authenticated") return;
+    void load();
+  }, [notify, session, serviceClientFilter, grantFilter]);
+
+  const runProbe = async () => {
+    if (session.status !== "authenticated" || !probeConnectionId) return;
+    setProbePending(true);
+    try {
+      const result = await api.probeConnection(session.csrfToken, probeConnectionId);
+      setProbeResult(result);
+      notify({
+        tone: result.ok ? "success" : "error",
+        title: result.ok ? "Probe successful" : "Probe failed",
+        description: result.ok ? "The broker could reach the provider using the stored connection." : result.message ?? "Probe failed.",
+      });
+      await load();
+    } catch (error) {
+      notify({
+        tone: "error",
+        title: "Probe request failed",
+        description: isApiError(error) ? error.message : "Unexpected probe request error.",
+      });
+    } finally {
+      setProbePending(false);
+    }
+  };
+
+  if (loading) return <LoadingScreen label="Loading token access diagnostics..." />;
+
+  return (
+    <>
+      <PageIntro
+        eyebrow="Token Access"
+        title="Inspect access history and verify your connection"
+        description="Review token issuance history for your grants and run a safe probe against a current connection when something looks wrong."
+        actions={
+          <div className="inline-actions">
+            <button type="button" className="ghost-button" onClick={() => void load()}>
+              Reload
+            </button>
+          </div>
+        }
+      />
+
+      <div className="two-column">
+        <Card title="Filters" description="Limit the history to a specific service client or grant.">
+          <div className="stack-form">
+            <Field label="Service client">
+              <select value={serviceClientFilter} onChange={(event) => setServiceClientFilter(event.target.value)}>
+                <option value="">All service clients</option>
+                {serviceClients.map((client) => (
+                  <option key={client.id} value={client.id}>
+                    {client.display_name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Grant">
+              <select value={grantFilter} onChange={(event) => setGrantFilter(event.target.value)}>
+                <option value="">All grants</option>
+                {grants.map((grant) => (
+                  <option key={grant.id} value={grant.id}>
+                    {grant.service_client_display_name} · {grant.provider_app_display_name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
+        </Card>
+
+        <Card title="Connection probe" description="The probe checks broker-to-provider access and never exposes raw access tokens.">
+          <div className="stack-form">
+            <Field label="Connection">
+              <select value={probeConnectionId} onChange={(event) => setProbeConnectionId(event.target.value)}>
+                {connections.map((connection) => (
+                  <option key={connection.id} value={connection.id}>
+                    {connection.display_name || connection.external_email || connection.id}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <div className="inline-actions">
+              <button type="button" className="primary-button" disabled={probePending || !probeConnectionId} onClick={() => void runProbe()}>
+                {probePending ? "Probing..." : "Run probe"}
+              </button>
+            </div>
+            {probeResult ? (
+              <div className="stack-list">
+                <div className="stack-cell">
+                  <strong>Status</strong>
+                  <span>{probeResult.ok ? "Healthy connection" : probeResult.message ?? "Probe failed"}</span>
+                </div>
+                <div className="stack-cell">
+                  <strong>Checked</strong>
+                  <span>{formatDateTime(probeResult.checked_at)}</span>
+                </div>
+                <div className="stack-cell">
+                  <strong>Resolved provider identity</strong>
+                  <span>{probeResult.external_user_name || probeResult.external_user_id || "Not returned"}</span>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </Card>
+      </div>
+
+      <Card title="Token issue history" description="Read-only audit trail of broker token issuance decisions for your own grants.">
+        <DataTable
+          columns={["Time", "Service client", "Grant", "Provider", "Decision", "Scopes", "Metadata"]}
+          rows={issues.map((issue) => [
+            formatDateTime(issue.created_at),
+            issue.service_client_display_name ?? issue.service_client_id ?? "Unknown",
+            issue.delegation_grant_id ?? "Unknown",
+            issue.provider_app_display_name ?? issue.provider_app_id ?? "Unknown",
+            <StatusBadge key={issue.id} tone={issue.decision === "issued" ? "success" : "warn"}>
+              {issue.reason ? `${issue.decision}: ${issue.reason}` : issue.decision}
+            </StatusBadge>,
+            issue.scopes.length ? issue.scopes.join(", ") : "Inherited",
+            <pre className="audit-metadata" key={`${issue.id}-metadata`}>
+              {JSON.stringify(issue.metadata, null, 2)}
+            </pre>,
+          ])}
+          emptyTitle="No token issues recorded"
+          emptyBody="Once a service client uses one of your grants, the broker records the issuance result here."
+        />
+      </Card>
+    </>
+  );
+}
+
+function NotFoundPage({ onNavigate, fallbackPath }: { onNavigate: (path: string) => void; fallbackPath: string }) {
   return (
     <main className="login-layout">
       <Card title="Route not found" description="This path is not part of the broker frontend.">
         <EmptyState
           title="Unknown page"
-          body="Use the control deck navigation to return to the broker surfaces that are currently implemented."
+          body="Use the current shell navigation to return to a supported broker surface."
         />
         <div className="inline-actions">
-          <button type="button" className="primary-button" onClick={() => onNavigate("/app")}>
-            Go to overview
+          <button type="button" className="primary-button" onClick={() => onNavigate(fallbackPath)}>
+            Go back
           </button>
         </div>
       </Card>
@@ -1472,68 +2218,160 @@ function NotFoundPage({ onNavigate }: { onNavigate: (path: string) => void }) {
 
 function AuthenticatedApp() {
   const { route, navigate } = usePathname();
-  const { capabilities, session } = useAppContext();
+  const { notify, session } = useAppContext();
 
   useEffect(() => {
-    if (session.status === "authenticated" && route.name === "login") {
-      navigate("/app");
+    if (session.status === "booting") return;
+    const params = new URLSearchParams(window.location.search);
+    if (!params.toString()) return;
+
+    const loginStatus = params.get("login_status");
+    const miroStatus = params.get("miro_status");
+    const message = params.get("message");
+    const connectedAccountId = params.get("connected_account_id");
+
+    if (loginStatus === "success") {
+      notify({
+        tone: "success",
+        title: "Signed in with Microsoft",
+        description: "Your broker workspace session is ready.",
+      });
     }
-  }, [navigate, route.name, session.status]);
+
+    if (loginStatus === "error") {
+      notify({
+        tone: "error",
+        title: "Microsoft sign-in failed",
+        description: message ?? "The Microsoft callback could not complete.",
+      });
+    }
+
+    if (miroStatus === "connected") {
+      notify({
+        tone: "success",
+        title: "Miro connected",
+        description: connectedAccountId ? `Connection ${connectedAccountId} is now available in your workspace.` : "Your Miro account is now connected.",
+      });
+    }
+
+    if (miroStatus === "error") {
+      notify({
+        tone: "error",
+        title: "Miro connect failed",
+        description: message ?? "The provider callback could not complete.",
+      });
+    }
+
+    window.history.replaceState({}, "", window.location.pathname);
+  }, [notify, route.path, session.status]);
+
+  useEffect(() => {
+    if (session.status !== "authenticated") return;
+
+    if (session.user.is_admin) {
+      if (route.name === "login" || route.name === "workspace" || route.name === "connect" || route.name === "grants" || route.name === "tokenAccess") {
+        navigate("/app");
+      }
+      return;
+    }
+
+    if (
+      route.name === "login" ||
+      route.name === "dashboard" ||
+      route.name === "providers" ||
+      route.name === "connections" ||
+      route.name === "serviceClients" ||
+      route.name === "delegation" ||
+      route.name === "audit"
+    ) {
+      navigate("/workspace");
+    }
+  }, [navigate, route.name, session]);
 
   if (session.status === "booting") {
     return <LoadingScreen label="Restoring broker session..." />;
   }
 
   if (session.status === "anonymous") {
-    return <LoginPage onSuccess={() => navigate("/app")} />;
+    return <LoginPage onSuccess={navigate} />;
   }
 
   if (route.name === "login") {
     return <LoadingScreen label="Redirecting to your workspace..." />;
   }
 
+  if (session.user.is_admin) {
+    if (route.name === "workspace" || route.name === "connect" || route.name === "grants" || route.name === "tokenAccess") {
+      return <LoadingScreen label="Redirecting to the control deck..." />;
+    }
+
+    if (route.name === "notFound") {
+      return <NotFoundPage onNavigate={navigate} fallbackPath="/app" />;
+    }
+
+    return (
+      <Shell
+        currentPath={route.path}
+        navItems={[
+          { href: "/app", label: "Overview" },
+          { href: "/app/providers", label: "Providers" },
+          { href: "/app/connections", label: "Connections" },
+          { href: "/app/service-clients", label: "Service clients" },
+          { href: "/app/delegation", label: "Delegation" },
+          { href: "/app/audit", label: "Audit" },
+        ]}
+        onNavigate={navigate}
+        kicker="OAuth Broker"
+        title="Control deck"
+        subtitle="Admin-first orchestration"
+      >
+        {route.name === "dashboard" ? <DashboardPage /> : null}
+        {route.name === "providers" ? <ProvidersPage /> : null}
+        {route.name === "connections" ? <AdminConnectionsPage /> : null}
+        {route.name === "serviceClients" ? <ServiceClientsPage /> : null}
+        {route.name === "delegation" ? <AdminDelegationPage /> : null}
+        {route.name === "audit" ? <AuditPage /> : null}
+      </Shell>
+    );
+  }
+
   if (route.name === "notFound") {
-    return <NotFoundPage onNavigate={navigate} />;
+    return <NotFoundPage onNavigate={navigate} fallbackPath="/workspace" />;
+  }
+
+  if (
+    route.name === "dashboard" ||
+    route.name === "providers" ||
+    route.name === "connections" ||
+    route.name === "serviceClients" ||
+    route.name === "delegation" ||
+    route.name === "audit"
+  ) {
+    return <LoadingScreen label="Redirecting to your workspace..." />;
+  }
+
+  if (route.name === "connect" && route.params.providerKey !== "miro") {
+    return <NotFoundPage onNavigate={navigate} fallbackPath="/workspace" />;
   }
 
   return (
-    <Shell currentPath={route.path} onNavigate={navigate}>
-      {route.name === "dashboard" ? <DashboardPage /> : null}
-      {route.name === "providers" ? <ProvidersPage /> : null}
-      {route.name === "connections" ? <ConnectionsPage /> : null}
-      {route.name === "serviceClients" ? <ServiceClientsPage /> : null}
-      {route.name === "delegation" ? <DelegationPage /> : null}
-      {route.name === "audit" ? <AuditPage /> : null}
-      {route.name === "workspace" ? (
-        <FuturePage
-          title="User workspace"
-          body={
-            capabilities.userWorkspace
-              ? "The broker workspace capability is enabled."
-              : "End-user connected-account and grant self-service views will land once the backend exposes the necessary detail endpoints."
-          }
-        />
-      ) : null}
-      {route.name === "connect" ? (
-        <FuturePage
-          title={`Connect provider · ${route.params.providerKey}`}
-          body={
-            capabilities.providerOAuthConnect
-              ? "OAuth connection flow is enabled."
-              : "Provider onboarding will become active here when FastAPI adds provider connect initiation and callback endpoints."
-          }
-        />
-      ) : null}
-      {route.name === "tokenAccess" ? (
-        <FuturePage
-          title="Token access diagnostics"
-          body={
-            capabilities.tokenAccessDiagnostics
-              ? "Token access diagnostics are enabled."
-              : "Diagnostic token-issuance views will be added once the backend exposes the supporting introspection endpoints."
-          }
-        />
-      ) : null}
+    <Shell
+      currentPath={route.path}
+      navItems={[
+        { href: "/workspace", label: "Workspace" },
+        { href: "/connect/miro", label: "Connect Miro" },
+        { href: "/grants", label: "My Grants" },
+        { href: "/token-access", label: "Token Access" },
+      ]}
+      onNavigate={navigate}
+      kicker="Broker Workspace"
+      title="Self-service suite"
+      subtitle="Connections, grants, and diagnostics"
+    >
+      {route.name === "workspace" ? <WorkspacePage onNavigate={navigate} /> : null}
+      {route.name === "connect" ? <ConnectMiroPage onNavigate={navigate} /> : null}
+      {route.name === "grants" ? <GrantsPage /> : null}
+      {route.name === "tokenAccess" ? <TokenAccessPage /> : null}
     </Shell>
   );
 }

@@ -9,6 +9,7 @@ OAuth relay/proxy for `https://mcp.miro.com/`, with multi-profile support.
 - Per-profile relay token (`X-Relay-Key`)
 - Self-service + admin deregistration options
 - Admin governance actions: list profiles, rotate relay token, revoke OAuth
+- OAuth identity check visibility (expected vs detected Miro email)
 - Automatic token refresh
 - Audit log endpoint for admin
 - Health and readiness endpoints (`/healthz`, `/readyz`)
@@ -35,11 +36,17 @@ Set `BASE_URL` to host+port only.
 
 Open:
 
-- `/miro` → enrollment + deregistration web UI (includes admin password login)
-- `/miro/start?display_name=Network+Agent&contact=user@example.com` → one-click profile creation + token preview page
-- token preview now appears by default (so users can store relay token)
-- click "Continue to Miro OAuth" from preview page
-- optional `&auto=1` skips preview and redirects immediately
+- `/miro` → landing page with two clear paths: connect your own Miro account or open admin management
+- `/start` → alias that redirects to `/miro`
+- `/miro/start` → dedicated onboarding page for the guided user flow
+- `/miro/workspace` → self-service "My connection" page for status, reconnect, and deregistration
+- `/miro/admin` → admin governance UI with login, profile list, token rotation, OAuth revoke, delete, and audit
+- `/miro/start?email=user@example.com` → jump directly into the guided OAuth enrollment for that email
+- primary user journey is: enter email → authorize with Miro → copy MCP config
+- profile id is URL-safe: `@` is replaced with `_`
+- profile + relay token are finalized only after successful `/miro/auth/callback`
+- callback success page prioritizes copyable MCP config, then one-time backup credentials
+- OAuth callback now shows expected profile email vs detected Miro user details for manual verification
 - if `MIRO_START_REQUIRE_ADMIN=true`, also pass `&admin_key=...`
 
 ## API
@@ -52,14 +59,13 @@ X-Admin-Key: <ADMIN_KEY>
 Content-Type: application/json
 
 {
-  "display_name": "Network Automation Agent",
-  "contact": "user@example.com"
+  "email": "user@example.com"
 }
 ```
 
 Response:
 
-- `profile_id`
+- `profile_id` (canonicalized from email: `@` -> `_`)
 - `relay_token` (one-time, store it)
 - `auth_url`
 - `mcp_url`
@@ -105,7 +111,7 @@ Content-Type: application/json
 { "password": "<MIRO_ADMIN_PASSWORD>" }
 ```
 
-Or browser form on `/miro`. Logout:
+Or browser form on `/miro/admin`. Logout:
 
 ```http
 POST /miro/admin/logout
@@ -173,5 +179,7 @@ backend be_miro_relay
 - Rotate keys periodically
 - Optional: set `MIRO_START_REQUIRE_ADMIN=true` to protect browser onboarding
 - Pending profiles are auto-deleted after `MIRO_PENDING_PROFILE_TTL_MINUTES` (default 15)
+- OAuth email check mode is `MIRO_OAUTH_EMAIL_MODE=warn` by default (fail-open); set `strict` after validation
+- OAuth scopes are configurable via `MIRO_OAUTH_SCOPE` (default `boards:read boards:write`)
 - Basic rate limiting is active on enroll/auth/delete endpoints
 - Browser UI supports both self-service deregistration and admin override deregistration

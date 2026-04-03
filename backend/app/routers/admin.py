@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import record_audit, require_admin, require_csrf
 from app.miro import import_legacy_miro_data, migration_status
-from app.models import AuditEvent, ConnectedAccount, DelegationGrant, GrantedCapability, ProviderApp, ProviderDefinition, ProviderInstance, ServiceClient, TokenMaterial, User
+from app.models import AuditEvent, ConnectedAccount, DelegationGrant, GrantedCapability, ProviderApp, ProviderDefinition, ProviderInstance, ServiceClient, TokenIssueEvent, TokenMaterial, User
 from app.schemas import (
     AuditEventOut,
     ConnectedAccountCreate,
@@ -26,9 +26,10 @@ from app.schemas import (
     ServiceClientCreate,
     ServiceClientOut,
     ServiceClientSecretResponse,
+    TokenIssueEventOut,
     UserOut,
 )
-from app.security import dumps_json, encrypt_text, hash_secret, issue_plain_secret, utcnow
+from app.security import dumps_json, encrypt_text, hash_secret, issue_plain_secret, loads_json, utcnow
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -126,8 +127,30 @@ def create_service_client(payload: ServiceClientCreate, admin: User = Depends(re
 
 
 @router.get("/connected-accounts", response_model=list[ConnectedAccountOut], dependencies=[Depends(require_csrf)])
-def list_connected_accounts(_admin: User = Depends(require_admin), db: Session = Depends(get_db)):
-    return db.scalars(select(ConnectedAccount).order_by(ConnectedAccount.connected_at.desc())).all()
+def list_connected_accounts(
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+    user_email: str | None = None,
+    provider_app_key: str | None = None,
+    status: str | None = None,
+    limit: int = Query(default=200, ge=1, le=1000),
+):
+    query = select(ConnectedAccount).where(ConnectedAccount.organization_id == admin.organization_id)
+    if user_email:
+        user = db.scalar(select(User).where(User.organization_id == admin.organization_id, User.email == user_email))
+        if not user:
+            return []
+        query = query.where(ConnectedAccount.user_id == user.id)
+    if provider_app_key:
+        provider_app = db.scalar(
+            select(ProviderApp).where(ProviderApp.organization_id == admin.organization_id, ProviderApp.key == provider_app_key)
+        )
+        if not provider_app:
+            return []
+        query = query.where(ConnectedAccount.provider_app_id == provider_app.id)
+    if status:
+        query = query.where(ConnectedAccount.status == status)
+    return db.scalars(query.order_by(ConnectedAccount.connected_at.desc()).limit(limit)).all()
 
 
 @router.post("/connected-accounts/manual", response_model=ConnectedAccountOut, dependencies=[Depends(require_csrf)])
@@ -259,6 +282,68 @@ def revoke_delegation_grant(grant_id: str, admin: User = Depends(require_admin),
 @router.get("/audit", response_model=list[AuditEventOut], dependencies=[Depends(require_csrf)])
 def list_audit_events(_admin: User = Depends(require_admin), db: Session = Depends(get_db), limit: int = 200):
     return db.scalars(select(AuditEvent).order_by(AuditEvent.created_at.desc()).limit(max(1, min(limit, 1000)))).all()
+
+
+@router.get("/token-issues", response_model=list[TokenIssueEventOut], dependencies=[Depends(require_csrf)])
+def list_token_issues(
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+    user_id: str | None = None,
+    service_client_id: str | None = None,
+    provider_app_id: str | None = None,
+    decision: str | None = None,
+    from_time: datetime | None = Query(default=None),
+    to_time: datetime | None = Query(default=None),
+    limit: int = Query(default=200, ge=1, le=1000),
+):
+    query = select(TokenIssueEvent).where(TokenIssueEvent.organization_id == admin.organization_id)
+    if user_id:
+        query = query.where(TokenIssueEvent.user_id == user_id)
+    if service_client_id:
+        query = query.where(TokenIssueEvent.service_client_id == service_client_id)
+    if provider_app_id:
+        query = query.where(TokenIssueEvent.provider_app_id == provider_app_id)
+    if decision:
+        query = query.where(TokenIssueEvent.decision == decision)
+    if from_time:
+        query = query.where(TokenIssueEvent.created_at >= from_time)
+    if to_time:
+        query = query.where(TokenIssueEvent.created_at <= to_time)
+
+    issues = db.scalars(query.order_by(TokenIssueEvent.created_at.desc()).limit(limit)).all()
+    service_clients = {
+        client.id: client
+        for client in db.scalars(select(ServiceClient).where(ServiceClient.organization_id == admin.organization_id)).all()
+    }
+    provider_apps = {
+        app.id: app
+        for app in db.scalars(select(ProviderApp).where(ProviderApp.organization_id == admin.organization_id)).all()
+    }
+    connections = {
+        connection.id: connection
+        for connection in db.scalars(select(ConnectedAccount).where(ConnectedAccount.organization_id == admin.organization_id)).all()
+    }
+    return [
+        TokenIssueEventOut(
+            id=issue.id,
+            service_client_id=issue.service_client_id,
+            service_client_display_name=service_clients[issue.service_client_id].display_name if issue.service_client_id in service_clients else None,
+            delegation_grant_id=issue.delegation_grant_id,
+            provider_app_id=issue.provider_app_id,
+            provider_app_display_name=provider_apps[issue.provider_app_id].display_name if issue.provider_app_id in provider_apps else None,
+            connected_account_id=issue.connected_account_id,
+            connected_account_display_name=(
+                connections[issue.connected_account_id].display_name
+                or connections[issue.connected_account_id].external_email
+            ) if issue.connected_account_id in connections else None,
+            decision=issue.decision,
+            reason=issue.reason,
+            scopes=loads_json(issue.scopes_json, []),
+            metadata=loads_json(issue.metadata_json, {}),
+            created_at=issue.created_at,
+        )
+        for issue in issues
+    ]
 
 
 @router.get("/migrations/miro/status", response_model=MiroMigrationStatus, dependencies=[Depends(require_csrf)])

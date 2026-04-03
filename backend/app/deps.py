@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from fastapi import Cookie, Depends, Header, HTTPException, Response, status
@@ -10,6 +11,15 @@ from app.core.config import get_settings
 from app.database import get_db
 from app.models import AccessMode, AuditEvent, ConnectedAccount, DelegationGrant, ProviderApp, ServiceClient, Session as SessionModel, TokenIssueEvent, TokenMaterial, User
 from app.security import dumps_json, hash_secret, issue_plain_secret, loads_json, utcnow, verify_secret
+
+
+@dataclass
+class ServiceAuthContext:
+    service_client: ServiceClient | None = None
+    grant: DelegationGrant | None = None
+    provider_app: ProviderApp | None = None
+    connected_account: ConnectedAccount | None = None
+    token_material: TokenMaterial | None = None
 
 
 def record_audit(db: Session, *, action: str, actor_type: str, actor_id: str | None, organization_id: str | None, metadata: dict) -> AuditEvent:
@@ -80,6 +90,94 @@ def clear_session_cookie(response: Response) -> None:
     response.delete_cookie(settings.session_cookie_name, httponly=True, samesite="strict")
 
 
+def diagnose_service_access(
+    *,
+    db: Session,
+    provider_app_key: str,
+    delegated_credential: str | None,
+    service_secret: str | None,
+    requested_scopes: list[str],
+    required_mode: str = AccessMode.DIRECT_TOKEN.value,
+    connected_account_id: str | None = None,
+ ) -> tuple[ServiceAuthContext, HTTPException | None]:
+    auth_context = ServiceAuthContext()
+
+    if not delegated_credential or not service_secret:
+        return auth_context, HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing service credentials")
+
+    service_clients = db.scalars(select(ServiceClient).where(ServiceClient.is_enabled.is_(True))).all()
+    auth_context.service_client = next((client for client in service_clients if verify_secret(service_secret, client.secret_hash)), None)
+    if not auth_context.service_client:
+        return auth_context, HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid service client")
+
+    grants = db.scalars(
+        select(DelegationGrant).where(
+            DelegationGrant.service_client_id == auth_context.service_client.id,
+            DelegationGrant.is_enabled.is_(True),
+            DelegationGrant.revoked_at.is_(None),
+        )
+    ).all()
+    auth_context.grant = next((candidate for candidate in grants if verify_secret(delegated_credential, candidate.credential_hash)), None)
+    if not auth_context.grant:
+        return auth_context, HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid delegated credential")
+
+    if auth_context.grant.expires_at and ensure_live(auth_context.grant.expires_at) <= utcnow():
+        return auth_context, HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Delegation expired")
+
+    auth_context.provider_app = db.scalar(select(ProviderApp).where(ProviderApp.id == auth_context.grant.provider_app_id))
+    if not auth_context.provider_app or auth_context.provider_app.key != provider_app_key or not auth_context.provider_app.is_enabled:
+        return auth_context, HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Provider app not allowed")
+
+    if required_mode == AccessMode.DIRECT_TOKEN.value:
+        if not auth_context.provider_app.allow_direct_token_return or auth_context.provider_app.access_mode not in {AccessMode.DIRECT_TOKEN.value, AccessMode.HYBRID.value}:
+            return auth_context, HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Provider app does not allow direct token return")
+    elif required_mode == AccessMode.RELAY.value:
+        if not auth_context.provider_app.allow_relay or auth_context.provider_app.access_mode not in {AccessMode.RELAY.value, AccessMode.HYBRID.value}:
+            return auth_context, HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Provider app does not allow relay access")
+    else:
+        return auth_context, HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported access mode")
+
+    allowed_provider_app_keys = loads_json(auth_context.service_client.allowed_provider_app_keys_json, [])
+    if allowed_provider_app_keys and auth_context.provider_app.key not in allowed_provider_app_keys:
+        return auth_context, HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Service client not allowed for provider app")
+
+    grant_modes = set(loads_json(auth_context.grant.allowed_access_modes_json, []))
+    if required_mode not in grant_modes:
+        detail = "Delegation grant does not allow relay access" if required_mode == AccessMode.RELAY.value else "Delegation grant does not allow direct token access"
+        return auth_context, HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
+
+    scope_ceiling = set(loads_json(auth_context.grant.scope_ceiling_json, []))
+    if requested_scopes and scope_ceiling and not set(requested_scopes).issubset(scope_ceiling):
+        return auth_context, HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Requested scopes exceed delegation scope ceiling")
+
+    if connected_account_id:
+        auth_context.connected_account = db.scalar(
+            select(ConnectedAccount).where(
+                ConnectedAccount.id == connected_account_id,
+                ConnectedAccount.user_id == auth_context.grant.user_id,
+                ConnectedAccount.provider_app_id == auth_context.provider_app.id,
+                ConnectedAccount.status == "connected",
+            )
+        )
+    else:
+        auth_context.connected_account = db.scalar(
+            select(ConnectedAccount).where(
+                ConnectedAccount.user_id == auth_context.grant.user_id,
+                ConnectedAccount.provider_app_id == auth_context.provider_app.id,
+                ConnectedAccount.status == "connected",
+            )
+        )
+
+    if not auth_context.connected_account:
+        return auth_context, HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Connected account not found")
+
+    auth_context.token_material = db.scalar(select(TokenMaterial).where(TokenMaterial.connected_account_id == auth_context.connected_account.id))
+    if not auth_context.token_material or not auth_context.token_material.encrypted_access_token:
+        return auth_context, HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Token material not found")
+
+    return auth_context, None
+
+
 def authenticate_service(
     *,
     db: Session,
@@ -90,80 +188,25 @@ def authenticate_service(
     required_mode: str = AccessMode.DIRECT_TOKEN.value,
     connected_account_id: str | None = None,
 ):
-    if not delegated_credential or not service_secret:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing service credentials")
+    auth_context, auth_error = diagnose_service_access(
+        db=db,
+        provider_app_key=provider_app_key,
+        delegated_credential=delegated_credential,
+        service_secret=service_secret,
+        requested_scopes=requested_scopes,
+        required_mode=required_mode,
+        connected_account_id=connected_account_id,
+    )
+    if auth_error:
+        raise auth_error
 
-    service_clients = db.scalars(select(ServiceClient).where(ServiceClient.is_enabled.is_(True))).all()
-    service_client = next((client for client in service_clients if verify_secret(service_secret, client.secret_hash)), None)
-    if not service_client:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid service client")
-
-    grants = db.scalars(
-        select(DelegationGrant).where(
-            DelegationGrant.service_client_id == service_client.id,
-            DelegationGrant.is_enabled.is_(True),
-            DelegationGrant.revoked_at.is_(None),
-        )
-    ).all()
-    grant = next((candidate for candidate in grants if verify_secret(delegated_credential, candidate.credential_hash)), None)
-    if not grant:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid delegated credential")
-
-    if grant.expires_at and ensure_live(grant.expires_at) <= utcnow():
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Delegation expired")
-
-    provider_app = db.scalar(select(ProviderApp).where(ProviderApp.id == grant.provider_app_id))
-    if not provider_app or provider_app.key != provider_app_key or not provider_app.is_enabled:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Provider app not allowed")
-
-    if required_mode == AccessMode.DIRECT_TOKEN.value:
-        if not provider_app.allow_direct_token_return or provider_app.access_mode not in {AccessMode.DIRECT_TOKEN.value, AccessMode.HYBRID.value}:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Provider app does not allow direct token return")
-    elif required_mode == AccessMode.RELAY.value:
-        if not provider_app.allow_relay or provider_app.access_mode not in {AccessMode.RELAY.value, AccessMode.HYBRID.value}:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Provider app does not allow relay access")
-    else:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported access mode")
-
-    allowed_provider_app_keys = loads_json(service_client.allowed_provider_app_keys_json, [])
-    if allowed_provider_app_keys and provider_app.key not in allowed_provider_app_keys:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Service client not allowed for provider app")
-
-    grant_modes = set(loads_json(grant.allowed_access_modes_json, []))
-    if required_mode not in grant_modes:
-        detail = "Delegation grant does not allow relay access" if required_mode == AccessMode.RELAY.value else "Delegation grant does not allow direct token access"
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
-
-    scope_ceiling = set(loads_json(grant.scope_ceiling_json, []))
-    if requested_scopes and scope_ceiling and not set(requested_scopes).issubset(scope_ceiling):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Requested scopes exceed delegation scope ceiling")
-
-    if connected_account_id:
-        connected_account = db.scalar(
-            select(ConnectedAccount).where(
-                ConnectedAccount.id == connected_account_id,
-                ConnectedAccount.user_id == grant.user_id,
-                ConnectedAccount.provider_app_id == provider_app.id,
-                ConnectedAccount.status == "connected",
-            )
-        )
-    else:
-        connected_account = db.scalar(
-            select(ConnectedAccount).where(
-                ConnectedAccount.user_id == grant.user_id,
-                ConnectedAccount.provider_app_id == provider_app.id,
-                ConnectedAccount.status == "connected",
-            )
-        )
-
-    if not connected_account:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Connected account not found")
-
-    token_material = db.scalar(select(TokenMaterial).where(TokenMaterial.connected_account_id == connected_account.id))
-    if not token_material or not token_material.encrypted_access_token:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Token material not found")
-
-    return service_client, grant, provider_app, connected_account, token_material
+    return (
+        auth_context.service_client,
+        auth_context.grant,
+        auth_context.provider_app,
+        auth_context.connected_account,
+        auth_context.token_material,
+    )
 
 
 def refresh_csrf_token(db: Session, current_session: SessionModel) -> str:
@@ -177,11 +220,11 @@ def record_token_issue(
     db: Session,
     *,
     organization_id: str,
-    user_id: str,
-    service_client_id: str,
-    delegation_grant_id: str,
-    provider_app_id: str,
-    connected_account_id: str,
+    user_id: str | None,
+    service_client_id: str | None,
+    delegation_grant_id: str | None,
+    provider_app_id: str | None,
+    connected_account_id: str | None,
     decision: str,
     reason: str | None,
     scopes: list[str],
@@ -202,3 +245,45 @@ def record_token_issue(
     db.add(event)
     db.flush()
     return event
+
+
+def record_service_access_decision(
+    db: Session,
+    *,
+    auth_context: ServiceAuthContext,
+    provider_app_key: str,
+    requested_scopes: list[str],
+    decision: str,
+    reason: str | None,
+    metadata: dict | None = None,
+) -> TokenIssueEvent | None:
+    organization_id = auth_context.grant.organization_id if auth_context.grant else (
+        auth_context.service_client.organization_id if auth_context.service_client else None
+    )
+    if not organization_id:
+        return None
+
+    scopes = requested_scopes
+    if not scopes and auth_context.token_material:
+        scopes = loads_json(auth_context.token_material.scopes_json, [])
+
+    event_metadata = {
+        "provider_app_key": provider_app_key,
+        "service_client_key": auth_context.service_client.key if auth_context.service_client else None,
+    }
+    if metadata:
+        event_metadata.update(metadata)
+
+    return record_token_issue(
+        db,
+        organization_id=organization_id,
+        user_id=auth_context.grant.user_id if auth_context.grant else None,
+        service_client_id=auth_context.service_client.id if auth_context.service_client else None,
+        delegation_grant_id=auth_context.grant.id if auth_context.grant else None,
+        provider_app_id=auth_context.provider_app.id if auth_context.provider_app else None,
+        connected_account_id=auth_context.connected_account.id if auth_context.connected_account else None,
+        decision=decision,
+        reason=reason,
+        scopes=scopes,
+        metadata=event_metadata,
+    )

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import inspect, select, text
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -11,6 +11,7 @@ from app.security import dumps_json, encrypt_text, hash_secret
 
 def init_db() -> None:
     Base.metadata.create_all(bind=engine)
+    reconcile_schema()
     settings = get_settings()
     microsoft_authority = f"{settings.microsoft_broker_authority_base.rstrip('/')}/{settings.microsoft_broker_tenant_id.strip('/')}"
     microsoft_redirect_uri = f"{settings.broker_public_base_url.rstrip('/')}{settings.api_v1_prefix}/auth/microsoft/callback"
@@ -126,6 +127,75 @@ def init_db() -> None:
         )
 
         db.commit()
+
+
+def reconcile_schema() -> None:
+    inspector = inspect(engine)
+    with engine.begin() as conn:
+        _ensure_columns(
+            conn,
+            inspector,
+            "connected_accounts",
+            {
+                "oauth_client_id": "VARCHAR(255)",
+                "encrypted_oauth_client_secret": "TEXT",
+                "oauth_redirect_uri": "VARCHAR(512)",
+                "consented_scopes_json": "TEXT DEFAULT '[]'",
+                "last_error": "TEXT",
+            },
+        )
+        _ensure_columns(
+            conn,
+            inspector,
+            "token_material",
+            {
+                "refresh_expires_at": "TIMESTAMP NULL",
+            },
+        )
+        _ensure_columns(
+            conn,
+            inspector,
+            "token_issue_events",
+            {
+                "reason": "VARCHAR(255)",
+            },
+        )
+        _ensure_columns(
+            conn,
+            inspector,
+            "service_clients",
+            {
+                "is_enabled": "BOOLEAN DEFAULT TRUE",
+            },
+        )
+        _ensure_columns(
+            conn,
+            inspector,
+            "delegation_grants",
+            {
+                "is_enabled": "BOOLEAN DEFAULT TRUE",
+            },
+        )
+        _ensure_columns(
+            conn,
+            inspector,
+            "users",
+            {
+                "is_active": "BOOLEAN DEFAULT TRUE",
+            },
+        )
+
+
+def _ensure_columns(conn, inspector, table_name: str, columns: dict[str, str]) -> None:
+    existing_tables = set(inspector.get_table_names())
+    if table_name not in existing_tables:
+        return
+
+    existing_columns = {column["name"] for column in inspector.get_columns(table_name)}
+    for column_name, column_sql in columns.items():
+        if column_name in existing_columns:
+            continue
+        conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_sql}"))
 
 
 def _ensure_provider_definition(db: Session, *, key: str, display_name: str, protocol: str, supports_broker_auth: bool, supports_downstream_oauth: bool, metadata: dict) -> ProviderDefinition:

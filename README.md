@@ -37,22 +37,38 @@ The intended migration shape is:
 
 ```bash
 cp .env.example .env
-# edit BASE_URL, MIRO_RELAY_API_KEY, MIRO_RELAY_ADMIN_KEY, MIRO_ADMIN_PASSWORD
+# edit BROKER_PUBLIC_BASE_URL, FRONTEND_BASE_URL, CORS_ORIGINS, and Microsoft credentials if needed
 
 docker compose up -d --build
 ```
 
 This starts:
 
+- `oauth-broker-proxy` on `http://localhost`
 - `postgres` on `localhost:5432`
-- `oauth-broker-backend` on `localhost:8000`
-- `miro-mcp-relay` on `localhost:8787`
+- `oauth-broker-frontend`, `oauth-broker-backend`, and `miro-mcp-relay` on the internal Docker network
 
 Primary new-stack surfaces:
 
-- broker API docs: [http://localhost:8000/api/v1/docs](http://localhost:8000/api/v1/docs)
-- broker frontend shell: [http://localhost:5173](http://localhost:5173)
-- end-user workspace: [http://localhost:5173/workspace](http://localhost:5173/workspace)
+- broker API docs: [http://localhost/api/v1/docs](http://localhost/api/v1/docs)
+- broker frontend shell: [http://localhost](http://localhost)
+- end-user workspace: [http://localhost/workspace](http://localhost/workspace)
+
+The same Compose stack also exposes local HTTPS on `https://localhost`. HAProxy generates a self-signed dev certificate automatically on first start and stores it under `./devcert`.
+
+If you want to pre-generate the same certificate before starting Docker, you can still run:
+
+```bash
+./scripts/generate-dev-cert.sh
+```
+
+Primary local HTTPS surfaces:
+
+- broker API docs: [https://localhost/api/v1/docs](https://localhost/api/v1/docs)
+- broker frontend shell: [https://localhost](https://localhost)
+- end-user workspace: [https://localhost/workspace](https://localhost/workspace)
+
+The generated certificate is self-signed and intended for local development only, so your browser will need to trust it manually.
 
 For local development without Docker:
 
@@ -80,8 +96,43 @@ To enable Microsoft end-user login, set these values in `.env` before starting t
 MICROSOFT_BROKER_TENANT_ID=common
 MICROSOFT_BROKER_CLIENT_ID=...
 MICROSOFT_BROKER_CLIENT_SECRET=...
-MICROSOFT_BROKER_SCOPE="openid profile email"
+MICROSOFT_BROKER_SCOPE="openid profile email User.Read"
 ```
+
+## Welle 1 smoke flow
+
+This is the reproducible Miro path that now defines feature-complete Welle 1:
+
+1. Start the backend and frontend.
+2. Open the frontend login page and sign in as an end user through Microsoft.
+3. Open `/connect/miro` and complete the Miro OAuth flow.
+4. In `/grants`, create a delegated credential for an approved service client.
+5. Use the returned delegated credential plus the service secret against one of these broker paths:
+   - `POST /api/v1/token-issues/provider-access`
+   - `POST /api/v1/broker-proxy/miro/{connected_account_id}`
+6. Verify the result in:
+   - end-user `Token Access`
+   - admin `Audit`, including token issue diagnostics
+
+Example direct-token request:
+
+```bash
+curl -sS \
+  -X POST http://localhost/api/v1/token-issues/provider-access \
+  -H "Content-Type: application/json" \
+  -H "X-Service-Secret: <service-client-secret>" \
+  -H "X-Delegated-Credential: <delegated-credential>" \
+  -d '{
+    "provider_app_key": "microsoft-graph-default",
+    "requested_scopes": ["Mail.Read"]
+  }'
+```
+
+## Validation
+
+- Relay unit checks: `node --test`
+- Backend syntax validation: `python3 -m py_compile backend/app/*.py backend/app/routers/*.py backend/app/core/*.py`
+- Welle-1 smoke tests: `python3 -m unittest backend/test_welle1_smoke.py`
 
 ## BASE_URL note (important)
 
@@ -439,7 +490,8 @@ backend be_miro_relay
 
 ## Security notes
 
-- Use HTTPS in production
+- Terminate public TLS at the upstream load balancer in production
+- The app-local HAProxy also exposes `443` with a self-signed certificate for local development only
 - Use long random keys for admin + relay
 - Treat `service_key` and `delegated_credential` like secrets; both are shown only once
 - Keep `access_mode=relay` for sensitive integrations unless direct token return is explicitly required

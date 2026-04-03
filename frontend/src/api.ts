@@ -193,6 +193,22 @@ export const api = {
   connectedAccounts(csrfToken: string) {
     return request<ConnectedAccountOut[]>("/api/v1/admin/connected-accounts", { csrfToken });
   },
+  filteredConnectedAccounts(
+    csrfToken: string,
+    params: {
+      userEmail?: string;
+      providerAppKey?: string;
+      status?: string;
+      limit?: number;
+    } = {},
+  ) {
+    const search = new URLSearchParams();
+    if (params.userEmail) search.set("user_email", params.userEmail);
+    if (params.providerAppKey) search.set("provider_app_key", params.providerAppKey);
+    if (params.status) search.set("status", params.status);
+    search.set("limit", String(params.limit ?? 200));
+    return request<ConnectedAccountOut[]>(`/api/v1/admin/connected-accounts?${search.toString()}`, { csrfToken });
+  },
   createConnectedAccount(csrfToken: string, body: unknown) {
     return request<ConnectedAccountOut>("/api/v1/admin/connected-accounts/manual", {
       method: "POST",
@@ -228,5 +244,27 @@ export const api = {
   },
   auditEvents(csrfToken: string, limit = 200) {
     return request<AuditEventOut[]>(`/api/v1/admin/audit?limit=${limit}`, { csrfToken });
+  },
+  adminTokenIssues(
+    csrfToken: string,
+    params: {
+      userId?: string;
+      serviceClientId?: string;
+      providerAppId?: string;
+      decision?: string;
+      fromTime?: string;
+      toTime?: string;
+      limit?: number;
+    } = {},
+  ) {
+    const search = new URLSearchParams();
+    if (params.userId) search.set("user_id", params.userId);
+    if (params.serviceClientId) search.set("service_client_id", params.serviceClientId);
+    if (params.providerAppId) search.set("provider_app_id", params.providerAppId);
+    if (params.decision) search.set("decision", params.decision);
+    if (params.fromTime) search.set("from_time", params.fromTime);
+    if (params.toTime) search.set("to_time", params.toTime);
+    search.set("limit", String(params.limit ?? 200));
+    return request<TokenIssueEventOut[]>(`/api/v1/admin/token-issues?${search.toString()}`, { csrfToken });
   },
 };

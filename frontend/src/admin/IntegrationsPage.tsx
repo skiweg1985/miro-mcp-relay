@@ -1,11 +1,11 @@
-import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { api } from "../api";
-import { Card, EmptyState, Field, FormActions, LoadingScreen, PageIntro, StatusBadge } from "../components";
+import { Card, EmptyState, Field, LoadingScreen, PageIntro, StatusBadge } from "../components";
 import { useAppContext } from "../app-context";
 import { isApiError } from "../errors";
 import type { BrokerCallbackUrls, ProviderAppOut, ProviderInstanceOut } from "../types";
-import { classNames } from "../utils";
+import { ReadOnlyCopyField, SetupDrawer, SummaryRow, type WizardStep } from "./SetupDrawer";
 import {
   GRAPH_CLAIM_OPTIONS,
   TEMPLATE_MIRO,
@@ -21,42 +21,63 @@ import {
 type ModalId = "ms-login" | "ms-graph" | "miro" | "custom" | null;
 type EditorId = "ms-login" | "ms-graph" | "miro" | "custom";
 
+const STEPS_MS_LOGIN: WizardStep[] = [
+  { id: "azure", label: "Azure application" },
+  { id: "redirect", label: "Redirect URI" },
+  { id: "review", label: "Review" },
+];
+
+const STEPS_MS_GRAPH: WizardStep[] = [
+  { id: "azure", label: "Azure application" },
+  { id: "permissions", label: "Permissions" },
+  { id: "redirect", label: "Redirect URI" },
+  { id: "review", label: "Review" },
+];
+
+const STEPS_MIRO: WizardStep[] = [
+  { id: "app", label: "Application" },
+  { id: "redirect", label: "Redirect URI" },
+  { id: "review", label: "Review" },
+];
+
+const STEPS_CUSTOM: WizardStep[] = [
+  { id: "names", label: "Integration" },
+  { id: "client", label: "Client" },
+  { id: "endpoints", label: "Endpoints" },
+  { id: "review", label: "Review" },
+];
+
 type CardModel = {
   id: string;
   title: string;
   description: string;
   templateKey: string;
-  tone: "microsoft" | "graph" | "miro" | "add";
 };
 
 const CARDS: CardModel[] = [
   {
     id: "ms-login",
-    title: "Microsoft Login",
-    description: "Sign-in for the admin console and users with Microsoft accounts.",
+    title: "Microsoft sign-in",
+    description: "Lets admins and users sign in with Microsoft.",
     templateKey: TEMPLATE_MS_LOGIN,
-    tone: "microsoft",
   },
   {
     id: "ms-graph",
     title: "Microsoft Graph",
-    description: "Mail, calendar, and directory access for connected users.",
+    description: "Mail, calendar, and directory data for connected accounts.",
     templateKey: TEMPLATE_MS_GRAPH,
-    tone: "graph",
   },
   {
     id: "miro",
     title: "Miro",
-    description: "Boards and collaboration for connected users.",
+    description: "Boards and collaboration for users who connect Miro.",
     templateKey: TEMPLATE_MIRO,
-    tone: "miro",
   },
   {
     id: "add",
-    title: "Add OAuth App",
-    description: "Connect another provider using OAuth 2.0.",
+    title: "Custom OAuth app",
+    description: "Add another provider using OAuth 2.0.",
     templateKey: "",
-    tone: "add",
   },
 ];
 
@@ -69,33 +90,18 @@ function statusLabel(
   const tenantOk = !needsTenant || Boolean((instance.settings as { tenant_id?: string }).tenant_id?.toString().trim());
   const configured = Boolean(app.client_id?.trim()) && app.has_client_secret && tenantOk && instance.authorization_endpoint && instance.token_endpoint;
   if (!configured) return { label: "Not configured", tone: "neutral" };
-  if (!app.is_enabled || !instance.is_enabled) return { label: "Unavailable", tone: "danger" };
+  if (!app.is_enabled || !instance.is_enabled) return { label: "Disabled", tone: "danger" };
   return { label: "Active", tone: "success" };
 }
 
-function Modal({
-  title,
-  children,
-  onClose,
-}: {
-  title: string;
-  children: ReactNode;
-  onClose: () => void;
-}) {
-  return (
-    <div className="modal-root" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-      <button type="button" className="modal-backdrop" aria-label="Close" onClick={onClose} />
-      <div className="modal-panel">
-        <header className="modal-panel-header">
-          <h2 id="modal-title">{title}</h2>
-          <button type="button" className="ghost-button" onClick={onClose}>
-            Close
-          </button>
-        </header>
-        <div className="modal-panel-body">{children}</div>
-      </div>
-    </div>
-  );
+function cardMeta(app: ProviderAppOut | undefined, instance: ProviderInstanceOut | undefined, needsTenant: boolean): string {
+  if (!app || !instance) return "No application record yet.";
+  const st = statusLabel(app, instance, needsTenant);
+  if (st.label === "Not configured") return "Complete setup to enable this integration.";
+  const tid = (instance.settings as { tenant_id?: string })?.tenant_id;
+  if (needsTenant && tid) return `Directory: ${tid === "common" ? "Multi-tenant" : tid}`;
+  if (app.client_id?.trim()) return "Client ID on file.";
+  return st.label;
 }
 
 export function IntegrationsPage() {
@@ -105,6 +111,7 @@ export function IntegrationsPage() {
   const [instances, setInstances] = useState<ProviderInstanceOut[]>([]);
   const [apps, setApps] = useState<ProviderAppOut[]>([]);
   const [modal, setModal] = useState<ModalId>(null);
+  const [wizardStep, setWizardStep] = useState(0);
   const [testing, setTesting] = useState<string | null>(null);
 
   const [tenant, setTenant] = useState("");
@@ -151,7 +158,13 @@ export function IntegrationsPage() {
 
   const instanceById = useMemo(() => Object.fromEntries(instances.map((i) => [i.id, i])), [instances]);
 
+  const closeDrawer = () => {
+    setModal(null);
+    setWizardStep(0);
+  };
+
   const openEditor = (id: EditorId) => {
+    setWizardStep(0);
     if (id === "custom") {
       setCustomName("");
       setCustomProvider("");
@@ -166,8 +179,7 @@ export function IntegrationsPage() {
       setModal("custom");
       return;
     }
-    const templateKey =
-      id === "ms-login" ? TEMPLATE_MS_LOGIN : id === "ms-graph" ? TEMPLATE_MS_GRAPH : TEMPLATE_MIRO;
+    const templateKey = id === "ms-login" ? TEMPLATE_MS_LOGIN : id === "ms-graph" ? TEMPLATE_MS_GRAPH : TEMPLATE_MIRO;
     const app = findAppByTemplate(apps, templateKey);
     const instance = app ? instanceById[app.provider_instance_id] : undefined;
     const tid = (instance?.settings as { tenant_id?: string })?.tenant_id ?? "";
@@ -193,12 +205,9 @@ export function IntegrationsPage() {
     if (!instance) return;
     setPending(true);
     try {
-      const redirect =
-        templateKey === TEMPLATE_MS_LOGIN ? urls.microsoft_login : urls.microsoft_graph;
+      const redirect = templateKey === TEMPLATE_MS_LOGIN ? urls.microsoft_login : urls.microsoft_graph;
       const defaultScopes =
-        templateKey === TEMPLATE_MS_LOGIN
-          ? ["openid", "profile", "email"]
-          : graphClaimsToScopes(graphClaims);
+        templateKey === TEMPLATE_MS_LOGIN ? ["openid", "profile", "email"] : graphClaimsToScopes(graphClaims);
       const ceiling =
         templateKey === TEMPLATE_MS_LOGIN
           ? ["openid", "profile", "email"]
@@ -230,8 +239,8 @@ export function IntegrationsPage() {
         is_enabled: app.is_enabled,
       });
 
-      notify({ tone: "success", title: "Saved", description: "Integration settings were updated." });
-      setModal(null);
+      notify({ tone: "success", title: "Settings saved", description: "The integration was updated." });
+      closeDrawer();
       await load();
     } catch (error) {
       notify({
@@ -244,8 +253,7 @@ export function IntegrationsPage() {
     }
   };
 
-  const saveMiro = async (event: FormEvent) => {
-    event.preventDefault();
+  const saveMiro = async () => {
     if (session.status !== "authenticated" || !urls) return;
     const app = findAppByTemplate(apps, TEMPLATE_MIRO);
     if (!app) return;
@@ -267,8 +275,8 @@ export function IntegrationsPage() {
         relay_protocol: app.relay_protocol,
         is_enabled: app.is_enabled,
       });
-      notify({ tone: "success", title: "Saved", description: "Miro integration was updated." });
-      setModal(null);
+      notify({ tone: "success", title: "Settings saved", description: "Miro was updated." });
+      closeDrawer();
       await load();
     } catch (error) {
       notify({
@@ -281,8 +289,7 @@ export function IntegrationsPage() {
     }
   };
 
-  const saveCustom = async (event: FormEvent) => {
-    event.preventDefault();
+  const saveCustom = async () => {
     if (session.status !== "authenticated" || !urls) return;
     const name = customName.trim();
     const authUrl = customAuthUrl.trim();
@@ -335,8 +342,8 @@ export function IntegrationsPage() {
         relay_protocol: "mcp_streamable_http",
         is_enabled: true,
       });
-      notify({ tone: "success", title: "Integration created", description: "The new app appears in the list for services and access rules." });
-      setModal(null);
+      notify({ tone: "success", title: "Integration created", description: "It is available for access rules and user connections." });
+      closeDrawer();
       await load();
     } catch (error) {
       notify({
@@ -356,7 +363,7 @@ export function IntegrationsPage() {
       const result = await api.testIntegration(session.csrfToken, templateKey);
       notify({
         tone: result.ok ? "success" : "error",
-        title: result.ok ? "Connection OK" : "Connection check failed",
+        title: result.ok ? "Connection check succeeded" : "Connection check failed",
         description: result.message,
       });
     } catch (error) {
@@ -379,6 +386,41 @@ export function IntegrationsPage() {
     });
   };
 
+  const goNextMsLogin = () => {
+    if (wizardStep >= STEPS_MS_LOGIN.length - 1) return;
+    setWizardStep((s) => s + 1);
+  };
+
+  const goNextMsGraph = () => {
+    if (wizardStep >= STEPS_MS_GRAPH.length - 1) return;
+    setWizardStep((s) => s + 1);
+  };
+
+  const goNextMiro = () => {
+    if (wizardStep >= STEPS_MIRO.length - 1) return;
+    setWizardStep((s) => s + 1);
+  };
+
+  const goNextCustom = () => {
+    if (wizardStep === 0 && !customName.trim()) {
+      notify({ tone: "error", title: "Name required", description: "Enter an integration name." });
+      return;
+    }
+    if (wizardStep === 2) {
+      if (!customAuthUrl.trim() || !customTokenUrl.trim()) {
+        notify({ tone: "error", title: "URLs required", description: "Authorize URL and token URL are required." });
+        return;
+      }
+    }
+    if (wizardStep >= STEPS_CUSTOM.length - 1) return;
+    setWizardStep((s) => s + 1);
+  };
+
+  const lastMsLogin = wizardStep === STEPS_MS_LOGIN.length - 1;
+  const lastMsGraph = wizardStep === STEPS_MS_GRAPH.length - 1;
+  const lastMiro = wizardStep === STEPS_MIRO.length - 1;
+  const lastCustom = wizardStep === STEPS_CUSTOM.length - 1;
+
   if (loading || !urls) {
     return <LoadingScreen label="Loading integrations…" />;
   }
@@ -387,13 +429,13 @@ export function IntegrationsPage() {
     <>
       <PageIntro
         eyebrow="Integrations"
-        title="Cloud connections"
-        description="Configure how users sign in and which external systems this workspace may access."
+        title="External systems"
+        description="Configure how users sign in and which third-party services this deployment may use."
       />
 
       <div className="integration-grid">
         {CARDS.map((card) => {
-          if (card.tone === "add") {
+          if (card.id === "add") {
             return (
               <button
                 key={card.id}
@@ -403,7 +445,7 @@ export function IntegrationsPage() {
               >
                 <span className="integration-card-title">{card.title}</span>
                 <span className="integration-card-desc">{card.description}</span>
-                <span className="integration-card-cta">Add</span>
+                <span className="integration-card-cta">Add integration</span>
               </button>
             );
           }
@@ -412,7 +454,7 @@ export function IntegrationsPage() {
           const needsTenant = card.templateKey !== TEMPLATE_MIRO;
           const st = statusLabel(app, instance, needsTenant);
           return (
-            <article key={card.id} className={classNames("integration-card", `tone-${card.tone}`)}>
+            <article key={card.id} className="integration-card">
               <div className="integration-card-head">
                 <span className="integration-card-title">{card.title}</span>
                 <StatusBadge tone={st.tone === "success" ? "success" : st.tone === "danger" ? "danger" : "neutral"}>
@@ -420,6 +462,7 @@ export function IntegrationsPage() {
                 </StatusBadge>
               </div>
               <p className="integration-card-desc">{card.description}</p>
+              <p className="integration-card-meta">{cardMeta(app, instance, needsTenant)}</p>
               <div className="integration-card-actions">
                 <button
                   type="button"
@@ -430,7 +473,7 @@ export function IntegrationsPage() {
                 </button>
                 <button
                   type="button"
-                  className="ghost-button"
+                  className="secondary-button"
                   disabled={testing === card.templateKey}
                   onClick={() => void runTest(card.templateKey)}
                 >
@@ -442,7 +485,7 @@ export function IntegrationsPage() {
         })}
       </div>
 
-      <Card title="Registered integrations" description="All apps available for access rules and user connections.">
+      <Card title="All integrations" description="Registered applications available for access rules and user connections.">
         {apps.length ? (
           <ul className="integration-inline-list">
             {apps.map((a) => (
@@ -453,136 +496,346 @@ export function IntegrationsPage() {
             ))}
           </ul>
         ) : (
-          <EmptyState title="No integrations yet" body="Add a provider above." />
+          <EmptyState title="No integrations" body="Add a provider from the cards above." />
         )}
       </Card>
 
-      {modal === "ms-login" ? (
-        <Modal title="Microsoft Login" onClose={() => setModal(null)}>
-          <form
-            className="compact-form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void saveMicrosoft(TEMPLATE_MS_LOGIN);
-            }}
-          >
-            <Field label="Tenant ID">
-              <input value={tenant} onChange={(e) => setTenant(e.target.value)} placeholder="e.g. common or your tenant GUID" autoComplete="off" />
-            </Field>
-            <Field label="Client ID">
-              <input value={clientId} onChange={(e) => setClientId(e.target.value)} autoComplete="off" />
-            </Field>
-            <Field label="Client secret" hint="Leave unchanged to keep the current secret.">
-              <input type="password" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} autoComplete="new-password" />
-            </Field>
-            <Field label="Redirect URI">
-              <input readOnly value={urls.microsoft_login} />
-            </Field>
-            <FormActions pending={pending} submitLabel="Save" />
-          </form>
-        </Modal>
-      ) : null}
-
-      {modal === "ms-graph" ? (
-        <Modal title="Microsoft Graph" onClose={() => setModal(null)}>
-          <form
-            className="compact-form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void saveMicrosoft(TEMPLATE_MS_GRAPH);
-            }}
-          >
-            <Field label="Tenant ID">
-              <input value={tenant} onChange={(e) => setTenant(e.target.value)} placeholder="e.g. common or your tenant GUID" autoComplete="off" />
-            </Field>
-            <Field label="Client ID">
-              <input value={clientId} onChange={(e) => setClientId(e.target.value)} autoComplete="off" />
-            </Field>
-            <Field label="Client secret" hint="Leave unchanged to keep the current secret.">
-              <input type="password" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} autoComplete="new-password" />
-            </Field>
-            <div className="field">
-              <span className="field-label">Permissions</span>
-              <div className="claim-grid">
-                {GRAPH_CLAIM_OPTIONS.map((c) => (
-                  <label key={c.id} className="check-option">
-                    <input type="checkbox" checked={graphClaims.has(c.id)} onChange={() => toggleClaim(c.id)} />
-                    <span>{c.label}</span>
-                  </label>
-                ))}
+      {modal === "ms-login" && urls ? (
+        <SetupDrawer
+          title="Microsoft sign-in"
+          subtitle="Registers the Entra ID application used for sign-in to this console."
+          steps={STEPS_MS_LOGIN}
+          activeStepIndex={wizardStep}
+          onClose={closeDrawer}
+          wide
+          footer={
+            <div className="drawer-footer-inner">
+              <div>
+                {wizardStep > 0 ? (
+                  <button type="button" className="secondary-button" onClick={() => setWizardStep((s) => s - 1)}>
+                    Back
+                  </button>
+                ) : null}
+              </div>
+              <div className="drawer-footer-actions">
+                {!lastMsLogin ? (
+                  <button type="button" className="primary-button" onClick={goNextMsLogin}>
+                    Next
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      disabled={testing === TEMPLATE_MS_LOGIN}
+                      onClick={() => void runTest(TEMPLATE_MS_LOGIN)}
+                    >
+                      {testing === TEMPLATE_MS_LOGIN ? "Testing…" : "Test connection"}
+                    </button>
+                    <button
+                      type="button"
+                      className="primary-button"
+                      disabled={pending}
+                      onClick={() => void saveMicrosoft(TEMPLATE_MS_LOGIN)}
+                    >
+                      {pending ? "Saving…" : "Save"}
+                    </button>
+                  </>
+                )}
               </div>
             </div>
-            <Field label="Redirect URI">
-              <input readOnly value={urls.microsoft_graph} />
-            </Field>
-            <FormActions pending={pending} submitLabel="Save" />
-          </form>
-        </Modal>
+          }
+        >
+          <div className="wizard-step-body">
+            {wizardStep === 0 ? (
+              <>
+                <Field label="Directory (tenant) ID">
+                  <input
+                    value={tenant}
+                    onChange={(e) => setTenant(e.target.value)}
+                    placeholder="common or tenant GUID"
+                    autoComplete="off"
+                  />
+                </Field>
+                <p className="field-hint">Use “common” for multi-tenant apps, or your tenant ID for a single tenant.</p>
+                <Field label="Application (client) ID">
+                  <input value={clientId} onChange={(e) => setClientId(e.target.value)} autoComplete="off" />
+                </Field>
+                <Field label="Client secret" hint="Leave blank to keep the current secret.">
+                  <input type="password" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} autoComplete="new-password" />
+                </Field>
+              </>
+            ) : null}
+            {wizardStep === 1 ? <ReadOnlyCopyField label="Redirect URI" value={urls.microsoft_login} /> : null}
+            {wizardStep === 2 ? (
+              <>
+                <p className="field-hint" style={{ marginTop: 0 }}>
+                  Confirm values before saving. Run a connection test if you changed credentials or endpoints in Entra ID.
+                </p>
+                <div className="summary-panel">
+                  <SummaryRow label="Tenant" value={tenant.trim() || "common"} />
+                  <SummaryRow label="Client ID" value={clientId.trim() || "—"} />
+                  <SummaryRow label="Client secret" value={clientSecret.trim() ? "New value entered" : "Unchanged"} />
+                </div>
+              </>
+            ) : null}
+          </div>
+        </SetupDrawer>
       ) : null}
 
-      {modal === "miro" ? (
-        <Modal title="Miro" onClose={() => setModal(null)}>
-          <form className="compact-form" onSubmit={saveMiro}>
-            <Field label="Client ID">
-              <input value={clientId} onChange={(e) => setClientId(e.target.value)} autoComplete="off" />
-            </Field>
-            <Field label="Client secret" hint="Leave unchanged to keep the current secret.">
-              <input type="password" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} autoComplete="new-password" />
-            </Field>
-            <Field label="Redirect URI">
-              <input readOnly value={urls.miro} />
-            </Field>
-            <FormActions pending={pending} submitLabel="Save" />
-          </form>
-        </Modal>
-      ) : null}
-
-      {modal === "custom" ? (
-        <Modal title="Add OAuth App" onClose={() => setModal(null)}>
-          <form className="compact-form" onSubmit={saveCustom}>
-            <Field label="Name">
-              <input value={customName} onChange={(e) => setCustomName(e.target.value)} required />
-            </Field>
-            <Field label="Provider name">
-              <input value={customProvider} onChange={(e) => setCustomProvider(e.target.value)} placeholder="Shown in lists" />
-            </Field>
-            <Field label="Client ID">
-              <input value={customClientId} onChange={(e) => setCustomClientId(e.target.value)} />
-            </Field>
-            <div className="field">
-              <label className="check-option">
-                <input type="checkbox" checked={customPkce} onChange={(e) => setCustomPkce(e.target.checked)} />
-                <span>Use PKCE instead of a client secret</span>
-              </label>
+      {modal === "ms-graph" && urls ? (
+        <SetupDrawer
+          title="Microsoft Graph"
+          subtitle="Defines the app used when users connect their Microsoft 365 data."
+          steps={STEPS_MS_GRAPH}
+          activeStepIndex={wizardStep}
+          onClose={closeDrawer}
+          wide
+          footer={
+            <div className="drawer-footer-inner">
+              <div>
+                {wizardStep > 0 ? (
+                  <button type="button" className="secondary-button" onClick={() => setWizardStep((s) => s - 1)}>
+                    Back
+                  </button>
+                ) : null}
+              </div>
+              <div className="drawer-footer-actions">
+                {!lastMsGraph ? (
+                  <button type="button" className="primary-button" onClick={goNextMsGraph}>
+                    Next
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      disabled={testing === TEMPLATE_MS_GRAPH}
+                      onClick={() => void runTest(TEMPLATE_MS_GRAPH)}
+                    >
+                      {testing === TEMPLATE_MS_GRAPH ? "Testing…" : "Test connection"}
+                    </button>
+                    <button
+                      type="button"
+                      className="primary-button"
+                      disabled={pending}
+                      onClick={() => void saveMicrosoft(TEMPLATE_MS_GRAPH)}
+                    >
+                      {pending ? "Saving…" : "Save"}
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
-            {!customPkce ? (
-              <Field label="Client secret">
-                <input type="password" value={customSecret} onChange={(e) => setCustomSecret(e.target.value)} autoComplete="new-password" />
-              </Field>
+          }
+        >
+          <div className="wizard-step-body">
+            {wizardStep === 0 ? (
+              <>
+                <Field label="Directory (tenant) ID">
+                  <input
+                    value={tenant}
+                    onChange={(e) => setTenant(e.target.value)}
+                    placeholder="common or tenant GUID"
+                    autoComplete="off"
+                  />
+                </Field>
+                <Field label="Application (client) ID">
+                  <input value={clientId} onChange={(e) => setClientId(e.target.value)} autoComplete="off" />
+                </Field>
+                <Field label="Client secret" hint="Leave blank to keep the current secret.">
+                  <input type="password" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} autoComplete="new-password" />
+                </Field>
+              </>
             ) : null}
-            <Field label="Authorize URL">
-              <input value={customAuthUrl} onChange={(e) => setCustomAuthUrl(e.target.value)} required placeholder="https://…" />
-            </Field>
-            <Field label="Token URL">
-              <input value={customTokenUrl} onChange={(e) => setCustomTokenUrl(e.target.value)} required placeholder="https://…" />
-            </Field>
-            <Field label="Scopes">
-              <input value={customScopes} onChange={(e) => setCustomScopes(e.target.value)} placeholder="space-separated" />
-            </Field>
-            <button type="button" className="ghost-button advanced-toggle" onClick={() => setAdvancedOpen((v) => !v)}>
-              Advanced settings
-            </button>
-            {advancedOpen ? (
-              <Field label="User info endpoint">
-                <input value={customUserinfo} onChange={(e) => setCustomUserinfo(e.target.value)} placeholder="Optional" />
-              </Field>
+            {wizardStep === 1 ? (
+              <div className="field">
+                <span className="field-label">Claims and API access</span>
+                <span className="field-hint">Select the profile and directory data this integration may request.</span>
+                <div className="claim-grid">
+                  {GRAPH_CLAIM_OPTIONS.map((c) => (
+                    <label key={c.id} className="check-option">
+                      <input type="checkbox" checked={graphClaims.has(c.id)} onChange={() => toggleClaim(c.id)} />
+                      <span>{c.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
             ) : null}
-            <Field label="Redirect URI">
-              <input readOnly value={urls.custom_oauth} />
-            </Field>
-            <FormActions pending={pending} submitLabel="Create integration" />
-          </form>
-        </Modal>
+            {wizardStep === 2 ? <ReadOnlyCopyField label="Redirect URI" value={urls.microsoft_graph} /> : null}
+            {wizardStep === 3 ? (
+              <>
+                <p className="field-hint" style={{ marginTop: 0 }}>
+                  Review scopes derived from your selection, then save or test the connection.
+                </p>
+                <div className="summary-panel">
+                  <SummaryRow label="Tenant" value={tenant.trim() || "common"} />
+                  <SummaryRow label="Client ID" value={clientId.trim() || "—"} />
+                  <SummaryRow label="Scopes" value={graphClaimsToScopes(graphClaims).join(", ")} />
+                </div>
+              </>
+            ) : null}
+          </div>
+        </SetupDrawer>
+      ) : null}
+
+      {modal === "miro" && urls ? (
+        <SetupDrawer
+          title="Miro"
+          subtitle="Connects user accounts to Miro using your OAuth client."
+          steps={STEPS_MIRO}
+          activeStepIndex={wizardStep}
+          onClose={closeDrawer}
+          footer={
+            <div className="drawer-footer-inner">
+              <div>
+                {wizardStep > 0 ? (
+                  <button type="button" className="secondary-button" onClick={() => setWizardStep((s) => s - 1)}>
+                    Back
+                  </button>
+                ) : null}
+              </div>
+              <div className="drawer-footer-actions">
+                {!lastMiro ? (
+                  <button type="button" className="primary-button" onClick={goNextMiro}>
+                    Next
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      disabled={testing === TEMPLATE_MIRO}
+                      onClick={() => void runTest(TEMPLATE_MIRO)}
+                    >
+                      {testing === TEMPLATE_MIRO ? "Testing…" : "Test connection"}
+                    </button>
+                    <button type="button" className="primary-button" disabled={pending} onClick={() => void saveMiro()}>
+                      {pending ? "Saving…" : "Save"}
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          }
+        >
+          <div className="wizard-step-body">
+            {wizardStep === 0 ? (
+              <>
+                <Field label="Client ID">
+                  <input value={clientId} onChange={(e) => setClientId(e.target.value)} autoComplete="off" />
+                </Field>
+                <Field label="Client secret" hint="Leave blank to keep the current secret.">
+                  <input type="password" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} autoComplete="new-password" />
+                </Field>
+              </>
+            ) : null}
+            {wizardStep === 1 ? <ReadOnlyCopyField label="Redirect URI" value={urls.miro} /> : null}
+            {wizardStep === 2 ? (
+              <div className="summary-panel">
+                <SummaryRow label="Client ID" value={clientId.trim() || "—"} />
+                <SummaryRow label="Client secret" value={clientSecret.trim() ? "New value entered" : "Unchanged"} />
+              </div>
+            ) : null}
+          </div>
+        </SetupDrawer>
+      ) : null}
+
+      {modal === "custom" && urls ? (
+        <SetupDrawer
+          title="Custom OAuth app"
+          subtitle="Register a generic OAuth 2.0 provider for relayed access."
+          steps={STEPS_CUSTOM}
+          activeStepIndex={wizardStep}
+          onClose={closeDrawer}
+          wide
+          footer={
+            <div className="drawer-footer-inner">
+              <div>
+                {wizardStep > 0 ? (
+                  <button type="button" className="secondary-button" onClick={() => setWizardStep((s) => s - 1)}>
+                    Back
+                  </button>
+                ) : null}
+              </div>
+              <div className="drawer-footer-actions">
+                {!lastCustom ? (
+                  <button type="button" className="primary-button" onClick={goNextCustom}>
+                    Next
+                  </button>
+                ) : (
+                  <button type="button" className="primary-button" disabled={pending} onClick={() => void saveCustom()}>
+                    {pending ? "Creating…" : "Create integration"}
+                  </button>
+                )}
+              </div>
+            </div>
+          }
+        >
+          <div className="wizard-step-body">
+            {wizardStep === 0 ? (
+              <>
+                <Field label="Display name">
+                  <input value={customName} onChange={(e) => setCustomName(e.target.value)} required />
+                </Field>
+                <Field label="Provider name" hint="Shown in lists; optional.">
+                  <input value={customProvider} onChange={(e) => setCustomProvider(e.target.value)} placeholder="Same as display name if empty" />
+                </Field>
+              </>
+            ) : null}
+            {wizardStep === 1 ? (
+              <>
+                <Field label="Client ID">
+                  <input value={customClientId} onChange={(e) => setCustomClientId(e.target.value)} />
+                </Field>
+                <div className="field">
+                  <label className="check-option">
+                    <input type="checkbox" checked={customPkce} onChange={(e) => setCustomPkce(e.target.checked)} />
+                    <span>Use PKCE (no client secret)</span>
+                  </label>
+                </div>
+                {!customPkce ? (
+                  <Field label="Client secret">
+                    <input type="password" value={customSecret} onChange={(e) => setCustomSecret(e.target.value)} autoComplete="new-password" />
+                  </Field>
+                ) : null}
+              </>
+            ) : null}
+            {wizardStep === 2 ? (
+              <>
+                <Field label="Authorize URL">
+                  <input value={customAuthUrl} onChange={(e) => setCustomAuthUrl(e.target.value)} required placeholder="https://…" />
+                </Field>
+                <Field label="Token URL">
+                  <input value={customTokenUrl} onChange={(e) => setCustomTokenUrl(e.target.value)} required placeholder="https://…" />
+                </Field>
+                <Field label="Scopes">
+                  <input value={customScopes} onChange={(e) => setCustomScopes(e.target.value)} placeholder="space-separated" />
+                </Field>
+                <button type="button" className="ghost-button advanced-toggle" onClick={() => setAdvancedOpen((v) => !v)}>
+                  User info endpoint
+                </button>
+                {advancedOpen ? (
+                  <Field label="User info URL" hint="Optional.">
+                    <input value={customUserinfo} onChange={(e) => setCustomUserinfo(e.target.value)} />
+                  </Field>
+                ) : null}
+              </>
+            ) : null}
+            {wizardStep === 3 ? (
+              <>
+                <ReadOnlyCopyField label="Redirect URI" value={urls.custom_oauth} />
+                <div className="summary-panel">
+                  <SummaryRow label="Name" value={customName.trim() || "—"} />
+                  <SummaryRow label="Provider" value={customProvider.trim() || customName.trim() || "—"} />
+                  <SummaryRow label="PKCE" value={customPkce ? "Yes" : "No"} />
+                  <SummaryRow label="Authorize URL" value={customAuthUrl.trim() || "—"} />
+                  <SummaryRow label="Token URL" value={customTokenUrl.trim() || "—"} />
+                </div>
+              </>
+            ) : null}
+          </div>
+        </SetupDrawer>
       ) : null}
     </>
   );

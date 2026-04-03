@@ -1,3 +1,27 @@
+## 2026-04-03 – Cursor Agent – Admin-UI Redesign OAuth
+
+- Done:
+  - Globales Frontend-Design (weiß, Kontrast, System-UI), Admin-Shell-Branding, Integrationsseite mit Drawer-Wizards und Review-Schritt, Logs mit Tabs, Access/User/Services/Dashboard-Texte angepasst, Zugriffsmodus-Labels (Proxy/Direct) in Admin und User-Grants.
+  - Neue Komponente `frontend/src/admin/SetupDrawer.tsx`.
+- Next:
+  - optional: End-User-Workspace (Miro-Panel) Texte von „relay“ auf produktfreundliche Begriffe vereinheitlichen.
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - frontend/src/index.css, frontend/index.html, frontend/src/App.tsx
+  - frontend/src/admin/IntegrationsPage.tsx, SetupDrawer.tsx, DashboardPage.tsx, UsersPage.tsx, ServicesPage.tsx, AccessPage.tsx, LogsPage.tsx
+  - docs/CHANGELOG.md, planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build`
+  - UI path: /app/integrations, /app/logs
+- Changelog updated:
+  - yes ([Unreleased] Changed)
+- Follow-ups:
+  - none
+
 ## 2026-04-03 – Agent – Credential-only Token-Abruf
 
 - Done:

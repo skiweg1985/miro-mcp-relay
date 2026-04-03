@@ -164,7 +164,7 @@ export function UsersPage() {
       <PageIntro
         eyebrow="Users"
         title="People and connections"
-        description="Directory accounts and linked external identities."
+        description="Who can sign in and which external accounts are linked."
       />
 
       <div className="tab-bar" role="tablist">

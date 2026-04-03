@@ -80,7 +80,7 @@ export function ServicesPage() {
       <PageIntro
         eyebrow="Services"
         title="Internal applications"
-        description="Credentials for backend systems that call this API on behalf of users."
+        description="Registered callers that authenticate to this API."
       />
       {createdResult ? (
         <SecretPanel

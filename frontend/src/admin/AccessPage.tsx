@@ -22,6 +22,13 @@ function grantState(grant: DelegationGrantOut): string {
   return "Active";
 }
 
+function accessModeLabel(mode: string): string {
+  if (mode === "relay") return "Proxy path";
+  if (mode === "direct_token") return "Direct token";
+  if (mode === "hybrid") return "Hybrid";
+  return mode;
+}
+
 function grantTone(grant: DelegationGrantOut): "neutral" | "success" | "warn" | "danger" {
   const state = grantState(grant);
   if (state === "Active") return "success";
@@ -161,7 +168,7 @@ export function AccessPage() {
       <PageIntro
         eyebrow="Access"
         title="Service permissions"
-        description="Links people, internal services, and integrations with expiring credentials."
+        description="Time-bound access from internal services to user-connected integrations."
       />
       {createdResult ? (
         <SecretPanel
@@ -262,7 +269,7 @@ export function AccessPage() {
                       checked={form.allowed_access_modes.includes(mode)}
                       onChange={() => toggleMode(mode)}
                     />
-                    <span>{mode.replace("_", " ")}</span>
+                    <span>{accessModeLabel(mode)}</span>
                   </label>
                 ))}
               </div>

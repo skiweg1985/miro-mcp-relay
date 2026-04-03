@@ -127,6 +127,12 @@ function providerRouteLabel(providerKey: string): string {
   return providerKey;
 }
 
+function userAccessModeLabel(mode: string): string {
+  if (mode === "relay") return "Proxy path";
+  if (mode === "direct_token") return "Direct token";
+  return mode;
+}
+
 function replaceCurrentSearchParams(removals: string[]) {
   const url = new URL(window.location.href);
   let changed = false;
@@ -1158,7 +1164,7 @@ function GrantsPage() {
                       checked={form.allowed_access_modes.includes(mode)}
                       onChange={() => toggleMode(mode)}
                     />
-                    <span>{mode}</span>
+                    <span>{userAccessModeLabel(mode)}</span>
                   </label>
                 ))}
               </div>
@@ -1526,9 +1532,9 @@ function AuthenticatedApp() {
           { href: "/app/logs", label: "Logs" },
         ]}
         onNavigate={navigate}
-        kicker="Integration hub"
-        title="Administration"
-        subtitle="Organization settings"
+        kicker="OAuth integration broker"
+        title="Admin console"
+        subtitle="Organization configuration"
       >
         {route.name === "dashboard" ? <DashboardPage /> : null}
         {route.name === "integrations" ? <IntegrationsPage /> : null}

@@ -63,7 +63,7 @@ export function DashboardPage() {
       <PageIntro
         eyebrow="Dashboard"
         title="Overview"
-        description="Service health, integrations, and recent activity at a glance."
+        description="Health, integration count, and recent audit activity."
       />
       <div className="metric-grid">
         <MetricCard label="API status" value={health?.ok ? "Online" : "Unavailable"} caption={health?.service ?? "Unknown"} />

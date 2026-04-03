@@ -10,6 +10,13 @@ from app.database import get_db
 from app.deps import record_audit, require_admin, require_csrf
 from app.miro import import_legacy_miro_data, migration_status
 from app.models import AuditEvent, ConnectedAccount, DelegationGrant, GrantedCapability, ProviderApp, ProviderDefinition, ProviderInstance, ServiceClient, TokenIssueEvent, TokenMaterial, User
+from app.provider_templates import (
+    dump_settings,
+    enforce_singleton_template,
+    normalize_instance_settings,
+    serialize_json_field,
+    validate_template_assignment,
+)
 from app.schemas import (
     AuditEventOut,
     ConnectedAccountCreate,
@@ -23,6 +30,8 @@ from app.schemas import (
     ProviderAppOut,
     ProviderInstanceCreate,
     ProviderInstanceOut,
+    ProviderAppUpdate,
+    ProviderInstanceUpdate,
     ServiceClientCreate,
     ServiceClientOut,
     ServiceClientSecretResponse,
@@ -34,6 +43,100 @@ from app.security import dumps_json, encrypt_text, hash_secret, issue_plain_secr
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 
+def _provider_instance_out(provider_instance: ProviderInstance, provider_definition_key: str) -> ProviderInstanceOut:
+    return ProviderInstanceOut(
+        id=provider_instance.id,
+        key=provider_instance.key,
+        display_name=provider_instance.display_name,
+        provider_definition_key=provider_definition_key,
+        role=provider_instance.role,
+        issuer=provider_instance.issuer,
+        authorization_endpoint=provider_instance.authorization_endpoint,
+        token_endpoint=provider_instance.token_endpoint,
+        userinfo_endpoint=provider_instance.userinfo_endpoint,
+        settings=serialize_json_field(provider_instance.settings_json, {}),
+        is_enabled=provider_instance.is_enabled,
+    )
+
+
+def _provider_app_out(provider_app: ProviderApp, provider_instance: ProviderInstance | None) -> ProviderAppOut:
+    return ProviderAppOut(
+        id=provider_app.id,
+        key=provider_app.key,
+        template_key=provider_app.template_key,
+        display_name=provider_app.display_name,
+        provider_instance_id=provider_app.provider_instance_id,
+        provider_instance_key=provider_instance.key if provider_instance else None,
+        access_mode=provider_app.access_mode,
+        allow_relay=provider_app.allow_relay,
+        allow_direct_token_return=provider_app.allow_direct_token_return,
+        relay_protocol=provider_app.relay_protocol,
+        client_id=provider_app.client_id,
+        has_client_secret=bool(provider_app.encrypted_client_secret),
+        redirect_uris=loads_json(provider_app.redirect_uris_json, []),
+        default_scopes=loads_json(provider_app.default_scopes_json, []),
+        scope_ceiling=loads_json(provider_app.scope_ceiling_json, []),
+        is_enabled=provider_app.is_enabled,
+    )
+
+
+def _apply_provider_instance_payload(
+    provider_instance: ProviderInstance,
+    *,
+    provider_definition: ProviderDefinition,
+    display_name: str,
+    role: str,
+    issuer: str | None,
+    authorization_endpoint: str | None,
+    token_endpoint: str | None,
+    userinfo_endpoint: str | None,
+    settings: dict,
+    is_enabled: bool,
+) -> None:
+    normalized_settings, derived = normalize_instance_settings(provider_definition.key, settings)
+    provider_instance.display_name = display_name
+    provider_instance.role = role
+    provider_instance.issuer = derived["issuer"] if derived["issuer"] else issuer
+    provider_instance.authorization_endpoint = (
+        derived["authorization_endpoint"] if derived["authorization_endpoint"] else authorization_endpoint
+    )
+    provider_instance.token_endpoint = derived["token_endpoint"] if derived["token_endpoint"] else token_endpoint
+    provider_instance.userinfo_endpoint = userinfo_endpoint
+    provider_instance.settings_json = dump_settings(normalized_settings)
+    provider_instance.is_enabled = is_enabled
+
+
+def _apply_provider_app_payload(
+    provider_app: ProviderApp,
+    *,
+    template_key: str | None,
+    display_name: str,
+    client_id: str | None,
+    client_secret: str | None,
+    redirect_uris: list[str],
+    default_scopes: list[str],
+    scope_ceiling: list[str],
+    access_mode: str,
+    allow_relay: bool,
+    allow_direct_token_return: bool,
+    relay_protocol: str | None,
+    is_enabled: bool,
+) -> None:
+    provider_app.template_key = template_key
+    provider_app.display_name = display_name
+    provider_app.client_id = client_id
+    if client_secret:
+        provider_app.encrypted_client_secret = encrypt_text(client_secret)
+    provider_app.redirect_uris_json = dumps_json(redirect_uris)
+    provider_app.default_scopes_json = dumps_json(default_scopes)
+    provider_app.scope_ceiling_json = dumps_json(scope_ceiling)
+    provider_app.access_mode = access_mode
+    provider_app.allow_relay = allow_relay
+    provider_app.allow_direct_token_return = allow_direct_token_return
+    provider_app.relay_protocol = relay_protocol
+    provider_app.is_enabled = is_enabled
+
+
 @router.get("/users", response_model=list[UserOut], dependencies=[Depends(require_csrf)])
 def list_users(_admin: User = Depends(require_admin), db: Session = Depends(get_db)):
     return db.scalars(select(User).order_by(User.created_at.desc())).all()
@@ -41,12 +144,27 @@ def list_users(_admin: User = Depends(require_admin), db: Session = Depends(get_
 
 @router.get("/provider-instances", response_model=list[ProviderInstanceOut], dependencies=[Depends(require_csrf)])
 def list_provider_instances(_admin: User = Depends(require_admin), db: Session = Depends(get_db)):
-    return db.scalars(select(ProviderInstance).order_by(ProviderInstance.display_name.asc())).all()
+    provider_instances = db.scalars(select(ProviderInstance).where(ProviderInstance.organization_id == _admin.organization_id).order_by(ProviderInstance.display_name.asc())).all()
+    provider_definitions = {
+        definition.id: definition
+        for definition in db.scalars(select(ProviderDefinition)).all()
+    }
+    return [
+        _provider_instance_out(
+            provider_instance,
+            provider_definitions.get(provider_instance.provider_definition_id).key
+            if provider_instance.provider_definition_id in provider_definitions
+            else "",
+        )
+        for provider_instance in provider_instances
+    ]
 
 
 @router.post("/provider-instances", response_model=ProviderInstanceOut, dependencies=[Depends(require_csrf)])
 def create_provider_instance(payload: ProviderInstanceCreate, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
-    provider_definition = db.scalar(select(ProviderDefinition).where(ProviderDefinition.key == payload.provider_definition_key))
+    provider_definition = db.scalar(
+        select(ProviderDefinition).where(ProviderDefinition.key == payload.provider_definition_key)
+    )
     if not provider_definition:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider definition not found")
 
@@ -54,42 +172,104 @@ def create_provider_instance(payload: ProviderInstanceCreate, admin: User = Depe
         organization_id=admin.organization_id,
         provider_definition_id=provider_definition.id,
         key=payload.key,
+    )
+    _apply_provider_instance_payload(
+        provider_instance,
+        provider_definition=provider_definition,
         display_name=payload.display_name,
         role=payload.role,
         issuer=payload.issuer,
         authorization_endpoint=payload.authorization_endpoint,
         token_endpoint=payload.token_endpoint,
         userinfo_endpoint=payload.userinfo_endpoint,
+        settings=payload.settings,
         is_enabled=payload.is_enabled,
     )
     db.add(provider_instance)
     record_audit(db, action="admin.provider_instance.created", actor_type="user", actor_id=admin.id, organization_id=admin.organization_id, metadata={"key": payload.key})
     db.commit()
     db.refresh(provider_instance)
-    return provider_instance
+    return _provider_instance_out(provider_instance, provider_definition.key)
+
+
+@router.patch("/provider-instances/{provider_instance_id}", response_model=ProviderInstanceOut, dependencies=[Depends(require_csrf)])
+def update_provider_instance(
+    provider_instance_id: str,
+    payload: ProviderInstanceUpdate,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    provider_instance = db.get(ProviderInstance, provider_instance_id)
+    if not provider_instance or provider_instance.organization_id != admin.organization_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider instance not found")
+    provider_definition = db.get(ProviderDefinition, provider_instance.provider_definition_id)
+    if not provider_definition:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider definition not found")
+    _apply_provider_instance_payload(
+        provider_instance,
+        provider_definition=provider_definition,
+        display_name=payload.display_name,
+        role=payload.role,
+        issuer=payload.issuer,
+        authorization_endpoint=payload.authorization_endpoint,
+        token_endpoint=payload.token_endpoint,
+        userinfo_endpoint=payload.userinfo_endpoint,
+        settings=payload.settings,
+        is_enabled=payload.is_enabled,
+    )
+    record_audit(
+        db,
+        action="admin.provider_instance.updated",
+        actor_type="user",
+        actor_id=admin.id,
+        organization_id=admin.organization_id,
+        metadata={"provider_instance_id": provider_instance.id, "key": provider_instance.key},
+    )
+    db.commit()
+    db.refresh(provider_instance)
+    return _provider_instance_out(provider_instance, provider_definition.key)
 
 
 @router.get("/provider-apps", response_model=list[ProviderAppOut], dependencies=[Depends(require_csrf)])
 def list_provider_apps(_admin: User = Depends(require_admin), db: Session = Depends(get_db)):
-    return db.scalars(select(ProviderApp).order_by(ProviderApp.created_at.desc())).all()
+    provider_apps = db.scalars(select(ProviderApp).where(ProviderApp.organization_id == _admin.organization_id).order_by(ProviderApp.created_at.desc())).all()
+    provider_instances = {
+        instance.id: instance
+        for instance in db.scalars(select(ProviderInstance).where(ProviderInstance.organization_id == _admin.organization_id)).all()
+    }
+    return [_provider_app_out(provider_app, provider_instances.get(provider_app.provider_instance_id)) for provider_app in provider_apps]
 
 
 @router.post("/provider-apps", response_model=ProviderAppOut, dependencies=[Depends(require_csrf)])
 def create_provider_app(payload: ProviderAppCreate, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
-    provider_instance = db.scalar(select(ProviderInstance).where(ProviderInstance.key == payload.provider_instance_key))
+    provider_instance = db.scalar(
+        select(ProviderInstance).where(
+            ProviderInstance.organization_id == admin.organization_id,
+            ProviderInstance.key == payload.provider_instance_key,
+        )
+    )
     if not provider_instance:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider instance not found")
+    provider_definition = db.get(ProviderDefinition, provider_instance.provider_definition_id)
+    if not provider_definition:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider definition not found")
+    validate_template_assignment(payload.template_key, provider_definition.key)
+    enforce_singleton_template(db, organization_id=admin.organization_id, template_key=payload.template_key)
 
     provider_app = ProviderApp(
         organization_id=admin.organization_id,
         provider_instance_id=provider_instance.id,
         key=payload.key,
+    )
+    _apply_provider_app_payload(
+        provider_app,
+        template_key=payload.template_key,
         display_name=payload.display_name,
         client_id=payload.client_id,
-        encrypted_client_secret=encrypt_text(payload.client_secret),
-        redirect_uris_json=dumps_json(payload.redirect_uris),
-        default_scopes_json=dumps_json(payload.default_scopes),
-        scope_ceiling_json=dumps_json(payload.scope_ceiling),
+        client_secret=payload.client_secret,
+        redirect_uris=payload.redirect_uris,
+        default_scopes=payload.default_scopes,
+        scope_ceiling=payload.scope_ceiling,
         access_mode=payload.access_mode,
         allow_relay=payload.allow_relay,
         allow_direct_token_return=payload.allow_direct_token_return,
@@ -100,7 +280,58 @@ def create_provider_app(payload: ProviderAppCreate, admin: User = Depends(requir
     record_audit(db, action="admin.provider_app.created", actor_type="user", actor_id=admin.id, organization_id=admin.organization_id, metadata={"key": payload.key})
     db.commit()
     db.refresh(provider_app)
-    return provider_app
+    return _provider_app_out(provider_app, provider_instance)
+
+
+@router.patch("/provider-apps/{provider_app_id}", response_model=ProviderAppOut, dependencies=[Depends(require_csrf)])
+def update_provider_app(
+    provider_app_id: str,
+    payload: ProviderAppUpdate,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    provider_app = db.get(ProviderApp, provider_app_id)
+    if not provider_app or provider_app.organization_id != admin.organization_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider app not found")
+    provider_instance = db.get(ProviderInstance, provider_app.provider_instance_id)
+    if not provider_instance:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider instance not found")
+    provider_definition = db.get(ProviderDefinition, provider_instance.provider_definition_id)
+    if not provider_definition:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider definition not found")
+    validate_template_assignment(payload.template_key, provider_definition.key)
+    enforce_singleton_template(
+        db,
+        organization_id=admin.organization_id,
+        template_key=payload.template_key,
+        current_app_id=provider_app.id,
+    )
+    _apply_provider_app_payload(
+        provider_app,
+        template_key=payload.template_key,
+        display_name=payload.display_name,
+        client_id=payload.client_id,
+        client_secret=payload.client_secret,
+        redirect_uris=payload.redirect_uris,
+        default_scopes=payload.default_scopes,
+        scope_ceiling=payload.scope_ceiling,
+        access_mode=payload.access_mode,
+        allow_relay=payload.allow_relay,
+        allow_direct_token_return=payload.allow_direct_token_return,
+        relay_protocol=payload.relay_protocol,
+        is_enabled=payload.is_enabled,
+    )
+    record_audit(
+        db,
+        action="admin.provider_app.updated",
+        actor_type="user",
+        actor_id=admin.id,
+        organization_id=admin.organization_id,
+        metadata={"provider_app_id": provider_app.id, "key": provider_app.key},
+    )
+    db.commit()
+    db.refresh(provider_app)
+    return _provider_app_out(provider_app, provider_instance)
 
 
 @router.get("/service-clients", response_model=list[ServiceClientOut], dependencies=[Depends(require_csrf)])

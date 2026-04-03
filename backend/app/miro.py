@@ -19,7 +19,8 @@ from starlette.background import BackgroundTask
 from starlette.responses import RedirectResponse, StreamingResponse
 
 from app.core.config import get_settings
-from app.models import AccessMode, ConnectedAccount, ProviderApp, TokenMaterial, User
+from app.models import AccessMode, ConnectedAccount, Organization, ProviderApp, TokenMaterial, User
+from app.provider_templates import MIRO_RELAY_TEMPLATE, get_provider_app_by_template
 from app.security import decrypt_text, dumps_json, encrypt_text, loads_json, lookup_secret_hash, utcnow, verify_lookup_secret
 
 
@@ -187,7 +188,14 @@ async def register_dynamic_client() -> dict[str, str]:
 
 
 def get_miro_provider_app(db: Session) -> ProviderApp:
-    provider_app = db.scalar(select(ProviderApp).where(ProviderApp.key == "miro-default", ProviderApp.is_enabled.is_(True)))
+    organization = db.scalar(select(Organization).order_by(Organization.created_at.asc()))
+    if not organization:
+        raise HTTPException(status_code=404, detail="Miro provider app not found")
+    provider_app = get_provider_app_by_template(
+        db,
+        organization_id=organization.id,
+        template_key=MIRO_RELAY_TEMPLATE,
+    )
     if not provider_app:
         raise HTTPException(status_code=404, detail="Miro provider app not found")
     return provider_app

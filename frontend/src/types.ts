@@ -10,6 +10,12 @@ export type AuthFlowStartResponse = {
   state: string;
 };
 
+export type LoginOptionsResponse = {
+  ok: boolean;
+  microsoft_enabled: boolean;
+  microsoft_display_name: string | null;
+};
+
 export type UserOut = {
   id: string;
   organization_id: string;
@@ -55,29 +61,71 @@ export type ProviderDefinitionOut = {
   protocol: string;
   supports_broker_auth: boolean;
   supports_downstream_oauth: boolean;
+  metadata: {
+    templates?: ProviderTemplate[];
+  };
+};
+
+export type ProviderTemplate = {
+  template_key: string;
+  provider_definition_key: string;
+  route_key: string;
+  display_name: string;
+  description: string;
+  instance: {
+    key: string;
+    display_name: string;
+    role: string;
+    issuer: string | null;
+    authorization_endpoint: string | null;
+    token_endpoint: string | null;
+    userinfo_endpoint: string | null;
+    settings: Record<string, unknown>;
+  };
+  app: {
+    key: string;
+    display_name: string;
+    client_id: string | null;
+    redirect_uris: string[];
+    default_scopes: string[];
+    scope_ceiling: string[];
+    access_mode: string;
+    allow_relay: boolean;
+    allow_direct_token_return: boolean;
+    relay_protocol: string | null;
+  };
 };
 
 export type ProviderInstanceOut = {
   id: string;
   key: string;
   display_name: string;
+  provider_definition_key: string;
   role: string;
   issuer: string | null;
   authorization_endpoint: string | null;
   token_endpoint: string | null;
   userinfo_endpoint: string | null;
+  settings: Record<string, unknown>;
   is_enabled: boolean;
 };
 
 export type ProviderAppOut = {
   id: string;
   key: string;
+  template_key: string | null;
   display_name: string;
   provider_instance_id: string;
+  provider_instance_key: string | null;
   access_mode: string;
   allow_relay: boolean;
   allow_direct_token_return: boolean;
   relay_protocol: string | null;
+  client_id: string | null;
+  has_client_secret: boolean;
+  redirect_uris: string[];
+  default_scopes: string[];
+  scope_ceiling: string[];
   is_enabled: boolean;
 };
 
@@ -214,6 +262,7 @@ export type AuditEventOut = {
 };
 
 export type ProviderInstanceFormValues = {
+  id?: string;
   key: string;
   display_name: string;
   provider_definition_key: string;
@@ -222,12 +271,15 @@ export type ProviderInstanceFormValues = {
   authorization_endpoint: string;
   token_endpoint: string;
   userinfo_endpoint: string;
+  tenant_id: string;
   is_enabled: boolean;
 };
 
 export type ProviderAppFormValues = {
+  id?: string;
   provider_instance_key: string;
   key: string;
+  template_key: string;
   display_name: string;
   client_id: string;
   client_secret: string;

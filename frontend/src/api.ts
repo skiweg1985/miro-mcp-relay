@@ -7,6 +7,7 @@ import type {
   DelegationGrantCreateResult,
   DelegationGrantOut,
   Health,
+  LoginOptionsResponse,
   MiroRelayAccess,
   ProviderAppOut,
   ProviderDefinitionOut,
@@ -21,7 +22,7 @@ import type {
   VisibleServiceClientOut,
 } from "./types";
 
-type HttpMethod = "GET" | "POST";
+type HttpMethod = "GET" | "POST" | "PATCH";
 
 type RequestOptions = {
   method?: HttpMethod;
@@ -78,6 +79,9 @@ export const api = {
   health() {
     return request<Health>("/api/v1/health");
   },
+  loginOptions() {
+    return request<LoginOptionsResponse>("/api/v1/auth/login-options");
+  },
   startMicrosoftLogin() {
     return request<AuthFlowStartResponse>("/api/v1/auth/microsoft/start", {
       method: "POST",
@@ -112,6 +116,16 @@ export const api = {
       method: "POST",
       csrfToken,
       body,
+    });
+  },
+  startProviderConnection(csrfToken: string, providerAppKey: string, connectedAccountId?: string | null) {
+    return request<{ ok: boolean; auth_url: string; state: string; provider_app_key: string }>("/api/v1/connections/provider-connect/start", {
+      method: "POST",
+      csrfToken,
+      body: {
+        provider_app_key: providerAppKey,
+        connected_account_id: connectedAccountId ?? null,
+      },
     });
   },
   refreshConnection(csrfToken: string, connectionId: string) {
@@ -197,12 +211,26 @@ export const api = {
       body,
     });
   },
+  updateProviderInstance(csrfToken: string, providerInstanceId: string, body: unknown) {
+    return request<ProviderInstanceOut>(`/api/v1/admin/provider-instances/${providerInstanceId}`, {
+      method: "PATCH",
+      csrfToken,
+      body,
+    });
+  },
   providerApps(csrfToken: string) {
     return request<ProviderAppOut[]>("/api/v1/admin/provider-apps", { csrfToken });
   },
   createProviderApp(csrfToken: string, body: unknown) {
     return request<ProviderAppOut>("/api/v1/admin/provider-apps", {
       method: "POST",
+      csrfToken,
+      body,
+    });
+  },
+  updateProviderApp(csrfToken: string, providerAppId: string, body: unknown) {
+    return request<ProviderAppOut>(`/api/v1/admin/provider-apps/${providerAppId}`, {
+      method: "PATCH",
       csrfToken,
       body,
     });

@@ -2,7 +2,7 @@
 
 ## Architekturueberblick
 
-Das Repository umfasst drei Schichten:
+Das Repository umfasst drei relevante Codebereiche:
 
 - `frontend/`
   React/Vite-Single-Page-App fuer Admin- und Self-Service-Oberflaechen
@@ -10,17 +10,18 @@ Das Repository umfasst drei Schichten:
 - `backend/app/`
   FastAPI-Backend fuer Sessions, Provider-Verwaltung, Connected Accounts, Delegation Grants, Token-Issuance und Audit
 
-- `src/index.js`
-  bestehender Node/Express-basierter Legacy-Relay fuer den urspruenglichen Miro-MCP-Flow
+- `backend/app/routers/legacy_miro.py`
+  FastAPI-Kompatibilitaetsschicht fuer historische Miro-Endpunkte wie `/miro/mcp/{profile_id}`, `/healthz` und `/readyz`
 
-Die neue Hauptanwendung fuer Broker-Funktionen ist das FastAPI-Backend plus React-Frontend. Der Node-Service bleibt fuer Kompatibilitaet bestehen.
+`src/` enthaelt weiterhin historischen Node-Code, ist aber nicht mehr der vorgesehene Laufzeitpfad der aktuellen Anwendung.
 
 ## Architekturprinzipien
 
-- Trennung zwischen Benutzeroberflaeche, Broker-Logik und Legacy-Relay
+- Trennung zwischen Benutzeroberflaeche, Broker-Logik und Legacy-Kompatibilitaet
 - serverseitige Speicherung sensibler Tokenmaterialien
 - explizite Freigabe von Servicezugriffen ueber Service-Clients und Delegation Grants
 - klare Auditierbarkeit aller relevanten Zustandsaenderungen und Zugriffsvorgaenge
+- Rueckwaertskompatibilitaet fuer bestehende Miro-MCP-Clients ueber FastAPI-Routen
 
 ## Laufzeitarchitektur
 
@@ -31,7 +32,7 @@ flowchart LR
     API --> Miro["Miro OAuth / API"]
     API --> Microsoft["Microsoft Login / OIDC"]
     Service["Service Client"] --> API
-    Legacy["Node Relay (src/index.js)"] --> Miro
+    LegacyClients["Legacy Miro MCP Clients"] --> API
 ```
 
 ## Frontend
@@ -103,6 +104,8 @@ Das Backend registriert folgende Router unter `/api/v1`:
 - `token_issuance`
 - `user`
 - `admin`
+
+Zusaetzlich bindet `backend/app/main.py` den Router `legacy_miro` ohne `/api/v1`-Prefix ein. Darueber laufen die kompatiblen Endpunkte `/miro/*`, `/healthz` und `/readyz`.
 
 ### Konfiguration
 
@@ -383,29 +386,22 @@ Auch hier werden `X-Service-Secret` und `X-Delegated-Credential` erwartet. Der B
 - `require_admin` schuetzt Admin-Endpunkte
 - normale Benutzer koennen nur auf eigene Verbindungen, Grants und Token-Issue-Historie zugreifen
 
-## Legacy-Node-Service
+## Legacy-Node-Quelle
 
-`src/index.js` enthaelt weiterhin den urspruenglichen Miro-Relay.
+`src/index.js` enthaelt weiterhin den urspruenglichen Node/Express-Prototypen des Miro-Relay.
 
 Merkmale:
 
 - Express-Anwendung
 - dateibasierte Persistenz unter `data/`
-- Health-, Ready- und Relay-Endpunkte
+- historische Health-, Ready- und Relay-Endpunkte
 - historischer Browser-Flow fuer Miro
 
-Der neue Broker ersetzt diese Schicht nicht vollstaendig, sondern existiert parallel dazu.
+Fuer die aktuelle Anwendung ist dieser Code vor allem Referenzmaterial und Grundlage fuer die kleinen Node-Platform-Tests. Die produktiv relevante Kompatibilitaet fuer bestehende Miro-Clients wird heute im FastAPI-Backend bereitgestellt.
 
 ## Lokale Entwicklung
 
-### Node-Relay
-
-```bash
-npm install
-npm start
-```
-
-### Backend
+### Aktueller Stack
 
 ```bash
 cd backend
@@ -413,13 +409,20 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-### Frontend
-
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
+
+### Legacy-Node-Prototyp (optional)
+
+```bash
+npm install
+npm start
+```
+
+Dieser Startpfad ist nur fuer Altvergleiche oder gezielte Referenzpruefungen sinnvoll, nicht fuer den regulaeren Broker-Stack.
 
 ### Docker-Stack
 
@@ -429,10 +432,9 @@ docker compose up -d --build
 
 ## Verifikation und Tests
 
-### Relay
+### Node-Referenztests
 
 ```bash
-node --check src/index.js
 node --test
 ```
 
@@ -448,4 +450,4 @@ python3 -m unittest backend/test_welle1_smoke.py
 - Der generische Broker ist modellseitig vorbereitet; der Self-Service-Connect ist auf Miro fokussiert.
 - Connection-Probe und Refresh sind fuer Miro implementiert.
 - Das Frontend setzt In-App-Routing ohne externe Router-Bibliothek ein.
-- Der Legacy-Relay und der neue Broker existieren parallel; im Repository gibt es damit zwei technische Integrationspfade.
+- Das Repository enthaelt weiterhin historischen Node-Code; der aktive Integrationspfad fuer Browser, Service-Clients und Legacy-MCP-Clients laeuft aber ueber das FastAPI-Backend.

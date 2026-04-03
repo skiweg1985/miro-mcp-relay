@@ -94,6 +94,8 @@ function friendlyBrokerMessage(raw: string | null | undefined): string {
   if (message.startsWith("miro_token_exchange_failed")) return "Miro accepted the login but the broker could not finish token exchange. Please retry.";
   if (message.startsWith("miro_refresh_failed")) return "The broker could not refresh the stored Miro credentials. Reconnect the account.";
   if (message.startsWith("token_context_")) return "The broker reached Miro but could not verify the token context. Retry once, then reconnect if needed.";
+  if (message.startsWith("microsoft_graph_refresh_failed")) return "The broker could not refresh the stored Microsoft Graph credentials. Reconnect the account.";
+  if (message.startsWith("graph_me_")) return "The broker reached Microsoft Graph but could not verify the current account identity.";
   return message;
 }
 
@@ -101,7 +103,31 @@ function findMiroConnection(
   connections: ConnectedAccountOut[],
   providerAppById: Record<string, ProviderAppOut>,
 ): ConnectedAccountOut | undefined {
-  return connections.find((connection) => providerAppById[connection.provider_app_id]?.key === "miro-default");
+  return connections.find((connection) => providerAppById[connection.provider_app_id]?.template_key === "miro-relay");
+}
+
+function findProviderAppByTemplate(providerApps: ProviderAppOut[], templateKey: string): ProviderAppOut | undefined {
+  return providerApps.find((providerApp) => providerApp.template_key === templateKey);
+}
+
+function findConnectionByTemplate(
+  connections: ConnectedAccountOut[],
+  providerAppById: Record<string, ProviderAppOut>,
+  templateKey: string,
+): ConnectedAccountOut | undefined {
+  return connections.find((connection) => providerAppById[connection.provider_app_id]?.template_key === templateKey);
+}
+
+function templateKeyForRoute(providerKey: string): string | null {
+  if (providerKey === "miro") return "miro-relay";
+  if (providerKey === "microsoft-graph") return "microsoft-graph-direct";
+  return null;
+}
+
+function providerRouteLabel(providerKey: string): string {
+  if (providerKey === "miro") return "Miro";
+  if (providerKey === "microsoft-graph") return "Microsoft Graph";
+  return providerKey;
 }
 
 function replaceCurrentSearchParams(removals: string[]) {
@@ -170,6 +196,20 @@ function LoginPage({ onSuccess }: { onSuccess: (path: string) => void }) {
   const [password, setPassword] = useState("change-me-admin-password");
   const [pending, setPending] = useState(false);
   const [microsoftPending, setMicrosoftPending] = useState(false);
+  const [microsoftEnabled, setMicrosoftEnabled] = useState(false);
+  const [microsoftDisplayName, setMicrosoftDisplayName] = useState("Microsoft");
+
+  useEffect(() => {
+    void api
+      .loginOptions()
+      .then((result) => {
+        setMicrosoftEnabled(result.microsoft_enabled);
+        setMicrosoftDisplayName(result.microsoft_display_name ?? "Microsoft");
+      })
+      .catch(() => {
+        setMicrosoftEnabled(false);
+      });
+  }, []);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -234,12 +274,17 @@ function LoginPage({ onSuccess }: { onSuccess: (path: string) => void }) {
                 <button
                   type="button"
                   className="primary-button"
-                  disabled={microsoftPending}
+                  disabled={microsoftPending || !microsoftEnabled}
                   onClick={() => void handleMicrosoftLogin()}
                 >
-                  {microsoftPending ? "Redirecting..." : "Continue with Microsoft"}
+                  {microsoftPending ? "Redirecting..." : `Continue with ${microsoftDisplayName}`}
                 </button>
               </div>
+              {!microsoftEnabled ? (
+                <p className="muted-copy">
+                  Microsoft login ist noch nicht konfiguriert. Ein Admin kann die Broker-Login-App in den Provider-Einstellungen anlegen und vervollständigen.
+                </p>
+              ) : null}
             </div>
           </Card>
 
@@ -522,11 +567,13 @@ function ProvidersPage() {
     authorization_endpoint: "",
     token_endpoint: "",
     userinfo_endpoint: "",
+    tenant_id: "",
     is_enabled: true,
   });
   const [appForm, setAppForm] = useState<ProviderAppFormValues>({
     provider_instance_key: "",
     key: "",
+    template_key: "",
     display_name: "",
     client_id: "",
     client_secret: "",
@@ -556,6 +603,38 @@ function ProvidersPage() {
     }));
   };
 
+  const resetInstanceForm = (providerDefinitionKey = "miro", role = "downstream_oauth") =>
+    setInstanceForm({
+      key: "",
+      display_name: "",
+      provider_definition_key: providerDefinitionKey,
+      role,
+      issuer: "",
+      authorization_endpoint: "",
+      token_endpoint: "",
+      userinfo_endpoint: "",
+      tenant_id: providerDefinitionKey === "microsoft" ? "common" : "",
+      is_enabled: true,
+    });
+
+  const resetAppForm = (providerInstanceKey = "") =>
+    setAppForm({
+      provider_instance_key: providerInstanceKey,
+      key: "",
+      template_key: "",
+      display_name: "",
+      client_id: "",
+      client_secret: "",
+      redirect_uris_text: "",
+      default_scopes_text: "",
+      scope_ceiling_text: "",
+      access_mode: "relay",
+      allow_relay: true,
+      allow_direct_token_return: false,
+      relay_protocol: "",
+      is_enabled: true,
+    });
+
   useEffect(() => {
     void load().catch((error) =>
       notify({
@@ -571,25 +650,22 @@ function ProvidersPage() {
     if (session.status !== "authenticated") return;
     setPendingInstance(true);
     try {
-      await api.createProviderInstance(session.csrfToken, {
+      const body = {
         ...instanceForm,
         issuer: instanceForm.issuer || null,
         authorization_endpoint: instanceForm.authorization_endpoint || null,
         token_endpoint: instanceForm.token_endpoint || null,
         userinfo_endpoint: instanceForm.userinfo_endpoint || null,
-      });
-      notify({ tone: "success", title: "Provider instance created" });
-      setInstanceForm({
-        key: "",
-        display_name: "",
-        provider_definition_key: instanceForm.provider_definition_key,
-        role: instanceForm.role,
-        issuer: "",
-        authorization_endpoint: "",
-        token_endpoint: "",
-        userinfo_endpoint: "",
-        is_enabled: true,
-      });
+        settings: instanceForm.tenant_id ? { tenant_id: instanceForm.tenant_id } : {},
+      };
+      if (instanceForm.id) {
+        await api.updateProviderInstance(session.csrfToken, instanceForm.id, body);
+        notify({ tone: "success", title: "Provider instance updated" });
+      } else {
+        await api.createProviderInstance(session.csrfToken, body);
+        notify({ tone: "success", title: "Provider instance created" });
+      }
+      resetInstanceForm(instanceForm.provider_definition_key, instanceForm.role);
       await load();
     } catch (error) {
       notify({
@@ -607,9 +683,10 @@ function ProvidersPage() {
     if (session.status !== "authenticated") return;
     setPendingApp(true);
     try {
-      await api.createProviderApp(session.csrfToken, {
+      const body = {
         provider_instance_key: appForm.provider_instance_key,
         key: appForm.key,
+        template_key: appForm.template_key || null,
         display_name: appForm.display_name,
         client_id: appForm.client_id || null,
         client_secret: appForm.client_secret || null,
@@ -621,20 +698,15 @@ function ProvidersPage() {
         allow_direct_token_return: appForm.allow_direct_token_return,
         relay_protocol: appForm.relay_protocol || null,
         is_enabled: appForm.is_enabled,
-      });
-      notify({ tone: "success", title: "Provider app created" });
-      setAppForm((current) => ({
-        ...current,
-        key: "",
-        display_name: "",
-        client_id: "",
-        client_secret: "",
-        redirect_uris_text: "",
-        default_scopes_text: "",
-        scope_ceiling_text: "",
-        relay_protocol: "",
-        is_enabled: true,
-      }));
+      };
+      if (appForm.id) {
+        await api.updateProviderApp(session.csrfToken, appForm.id, body);
+        notify({ tone: "success", title: "Provider app updated" });
+      } else {
+        await api.createProviderApp(session.csrfToken, body);
+        notify({ tone: "success", title: "Provider app created" });
+      }
+      resetAppForm(appForm.provider_instance_key);
       await load();
     } catch (error) {
       notify({
@@ -651,6 +723,89 @@ function ProvidersPage() {
     () => Object.fromEntries(instances.map((instance) => [instance.id, instance.display_name])),
     [instances],
   );
+  const templates = useMemo(
+    () => definitions.flatMap((definition) => definition.metadata.templates ?? []),
+    [definitions],
+  );
+  const instanceByKey = useMemo(
+    () => Object.fromEntries(instances.map((instance) => [instance.key, instance])),
+    [instances],
+  );
+
+  const useTemplate = (templateKey: string) => {
+    const template = templates.find((entry) => entry.template_key === templateKey);
+    if (!template) return;
+    const tenantId =
+      template.instance.settings && typeof template.instance.settings.tenant_id === "string"
+        ? template.instance.settings.tenant_id
+        : "";
+    setInstanceForm({
+      id: undefined,
+      key: template.instance.key,
+      display_name: template.instance.display_name,
+      provider_definition_key: template.provider_definition_key,
+      role: template.instance.role,
+      issuer: template.instance.issuer ?? "",
+      authorization_endpoint: template.instance.authorization_endpoint ?? "",
+      token_endpoint: template.instance.token_endpoint ?? "",
+      userinfo_endpoint: template.instance.userinfo_endpoint ?? "",
+      tenant_id: tenantId,
+      is_enabled: true,
+    });
+    setAppForm({
+      id: undefined,
+      provider_instance_key: template.instance.key,
+      key: template.app.key,
+      template_key: template.template_key,
+      display_name: template.app.display_name,
+      client_id: template.app.client_id ?? "",
+      client_secret: "",
+      redirect_uris_text: template.app.redirect_uris.join("\n"),
+      default_scopes_text: template.app.default_scopes.join("\n"),
+      scope_ceiling_text: template.app.scope_ceiling.join("\n"),
+      access_mode: template.app.access_mode,
+      allow_relay: template.app.allow_relay,
+      allow_direct_token_return: template.app.allow_direct_token_return,
+      relay_protocol: template.app.relay_protocol ?? "",
+      is_enabled: true,
+    });
+  };
+
+  const editInstance = (instance: ProviderInstanceOut) => {
+    setInstanceForm({
+      id: instance.id,
+      key: instance.key,
+      display_name: instance.display_name,
+      provider_definition_key: instance.provider_definition_key,
+      role: instance.role,
+      issuer: instance.issuer ?? "",
+      authorization_endpoint: instance.authorization_endpoint ?? "",
+      token_endpoint: instance.token_endpoint ?? "",
+      userinfo_endpoint: instance.userinfo_endpoint ?? "",
+      tenant_id: typeof instance.settings.tenant_id === "string" ? instance.settings.tenant_id : "",
+      is_enabled: instance.is_enabled,
+    });
+  };
+
+  const editApp = (app: ProviderAppOut) => {
+    setAppForm({
+      id: app.id,
+      provider_instance_key: app.provider_instance_key ?? "",
+      key: app.key,
+      template_key: app.template_key ?? "",
+      display_name: app.display_name,
+      client_id: app.client_id ?? "",
+      client_secret: "",
+      redirect_uris_text: app.redirect_uris.join("\n"),
+      default_scopes_text: app.default_scopes.join("\n"),
+      scope_ceiling_text: app.scope_ceiling.join("\n"),
+      access_mode: app.access_mode,
+      allow_relay: app.allow_relay,
+      allow_direct_token_return: app.allow_direct_token_return,
+      relay_protocol: app.relay_protocol ?? "",
+      is_enabled: app.is_enabled,
+    });
+  };
 
   return (
     <>
@@ -663,30 +818,54 @@ function ProvidersPage() {
       <div className="two-column">
         <Card title="Provider definitions" description="Seeded provider families currently known to the broker.">
           <DataTable
-            columns={["Name", "Protocol", "Broker auth", "Downstream OAuth"]}
+            columns={["Name", "Protocol", "Broker auth", "Downstream OAuth", "Templates"]}
             rows={definitions.map((definition) => [
               definition.display_name,
               definition.protocol,
               definition.supports_broker_auth ? "Yes" : "No",
               definition.supports_downstream_oauth ? "Yes" : "No",
+              (definition.metadata.templates ?? []).length
+                ? (definition.metadata.templates ?? []).map((template) => template.display_name).join(", ")
+                : "None",
             ])}
             emptyTitle="No provider definitions"
             emptyBody="Definitions should appear once the backend seed runs."
           />
         </Card>
 
-        <Card title="Create provider instance" description="Register a concrete identity or downstream OAuth surface inside your organization.">
+        <Card title="Create From Template" description="Templates are known by default, but only become active once you create and configure them here.">
+          <div className="stack-list">
+            {templates.map((template) => (
+              <div className="stack-cell" key={template.template_key}>
+                <strong>{template.display_name}</strong>
+                <span>{template.description}</span>
+                <button type="button" className="ghost-button" onClick={() => useTemplate(template.template_key)}>
+                  Use template
+                </button>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+
+      <div className="two-column">
+        <Card title="Provider instance editor" description="Register or update a concrete OAuth surface inside your organization.">
           <InlineForm
-            title="New instance"
-            description="Use a stable key; future apps and flows will reference it."
+            title={instanceForm.id ? "Edit instance" : "New instance"}
+            description="Keys stay stable; use tenant-based settings for Microsoft instances."
             onSubmit={handleCreateInstance}
           >
             <Field label="Definition">
               <select
                 value={instanceForm.provider_definition_key}
                 onChange={(event) =>
-                  setInstanceForm((current) => ({ ...current, provider_definition_key: event.target.value }))
+                  setInstanceForm((current) => ({
+                    ...current,
+                    provider_definition_key: event.target.value,
+                    tenant_id: event.target.value === "microsoft" ? current.tenant_id || "common" : "",
+                  }))
                 }
+                disabled={Boolean(instanceForm.id)}
               >
                 {definitions.map((definition) => (
                   <option key={definition.id} value={definition.key}>
@@ -700,6 +879,7 @@ function ProvidersPage() {
                 value={instanceForm.key}
                 onChange={(event) => setInstanceForm((current) => ({ ...current, key: event.target.value }))}
                 required
+                disabled={Boolean(instanceForm.id)}
               />
             </Field>
             <Field label="Display name">
@@ -718,6 +898,15 @@ function ProvidersPage() {
                 <option value="broker_auth">Broker auth</option>
               </select>
             </Field>
+            {instanceForm.provider_definition_key === "microsoft" ? (
+              <Field label="Tenant ID">
+                <input
+                  value={instanceForm.tenant_id}
+                  onChange={(event) => setInstanceForm((current) => ({ ...current, tenant_id: event.target.value }))}
+                  placeholder="common"
+                />
+              </Field>
+            ) : null}
             <Field label="Issuer">
               <input
                 value={instanceForm.issuer}
@@ -757,48 +946,21 @@ function ProvidersPage() {
                 type="checkbox"
               />
             </Field>
-            <FormActions pending={pendingInstance} submitLabel="Create instance" />
+            <div className="inline-actions">
+              <FormActions pending={pendingInstance} submitLabel={instanceForm.id ? "Save instance" : "Create instance"} />
+              {instanceForm.id ? (
+                <button type="button" className="ghost-button" onClick={() => resetInstanceForm()}>
+                  Clear
+                </button>
+              ) : null}
+            </div>
           </InlineForm>
         </Card>
-      </div>
 
-      <Card title="Provider instances" description="Current organization-specific provider surfaces.">
-        <DataTable
-          columns={["Name", "Instance key", "Role", "Issuer", "Status"]}
-          rows={instances.map((instance) => [
-            instance.display_name,
-            instance.key,
-            instance.role,
-            instance.issuer ?? "Not set",
-            <StatusBadge key={instance.id} tone={instance.is_enabled ? "success" : "warn"}>
-              {instance.is_enabled ? "Enabled" : "Disabled"}
-            </StatusBadge>,
-          ])}
-          emptyTitle="No provider instances"
-          emptyBody="Create your first provider instance to start shaping provider policy."
-        />
-      </Card>
-
-      <div className="two-column">
-        <Card title="Provider apps" description="Downstream applications with relay and token-return policy.">
-          <DataTable
-            columns={["Name", "Instance", "Mode", "Relay", "Direct token"]}
-            rows={apps.map((app) => [
-              app.display_name,
-              instanceLabelById[app.provider_instance_id] ?? app.provider_instance_id,
-              app.access_mode,
-              app.allow_relay ? "Yes" : "No",
-              app.allow_direct_token_return ? "Yes" : "No",
-            ])}
-            emptyTitle="No provider apps"
-            emptyBody="Create provider apps to make downstream access policy visible to operators."
-          />
-        </Card>
-
-        <Card title="Create provider app" description="Set access mode, relay capability, scope defaults, and redirect topology.">
+        <Card title="Provider app editor" description="Create or update the policy surface used for relay and direct-token rules.">
           <InlineForm
-            title="New provider app"
-            description="Provider apps are the policy surface the broker evaluates during token issuance and relayed access."
+            title={appForm.id ? "Edit provider app" : "New provider app"}
+            description="Templates only prefill defaults. They are not active until you create the instance and app."
             onSubmit={handleCreateApp}
           >
             <Field label="Provider instance">
@@ -813,8 +975,11 @@ function ProvidersPage() {
                 ))}
               </select>
             </Field>
+            <Field label="Template key">
+              <input value={appForm.template_key} onChange={(event) => setAppForm((current) => ({ ...current, template_key: event.target.value }))} placeholder="optional" />
+            </Field>
             <Field label="Key">
-              <input value={appForm.key} onChange={(event) => setAppForm((current) => ({ ...current, key: event.target.value }))} required />
+              <input value={appForm.key} onChange={(event) => setAppForm((current) => ({ ...current, key: event.target.value }))} required disabled={Boolean(appForm.id)} />
             </Field>
             <Field label="Display name">
               <input
@@ -829,7 +994,7 @@ function ProvidersPage() {
                 onChange={(event) => setAppForm((current) => ({ ...current, client_id: event.target.value }))}
               />
             </Field>
-            <Field label="Client secret">
+            <Field label="Client secret" hint={appForm.id ? "Leave empty to keep the existing secret." : undefined}>
               <input
                 value={appForm.client_secret}
                 onChange={(event) => setAppForm((current) => ({ ...current, client_secret: event.target.value }))}
@@ -893,10 +1058,57 @@ function ProvidersPage() {
                 type="checkbox"
               />
             </Field>
-            <FormActions pending={pendingApp} submitLabel="Create provider app" />
+            <div className="inline-actions">
+              <FormActions pending={pendingApp} submitLabel={appForm.id ? "Save provider app" : "Create provider app"} />
+              {appForm.id ? (
+                <button type="button" className="ghost-button" onClick={() => resetAppForm(appForm.provider_instance_key)}>
+                  Clear
+                </button>
+              ) : null}
+            </div>
           </InlineForm>
         </Card>
       </div>
+
+      <Card title="Provider instances" description="Current organization-specific provider surfaces.">
+        <DataTable
+          columns={["Name", "Definition", "Instance key", "Role", "Issuer", "Status", "Action"]}
+          rows={instances.map((instance) => [
+            instance.display_name,
+            instance.provider_definition_key,
+            instance.key,
+            instance.role,
+            instance.issuer ?? "Not set",
+            <StatusBadge key={instance.id} tone={instance.is_enabled ? "success" : "warn"}>
+              {instance.is_enabled ? "Enabled" : "Disabled"}
+            </StatusBadge>,
+            <button type="button" className="ghost-button" onClick={() => editInstance(instance)}>
+              Edit
+            </button>,
+          ])}
+          emptyTitle="No provider instances"
+          emptyBody="Create your first provider instance to start shaping provider policy."
+        />
+      </Card>
+
+      <Card title="Provider apps" description="Downstream applications with relay and token-return policy.">
+        <DataTable
+          columns={["Name", "Template", "Instance", "Mode", "Relay", "Direct token", "Action"]}
+          rows={apps.map((app) => [
+            app.display_name,
+            app.template_key ?? "Custom",
+            instanceLabelById[app.provider_instance_id] ?? app.provider_instance_id,
+            app.access_mode,
+            app.allow_relay ? "Yes" : "No",
+            app.allow_direct_token_return ? "Yes" : "No",
+            <button type="button" className="ghost-button" onClick={() => editApp(app)}>
+              Edit
+            </button>,
+          ])}
+          emptyTitle="No provider apps"
+          emptyBody="Create provider apps to make downstream access policy visible to operators."
+        />
+      </Card>
     </>
   );
 }
@@ -1896,6 +2108,10 @@ function WorkspacePage({ onNavigate }: { onNavigate: (path: string) => void }) {
     [providerApps],
   );
   const existingMiro = findMiroConnection(connections, providerAppById);
+  const connectTargets = [
+    { route: "miro", templateKey: "miro-relay", label: "Connect Miro" },
+    { route: "microsoft-graph", templateKey: "microsoft-graph-direct", label: "Connect Microsoft Graph" },
+  ].filter((target) => findProviderAppByTemplate(providerApps, target.templateKey));
 
   const runAction = async (actionKey: string, fn: () => Promise<void>) => {
     setBusyAction(actionKey);
@@ -1970,9 +2186,11 @@ function WorkspacePage({ onNavigate }: { onNavigate: (path: string) => void }) {
         description="See your broker-held provider connections, refresh or revoke them, and run a safe connectivity probe before downstream consumers request access."
         actions={
           <div className="inline-actions">
-            <button type="button" className="primary-button" onClick={() => onNavigate("/connect/miro")}>
-              Connect Miro
-            </button>
+            {connectTargets.map((target) => (
+              <button key={target.route} type="button" className="primary-button" onClick={() => onNavigate(`/connect/${target.route}`)}>
+                {target.label}
+              </button>
+            ))}
           </div>
         }
       />
@@ -2061,14 +2279,14 @@ function WorkspacePage({ onNavigate }: { onNavigate: (path: string) => void }) {
             </div>,
           ])}
           emptyTitle="No provider connections yet"
-          emptyBody="Start with Miro to give the broker an account it can refresh, relay, and issue against for your downstream service grants."
+          emptyBody="Start by connecting one of the configured provider apps so the broker can refresh, relay, or issue delegated access for your account."
         />
       </Card>
     </>
   );
 }
 
-function ConnectMiroPage({ onNavigate }: { onNavigate: (path: string) => void }) {
+function ConnectProviderPage({ onNavigate, providerKey }: { onNavigate: (path: string) => void; providerKey: string }) {
   const { notify, session } = useAppContext();
   const [providerApps, setProviderApps] = useState<ProviderAppOut[]>([]);
   const [connections, setConnections] = useState<ConnectedAccountOut[]>([]);
@@ -2077,6 +2295,7 @@ function ConnectMiroPage({ onNavigate }: { onNavigate: (path: string) => void })
   const [pending, setPending] = useState(false);
   const [setupPending, setSetupPending] = useState(false);
   const [tokenPending, setTokenPending] = useState(false);
+  const templateKey = templateKeyForRoute(providerKey);
 
   useEffect(() => {
     if (session.status !== "authenticated") return;
@@ -2086,8 +2305,8 @@ function ConnectMiroPage({ onNavigate }: { onNavigate: (path: string) => void })
         setProviderApps(providerAppData);
         setConnections(connectionData);
         const providerMap = Object.fromEntries(providerAppData.map((app) => [app.id, app]));
-        const existingMiroConnection = findMiroConnection(connectionData, providerMap);
-        if (existingMiroConnection) {
+        const existingMiroConnection = templateKey === "miro-relay" ? findMiroConnection(connectionData, providerMap) : undefined;
+        if (existingMiroConnection && templateKey === "miro-relay") {
           void api
             .miroAccess(existingMiroConnection.id)
             .then((result) => setMiroAccess(result))
@@ -2104,16 +2323,18 @@ function ConnectMiroPage({ onNavigate }: { onNavigate: (path: string) => void })
         }),
       )
       .finally(() => setLoading(false));
-  }, [notify, session]);
+  }, [notify, session, templateKey]);
 
   const providerAppById = useMemo(
     () => Object.fromEntries(providerApps.map((app) => [app.id, app])),
     [providerApps],
   );
-  const existingMiro = findMiroConnection(connections, providerAppById);
+  const selectedProviderApp = templateKey ? findProviderAppByTemplate(providerApps, templateKey) : undefined;
+  const existingConnection = templateKey ? findConnectionByTemplate(connections, providerAppById, templateKey) : undefined;
+  const existingMiro = templateKey === "miro-relay" ? existingConnection : undefined;
 
   useEffect(() => {
-    if (session.status !== "authenticated") return;
+    if (session.status !== "authenticated" || templateKey !== "miro-relay") return;
     const setupToken = new URLSearchParams(window.location.search).get("miro_setup");
     if (!setupToken) return;
 
@@ -2139,20 +2360,20 @@ function ConnectMiroPage({ onNavigate }: { onNavigate: (path: string) => void })
         setSetupPending(false);
         replaceCurrentSearchParams(["miro_setup", "miro_status", "connected_account_id", "message"]);
       });
-  }, [notify, session]);
+  }, [notify, session, templateKey]);
 
   const startConnect = async () => {
-    if (session.status !== "authenticated") return;
+    if (session.status !== "authenticated" || !selectedProviderApp) return;
     setPending(true);
     try {
-      const result = await api.startMiroConnection(session.csrfToken, existingMiro ? { connected_account_id: existingMiro.id } : {});
+      const result = await api.startProviderConnection(session.csrfToken, selectedProviderApp.key, existingConnection?.id);
       window.location.assign(result.auth_url);
     } catch (error) {
       setPending(false);
       notify({
         tone: "error",
-        title: "Could not start Miro connect",
-        description: isApiError(error) ? friendlyBrokerMessage(error.message) : "Unexpected Miro connect error.",
+        title: `Could not start ${providerRouteLabel(providerKey)} connect`,
+        description: isApiError(error) ? friendlyBrokerMessage(error.message) : "Unexpected provider connect error.",
       });
     }
   };
@@ -2179,14 +2400,22 @@ function ConnectMiroPage({ onNavigate }: { onNavigate: (path: string) => void })
     }
   };
 
-  if (loading) return <LoadingScreen label="Preparing Miro connect..." />;
+  if (loading) return <LoadingScreen label={`Preparing ${providerRouteLabel(providerKey)} connect...`} />;
+  if (!templateKey || !selectedProviderApp) {
+    return (
+      <EmptyState
+        title="Provider not configured"
+        body="This connect target has not been created by an admin yet. Ask an admin to create it from a template in the Providers section."
+      />
+    );
+  }
 
   return (
     <>
       <PageIntro
         eyebrow="Connect"
-        title="Connect your Miro account"
-        description="The broker stores the provider token material server-side, then returns you to the workspace with a verified connection state."
+        title={`Connect your ${providerRouteLabel(providerKey)} account`}
+        description="The broker stores provider token material server-side, then returns you to the workspace with a verified connection state."
         actions={
           <div className="inline-actions">
             <button type="button" className="ghost-button" onClick={() => onNavigate("/workspace")}>
@@ -2197,59 +2426,68 @@ function ConnectMiroPage({ onNavigate }: { onNavigate: (path: string) => void })
       />
 
       <div className="two-column">
-        <Card title="Miro authorization" description="This flow uses the broker backend callback and comes back into your workspace automatically.">
+        <Card title={`${providerRouteLabel(providerKey)} authorization`} description="This flow uses the broker backend callback and comes back into your workspace automatically.">
           <div className="stack-form">
             <p className="lede">
-              {existingMiro
-                ? "An existing Miro connection was found. Reconnect to refresh stored credentials and keep the same broker-side identity."
-                : "No Miro connection exists yet. Start the flow to create your first broker-held account."}
+              {existingConnection
+                ? `An existing ${providerRouteLabel(providerKey)} connection was found. Reconnect to refresh stored credentials and keep the same broker-side identity.`
+                : `No ${providerRouteLabel(providerKey)} connection exists yet. Start the flow to create your first broker-held account.`}
             </p>
             <div className="inline-actions">
               <button type="button" className="primary-button" disabled={pending} onClick={() => void startConnect()}>
-                {pending ? "Redirecting..." : existingMiro ? "Reconnect Miro" : "Connect Miro"}
+                {pending ? "Redirecting..." : existingConnection ? `Reconnect ${providerRouteLabel(providerKey)}` : `Connect ${providerRouteLabel(providerKey)}`}
               </button>
             </div>
           </div>
         </Card>
 
-        <Card title="Current Miro state" description="If you already have a connection, you can see the current broker-held record before reconnecting.">
-          {existingMiro ? (
+        <Card title="Current provider state" description="If you already have a connection, you can see the current broker-held record before reconnecting.">
+          {existingConnection ? (
             <div className="stack-list">
               <div className="stack-cell">
                 <strong>Account</strong>
-                <span>{existingMiro.display_name || existingMiro.external_email || existingMiro.id}</span>
+                <span>{existingConnection.display_name || existingConnection.external_email || existingConnection.id}</span>
               </div>
               <div className="stack-cell">
                 <strong>Status</strong>
-                <span>{existingMiro.status === "connected" && existingMiro.last_error ? "Connected with attention needed" : existingMiro.status}</span>
+                <span>{existingConnection.status === "connected" && existingConnection.last_error ? "Connected with attention needed" : existingConnection.status}</span>
               </div>
               <div className="stack-cell">
                 <strong>Connected</strong>
-                <span>{formatDateTime(existingMiro.connected_at)}</span>
+                <span>{formatDateTime(existingConnection.connected_at)}</span>
               </div>
               <div className="stack-cell">
                 <strong>Last broker note</strong>
-                <span>{existingMiro.last_error ? friendlyBrokerMessage(existingMiro.last_error) : "No recent issue recorded"}</span>
+                <span>{existingConnection.last_error ? friendlyBrokerMessage(existingConnection.last_error) : "No recent issue recorded"}</span>
               </div>
             </div>
           ) : (
             <EmptyState
-              title="No Miro connection yet"
-              body="Start the authorization flow to create a broker-managed Miro connection for your workspace."
+              title={`No ${providerRouteLabel(providerKey)} connection yet`}
+              body={`Start the authorization flow to create a broker-managed ${providerRouteLabel(providerKey)} connection for your workspace.`}
             />
           )}
         </Card>
       </div>
 
-      {setupPending ? <LoadingScreen label="Preparing your one-time Miro MCP config..." /> : null}
-
-      <MiroAccessCard
-        access={miroAccess}
-        pending={tokenPending}
-        onIssueToken={existingMiro ? () => void handleRotateMiroToken() : undefined}
-        title="Miro MCP handoff"
-        description="This replaces the old relay success page. You can copy the ready-to-paste MCP config directly from here."
-      />
+      {templateKey === "miro-relay" ? (
+        <>
+          {setupPending ? <LoadingScreen label="Preparing your one-time Miro MCP config..." /> : null}
+          <MiroAccessCard
+            access={miroAccess}
+            pending={tokenPending}
+            onIssueToken={existingMiro ? () => void handleRotateMiroToken() : undefined}
+            title="Miro MCP handoff"
+            description="This replaces the old relay success page. You can copy the ready-to-paste MCP config directly from here."
+          />
+        </>
+      ) : (
+        <Card title="Direct token readiness" description="After this connection exists, you can create grants that let approved service clients request current tokens for your account.">
+          <p className="lede">
+            This provider is configured for direct-token use. Once connected, the broker stores and refreshes tokens server-side so your approved agents can request delegated access through a grant.
+          </p>
+        </Card>
+      )}
     </>
   );
 }
@@ -2742,6 +2980,7 @@ function AuthenticatedApp() {
 
     const loginStatus = params.get("login_status");
     const miroStatus = params.get("miro_status");
+    const providerStatus = params.get("provider_status");
     const miroSetup = params.get("miro_setup");
     const message = params.get("message");
     const connectedAccountId = params.get("connected_account_id");
@@ -2775,6 +3014,22 @@ function AuthenticatedApp() {
       notify({
         tone: "error",
         title: "Miro connect failed",
+        description: friendlyMessage,
+      });
+    }
+
+    if (providerStatus === "connected" && route.name === "connect") {
+      notify({
+        tone: "success",
+        title: `${providerRouteLabel(route.params.providerKey)} connected`,
+        description: connectedAccountId ? `Connection ${connectedAccountId} is now available in your workspace.` : "Your provider account is now connected.",
+      });
+    }
+
+    if (providerStatus === "error" && route.name === "connect") {
+      notify({
+        tone: "error",
+        title: `${providerRouteLabel(route.params.providerKey)} connect failed`,
         description: friendlyMessage,
       });
     }
@@ -2869,7 +3124,7 @@ function AuthenticatedApp() {
     return <LoadingScreen label="Redirecting to your workspace..." />;
   }
 
-  if (route.name === "connect" && route.params.providerKey !== "miro") {
+  if (route.name === "connect" && !templateKeyForRoute(route.params.providerKey)) {
     return <NotFoundPage onNavigate={navigate} fallbackPath="/workspace" />;
   }
 
@@ -2879,6 +3134,7 @@ function AuthenticatedApp() {
       navItems={[
         { href: "/workspace", label: "Workspace" },
         { href: "/connect/miro", label: "Connect Miro" },
+        { href: "/connect/microsoft-graph", label: "Connect Microsoft Graph" },
         { href: "/grants", label: "My Grants" },
         { href: "/token-access", label: "Token Access" },
       ]}
@@ -2888,7 +3144,7 @@ function AuthenticatedApp() {
       subtitle="Connections, grants, and diagnostics"
     >
       {route.name === "workspace" ? <WorkspacePage onNavigate={navigate} /> : null}
-      {route.name === "connect" ? <ConnectMiroPage onNavigate={navigate} /> : null}
+      {route.name === "connect" ? <ConnectProviderPage onNavigate={navigate} providerKey={route.params.providerKey} /> : null}
       {route.name === "grants" ? <GrantsPage /> : null}
       {route.name === "tokenAccess" ? <TokenAccessPage /> : null}
     </Shell>

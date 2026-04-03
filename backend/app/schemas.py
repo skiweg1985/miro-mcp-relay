@@ -35,6 +35,12 @@ class AuthFlowStartResponse(BaseModel):
     state: str
 
 
+class LoginOptionsResponse(BaseModel):
+    ok: bool = True
+    microsoft_enabled: bool
+    microsoft_display_name: str | None = None
+
+
 class ProviderDefinitionOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -44,6 +50,7 @@ class ProviderDefinitionOut(BaseModel):
     protocol: str
     supports_broker_auth: bool
     supports_downstream_oauth: bool
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class ProviderInstanceCreate(BaseModel):
@@ -55,6 +62,7 @@ class ProviderInstanceCreate(BaseModel):
     authorization_endpoint: str | None = None
     token_endpoint: str | None = None
     userinfo_endpoint: str | None = None
+    settings: dict[str, Any] = Field(default_factory=dict)
     is_enabled: bool = True
 
 
@@ -64,18 +72,47 @@ class ProviderInstanceOut(BaseModel):
     id: str
     key: str
     display_name: str
+    provider_definition_key: str
     role: str
     issuer: str | None = None
     authorization_endpoint: str | None = None
     token_endpoint: str | None = None
     userinfo_endpoint: str | None = None
+    settings: dict[str, Any] = Field(default_factory=dict)
     is_enabled: bool
 
 
 class ProviderAppCreate(BaseModel):
     provider_instance_key: str
     key: str
+    template_key: str | None = None
     display_name: str
+    client_id: str | None = None
+    client_secret: str | None = None
+    redirect_uris: list[str] = Field(default_factory=list)
+    default_scopes: list[str] = Field(default_factory=list)
+    scope_ceiling: list[str] = Field(default_factory=list)
+    access_mode: str = "relay"
+    allow_relay: bool = True
+    allow_direct_token_return: bool = False
+    relay_protocol: str | None = None
+    is_enabled: bool = True
+
+
+class ProviderInstanceUpdate(BaseModel):
+    display_name: str
+    role: str
+    issuer: str | None = None
+    authorization_endpoint: str | None = None
+    token_endpoint: str | None = None
+    userinfo_endpoint: str | None = None
+    settings: dict[str, Any] = Field(default_factory=dict)
+    is_enabled: bool = True
+
+
+class ProviderAppUpdate(BaseModel):
+    display_name: str
+    template_key: str | None = None
     client_id: str | None = None
     client_secret: str | None = None
     redirect_uris: list[str] = Field(default_factory=list)
@@ -93,12 +130,19 @@ class ProviderAppOut(BaseModel):
 
     id: str
     key: str
+    template_key: str | None = None
     display_name: str
     provider_instance_id: str
+    provider_instance_key: str | None = None
     access_mode: str
     allow_relay: bool
     allow_direct_token_return: bool
     relay_protocol: str | None = None
+    client_id: str | None = None
+    has_client_secret: bool = False
+    redirect_uris: list[str] = Field(default_factory=list)
+    default_scopes: list[str] = Field(default_factory=list)
+    scope_ceiling: list[str] = Field(default_factory=list)
     is_enabled: bool
 
 
@@ -167,6 +211,18 @@ class MiroConnectStartResponse(BaseModel):
     ok: bool = True
     auth_url: str
     state: str
+
+
+class ProviderConnectStartRequest(BaseModel):
+    provider_app_key: str
+    connected_account_id: str | None = None
+
+
+class ProviderConnectStartResponse(BaseModel):
+    ok: bool = True
+    auth_url: str
+    state: str
+    provider_app_key: str
 
 
 class ConnectionProbeResponse(BaseModel):

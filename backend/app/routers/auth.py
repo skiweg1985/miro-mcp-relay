@@ -17,7 +17,8 @@ from starlette.responses import RedirectResponse
 from app.core.config import get_settings
 from app.database import get_db
 from app.deps import clear_session_cookie, get_current_session, get_current_user, record_audit, refresh_csrf_token
-from app.models import ProviderApp, ProviderInstance, Session as SessionModel, User, UserAuthIdentity
+from app.models import Organization, ProviderApp, ProviderInstance, Session as SessionModel, User, UserAuthIdentity
+from app.provider_templates import MICROSOFT_BROKER_LOGIN_TEMPLATE, get_provider_app_by_template
 from app.schemas import AuthFlowStartResponse, LoginRequest, SessionResponse, UserOut
 from app.security import decrypt_text, dumps_json, hash_secret, issue_plain_secret, loads_json, session_expiry, utcnow, verify_secret
 
@@ -84,12 +85,19 @@ def _microsoft_redirect_uri(settings) -> str:
 
 
 def _get_microsoft_broker_config(db: Session) -> tuple[ProviderInstance, ProviderApp]:
-    provider_instance = db.scalar(select(ProviderInstance).where(ProviderInstance.key == "microsoft-broker-auth"))
-    provider_app = db.scalar(select(ProviderApp).where(ProviderApp.key == "microsoft-broker-default"))
+    organization = db.scalar(select(Organization).order_by(Organization.created_at.asc()))
+    if not organization:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Microsoft broker auth is not configured")
+    provider_app = get_provider_app_by_template(
+        db,
+        organization_id=organization.id,
+        template_key=MICROSOFT_BROKER_LOGIN_TEMPLATE,
+    )
+    provider_instance = db.get(ProviderInstance, provider_app.provider_instance_id) if provider_app else None
     if not provider_instance or not provider_app:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Microsoft broker auth is not configured")
     client_secret = decrypt_text(provider_app.encrypted_client_secret)
-    if not provider_instance.authorization_endpoint or not provider_instance.token_endpoint or not provider_app.client_id or not client_secret:
+    if not provider_instance.is_enabled or not provider_instance.authorization_endpoint or not provider_instance.token_endpoint or not provider_app.client_id or not client_secret:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Microsoft broker auth is not configured")
     return provider_instance, provider_app
 

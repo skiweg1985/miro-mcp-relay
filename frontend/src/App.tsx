@@ -25,6 +25,7 @@ import type {
   DelegationGrantFormValues,
   DelegationGrantOut,
   Health,
+  MiroRelayAccess,
   ProviderAppFormValues,
   ProviderAppOut,
   ProviderDefinitionOut,
@@ -94,6 +95,27 @@ function friendlyBrokerMessage(raw: string | null | undefined): string {
   if (message.startsWith("miro_refresh_failed")) return "The broker could not refresh the stored Miro credentials. Reconnect the account.";
   if (message.startsWith("token_context_")) return "The broker reached Miro but could not verify the token context. Retry once, then reconnect if needed.";
   return message;
+}
+
+function findMiroConnection(
+  connections: ConnectedAccountOut[],
+  providerAppById: Record<string, ProviderAppOut>,
+): ConnectedAccountOut | undefined {
+  return connections.find((connection) => providerAppById[connection.provider_app_id]?.key === "miro-default");
+}
+
+function replaceCurrentSearchParams(removals: string[]) {
+  const url = new URL(window.location.href);
+  let changed = false;
+  removals.forEach((key) => {
+    if (url.searchParams.has(key)) {
+      url.searchParams.delete(key);
+      changed = true;
+    }
+  });
+  if (!changed) return;
+  const search = url.searchParams.toString();
+  window.history.replaceState({}, "", `${url.pathname}${search ? `?${search}` : ""}`);
 }
 
 function usePathname() {
@@ -309,6 +331,103 @@ function MetricCard({ label, value, caption }: { label: string; value: string; c
       <strong>{value}</strong>
       <small>{caption}</small>
     </article>
+  );
+}
+
+function MiroAccessCard({
+  access,
+  pending,
+  onIssueToken,
+  title = "Miro MCP access",
+  description = "Use this broker-managed endpoint and relay token in your MCP client.",
+}: {
+  access: MiroRelayAccess | null;
+  pending: boolean;
+  onIssueToken?: () => void;
+  title?: string;
+  description?: string;
+}) {
+  if (!access) {
+    return (
+      <Card title={title} description={description}>
+        <EmptyState
+          title="No Miro relay access yet"
+          body="Connect Miro first. Once the broker has a connected account, this panel will show the MCP endpoint and let you mint a new relay token."
+        />
+      </Card>
+    );
+  }
+
+  const tokenState = access.relay_token
+    ? "New one-time relay token ready"
+    : access.has_relay_token
+      ? "A relay token exists but cannot be shown again"
+      : "No relay token exists yet";
+
+  return (
+    <Card title={title} description={description}>
+      <div className="stack-list">
+        <div className="stack-cell">
+          <strong>Connection</strong>
+          <span>{access.display_name || access.external_email || access.connected_account_id}</span>
+        </div>
+        <div className="stack-cell">
+          <strong>Profile ID</strong>
+          <code className="inline-code">{access.profile_id}</code>
+        </div>
+        <div className="stack-cell">
+          <strong>MCP endpoint</strong>
+          <code className="inline-code">{access.mcp_url}</code>
+        </div>
+        <div className="stack-cell">
+          <strong>Relay token state</strong>
+          <span>{tokenState}</span>
+        </div>
+        <div className="stack-cell">
+          <strong>Broker status</strong>
+          <span>{access.connection_status}</span>
+        </div>
+      </div>
+
+      {onIssueToken ? (
+        <div className="inline-actions">
+          <button type="button" className="primary-button" disabled={pending} onClick={onIssueToken}>
+            {pending ? "Generating..." : access.has_relay_token ? "Generate new relay token" : "Create relay token"}
+          </button>
+        </div>
+      ) : null}
+
+      {!access.relay_token && access.has_relay_token ? (
+        <p className="lede">
+          Existing MCP clients can keep using the current token, but the broker cannot reveal it again. Generate a new token
+          when you want to copy a fresh config from the UI.
+        </p>
+      ) : null}
+
+      {access.relay_token ? (
+        <>
+          <SecretPanel
+            title="Relay token"
+            body="This token is shown only for this issuance. Store it in your MCP client before leaving the page."
+            value={access.relay_token}
+          />
+          {access.mcp_config_json ? (
+            <SecretPanel
+              title="Ready-to-paste MCP config"
+              body="Paste this JSON into your MCP client configuration to use the brokered Miro endpoint."
+              value={access.mcp_config_json}
+            />
+          ) : null}
+          {access.credentials_bundle_json ? (
+            <SecretPanel
+              title="Backup credentials bundle"
+              body="This compact bundle mirrors the old flow and is useful when you need profile ID plus relay token together."
+              value={access.credentials_bundle_json}
+            />
+          ) : null}
+        </>
+      ) : null}
+    </Card>
   );
 }
 
@@ -1737,9 +1856,11 @@ function WorkspacePage({ onNavigate }: { onNavigate: (path: string) => void }) {
   const { notify, session } = useAppContext();
   const [providerApps, setProviderApps] = useState<ProviderAppOut[]>([]);
   const [connections, setConnections] = useState<ConnectedAccountOut[]>([]);
+  const [miroAccess, setMiroAccess] = useState<MiroRelayAccess | null>(null);
   const [loading, setLoading] = useState(true);
   const [probeResult, setProbeResult] = useState<ConnectionProbeResult | null>(null);
   const [busyAction, setBusyAction] = useState("");
+  const [tokenPending, setTokenPending] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -1747,6 +1868,13 @@ function WorkspacePage({ onNavigate }: { onNavigate: (path: string) => void }) {
       const [providerAppData, connectionData] = await Promise.all([api.providerAppsForUser(), api.myConnections()]);
       setProviderApps(providerAppData);
       setConnections(connectionData);
+      const providerMap = Object.fromEntries(providerAppData.map((app) => [app.id, app]));
+      const existingMiro = findMiroConnection(connectionData, providerMap);
+      if (existingMiro) {
+        setMiroAccess(await api.miroAccess(existingMiro.id));
+      } else {
+        setMiroAccess(null);
+      }
     } catch (error) {
       notify({
         tone: "error",
@@ -1767,6 +1895,7 @@ function WorkspacePage({ onNavigate }: { onNavigate: (path: string) => void }) {
     () => Object.fromEntries(providerApps.map((app) => [app.id, app])),
     [providerApps],
   );
+  const existingMiro = findMiroConnection(connections, providerAppById);
 
   const runAction = async (actionKey: string, fn: () => Promise<void>) => {
     setBusyAction(actionKey);
@@ -1807,6 +1936,28 @@ function WorkspacePage({ onNavigate }: { onNavigate: (path: string) => void }) {
       notify({ tone: "info", title: "Connection revoked" });
       await load();
     });
+  };
+
+  const handleRotateMiroToken = async () => {
+    if (session.status !== "authenticated" || !existingMiro) return;
+    setTokenPending(true);
+    try {
+      const result = await api.resetMiroAccess(session.csrfToken, existingMiro.id);
+      setMiroAccess(result);
+      notify({
+        tone: "success",
+        title: "New Miro relay token ready",
+        description: "Copy the MCP config now. The previous relay token is no longer valid.",
+      });
+    } catch (error) {
+      notify({
+        tone: "error",
+        title: "Could not issue a new relay token",
+        description: isApiError(error) ? error.message : "Unexpected Miro access error.",
+      });
+    } finally {
+      setTokenPending(false);
+    }
   };
 
   if (loading) return <LoadingScreen label="Loading your workspace..." />;
@@ -1861,6 +2012,13 @@ function WorkspacePage({ onNavigate }: { onNavigate: (path: string) => void }) {
         </Card>
       ) : null}
 
+      <MiroAccessCard
+        access={miroAccess}
+        pending={tokenPending}
+        onIssueToken={existingMiro ? () => void handleRotateMiroToken() : undefined}
+        description="This is the new-app replacement for the old Miro relay handoff. Use it to copy the broker MCP config whenever you need a fresh token."
+      />
+
       <Card title="Your connections" description="Refresh keeps credentials current, probe checks connectivity, and revoke removes access from the broker.">
           <DataTable
             columns={["Provider", "Account", "Connected", "Status", "Last error", "Actions"]}
@@ -1914,8 +2072,11 @@ function ConnectMiroPage({ onNavigate }: { onNavigate: (path: string) => void })
   const { notify, session } = useAppContext();
   const [providerApps, setProviderApps] = useState<ProviderAppOut[]>([]);
   const [connections, setConnections] = useState<ConnectedAccountOut[]>([]);
+  const [miroAccess, setMiroAccess] = useState<MiroRelayAccess | null>(null);
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(false);
+  const [setupPending, setSetupPending] = useState(false);
+  const [tokenPending, setTokenPending] = useState(false);
 
   useEffect(() => {
     if (session.status !== "authenticated") return;
@@ -1924,6 +2085,16 @@ function ConnectMiroPage({ onNavigate }: { onNavigate: (path: string) => void })
       .then(([providerAppData, connectionData]) => {
         setProviderApps(providerAppData);
         setConnections(connectionData);
+        const providerMap = Object.fromEntries(providerAppData.map((app) => [app.id, app]));
+        const existingMiroConnection = findMiroConnection(connectionData, providerMap);
+        if (existingMiroConnection) {
+          void api
+            .miroAccess(existingMiroConnection.id)
+            .then((result) => setMiroAccess(result))
+            .catch(() => setMiroAccess(null));
+        } else {
+          setMiroAccess(null);
+        }
       })
       .catch((error) =>
         notify({
@@ -1939,7 +2110,36 @@ function ConnectMiroPage({ onNavigate }: { onNavigate: (path: string) => void })
     () => Object.fromEntries(providerApps.map((app) => [app.id, app])),
     [providerApps],
   );
-  const existingMiro = connections.find((connection) => providerAppById[connection.provider_app_id]?.key === "miro-default");
+  const existingMiro = findMiroConnection(connections, providerAppById);
+
+  useEffect(() => {
+    if (session.status !== "authenticated") return;
+    const setupToken = new URLSearchParams(window.location.search).get("miro_setup");
+    if (!setupToken) return;
+
+    setSetupPending(true);
+    void api
+      .exchangeMiroSetup(session.csrfToken, setupToken)
+      .then((result) => {
+        setMiroAccess(result);
+        notify({
+          tone: "success",
+          title: "Miro MCP config ready",
+          description: "Copy the relay token or the full MCP config before leaving this page.",
+        });
+      })
+      .catch((error) => {
+        notify({
+          tone: "error",
+          title: "Could not load the one-time Miro setup bundle",
+          description: isApiError(error) ? friendlyBrokerMessage(error.message) : "Unexpected setup exchange error.",
+        });
+      })
+      .finally(() => {
+        setSetupPending(false);
+        replaceCurrentSearchParams(["miro_setup", "miro_status", "connected_account_id", "message"]);
+      });
+  }, [notify, session]);
 
   const startConnect = async () => {
     if (session.status !== "authenticated") return;
@@ -1954,6 +2154,28 @@ function ConnectMiroPage({ onNavigate }: { onNavigate: (path: string) => void })
         title: "Could not start Miro connect",
         description: isApiError(error) ? friendlyBrokerMessage(error.message) : "Unexpected Miro connect error.",
       });
+    }
+  };
+
+  const handleRotateMiroToken = async () => {
+    if (session.status !== "authenticated" || !existingMiro) return;
+    setTokenPending(true);
+    try {
+      const result = await api.resetMiroAccess(session.csrfToken, existingMiro.id);
+      setMiroAccess(result);
+      notify({
+        tone: "success",
+        title: "Fresh Miro relay token issued",
+        description: "The previous relay token is now invalid. Copy the new MCP config before you leave.",
+      });
+    } catch (error) {
+      notify({
+        tone: "error",
+        title: "Could not mint a new Miro relay token",
+        description: isApiError(error) ? friendlyBrokerMessage(error.message) : "Unexpected Miro token error.",
+      });
+    } finally {
+      setTokenPending(false);
     }
   };
 
@@ -2018,6 +2240,16 @@ function ConnectMiroPage({ onNavigate }: { onNavigate: (path: string) => void })
           )}
         </Card>
       </div>
+
+      {setupPending ? <LoadingScreen label="Preparing your one-time Miro MCP config..." /> : null}
+
+      <MiroAccessCard
+        access={miroAccess}
+        pending={tokenPending}
+        onIssueToken={existingMiro ? () => void handleRotateMiroToken() : undefined}
+        title="Miro MCP handoff"
+        description="This replaces the old relay success page. You can copy the ready-to-paste MCP config directly from here."
+      />
     </>
   );
 }
@@ -2510,6 +2742,7 @@ function AuthenticatedApp() {
 
     const loginStatus = params.get("login_status");
     const miroStatus = params.get("miro_status");
+    const miroSetup = params.get("miro_setup");
     const message = params.get("message");
     const connectedAccountId = params.get("connected_account_id");
     const friendlyMessage = friendlyBrokerMessage(message);
@@ -2546,7 +2779,9 @@ function AuthenticatedApp() {
       });
     }
 
-    window.history.replaceState({}, "", window.location.pathname);
+    if (!miroSetup) {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
   }, [notify, route.path, session.status]);
 
   useEffect(() => {

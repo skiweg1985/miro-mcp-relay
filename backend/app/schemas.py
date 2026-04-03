@@ -181,6 +181,24 @@ class ConnectionProbeResponse(BaseModel):
     external_user_name: str | None = None
 
 
+class MiroSetupExchangeRequest(BaseModel):
+    setup_token: str = Field(min_length=8, max_length=400)
+
+
+class MiroRelayAccessResponse(BaseModel):
+    ok: bool = True
+    connected_account_id: str
+    profile_id: str
+    mcp_url: str
+    has_relay_token: bool
+    relay_token: str | None = None
+    mcp_config_json: str | None = None
+    credentials_bundle_json: str | None = None
+    connection_status: str
+    display_name: str | None = None
+    external_email: str | None = None
+
+
 class MiroMigrationStatus(BaseModel):
     ok: bool = True
     legacy_profiles: int

@@ -5,6 +5,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 TMPDIR = tempfile.TemporaryDirectory()
 DB_PATH = Path(TMPDIR.name) / "welle1-smoke.db"
@@ -19,6 +20,7 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from fastapi.testclient import TestClient
+from starlette.responses import JSONResponse
 from sqlalchemy import select
 
 from app.core.config import get_settings
@@ -27,6 +29,7 @@ get_settings.cache_clear()
 
 from app.database import Base, SessionLocal, engine
 from app.main import create_app
+from app.miro import issue_miro_setup_token
 from app.models import ConnectedAccount, DelegationGrant, ProviderApp, ServiceClient, TokenMaterial, User
 from app.security import dumps_json, encrypt_text, hash_secret
 from app.seed import init_db
@@ -222,6 +225,60 @@ class Welle1SmokeTest(unittest.TestCase):
         body = filtered.json()
         self.assertEqual(len(body), 1)
         self.assertEqual(body[0]["id"], fixture["miro_connection_id"])
+
+    def test_miro_access_bundle_and_legacy_proxy_run_on_fastapi_stack(self) -> None:
+        fixture = self._seed_service_access_fixture()
+        client, csrf_token = self._login_admin()
+
+        details = client.get(
+            f"/api/v1/connections/{fixture['miro_connection_id']}/miro-access",
+            headers={"X-CSRF-Token": csrf_token},
+        )
+        self.assertEqual(details.status_code, 200)
+        details_body = details.json()
+        self.assertEqual(details_body["profile_id"], "person_example.com")
+        self.assertTrue(details_body["has_relay_token"])
+        self.assertIsNone(details_body["relay_token"])
+
+        rotated = client.post(
+            f"/api/v1/connections/{fixture['miro_connection_id']}/miro-access/reset",
+            headers={"X-CSRF-Token": csrf_token},
+        )
+        self.assertEqual(rotated.status_code, 200)
+        rotated_body = rotated.json()
+        self.assertTrue(rotated_body["relay_token"])
+        self.assertIn("/miro/mcp/person_example.com", rotated_body["mcp_url"])
+        self.assertIn("X-Relay-Key", rotated_body["mcp_config_json"])
+
+        setup_token = issue_miro_setup_token(
+            connected_account_id=fixture["miro_connection_id"],
+            relay_token="setup-relay-token",
+        )
+        exchanged = client.post(
+            "/api/v1/connections/miro/setup/exchange",
+            json={"setup_token": setup_token},
+            headers={"X-CSRF-Token": csrf_token},
+        )
+        self.assertEqual(exchanged.status_code, 200)
+        self.assertEqual(exchanged.json()["relay_token"], "setup-relay-token")
+
+        expired = client.post(
+            "/api/v1/connections/miro/setup/exchange",
+            json={"setup_token": setup_token},
+            headers={"X-CSRF-Token": csrf_token},
+        )
+        self.assertEqual(expired.status_code, 404)
+
+        with patch("app.routers.legacy_miro.relay_miro_request") as relay_mock:
+            relay_mock.return_value = JSONResponse({"ok": True, "channel": "fastapi-legacy"})
+            relayed = client.post(
+                "/miro/mcp/person_example.com",
+                json={"method": "tools/list"},
+                headers={"X-Relay-Key": rotated_body["relay_token"]},
+            )
+
+        self.assertEqual(relayed.status_code, 200)
+        self.assertEqual(relayed.json(), {"ok": True, "channel": "fastapi-legacy"})
 
 
 if __name__ == "__main__":

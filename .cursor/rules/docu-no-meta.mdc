@@ -1,0 +1,19 @@
+---
+description: Keine Meta-Kommentare in Doku und Code-Kommentaren
+alwaysApply: true
+---
+
+# Dokumentation und Kommentare: keine Meta-Ankündigungen
+
+Beim Bearbeiten oder Schreiben von Dokumentation (README, docs, Beispiele) und von Code-Kommentaren:
+
+- **Keine Anforderungen im Text wiederholen.** Keine Meta-Labels wie: „kurz“, „Kurzüberblick“, „schnell“, „einfach“, „nur das Wesentliche“, „optional“, „minimal“, „kompakt“, „übersichtlich“, „wie gefordert“, „gemäß Anforderung“, „ich halte es kurz“ usw.
+- Keine Überschriften oder Abschnittsnamen, die nur die Anforderung spiegeln (z. B. „Kurzüberblick“, „nur das Wesentliche“), es sei denn, sie stiften echte semantische Struktur.
+
+- **Inhalt steht für sich:** Neutrale, sachliche Überschriften; Kürze durch Redaktion, nicht durch Ankündigung.
+
+- **In Code-Kommentaren:** Kommentare beschreiben *warum* etwas existiert oder *was* es technisch tut – nicht den Schreibprozess oder die Anweisung. Keine Formulierungen wie „as requested“, „keeping this short“, „optional“, „minimal“, außer es geht um eine echte funktionale Unterscheidung (z. B. ein optionales CLI-Flag).
+
+- **Vor dem Abschluss prüfen:** Sätze entfernen, die Schreibstil, Umfang oder Erfüllung von Anforderungen erklären. Wenn Wörter wie „optional“/„minimal“/„kurz“ bleiben, nur wenn sie technisch bedeutsam sind (z. B. „optionales Flag“, „optionale Abhängigkeit“).
+
+**Ausgabe:** Nur die finale Doku-/Code-/Kommentar-Änderung liefern. Keine Begründung, kein Verweis auf diese Regel, kein Meta-Kommentar.

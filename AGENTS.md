@@ -5,14 +5,15 @@ Follow these repo-specific conventions and commands first.
 
 ## Project Snapshot
 
-- Runtime: Node.js (ESM, `"type": "module"`).
-- Main entrypoint: `src/index.js`.
-- New broker backend scaffold: FastAPI under `backend/app`.
-- New frontend scaffold: React/Vite under `frontend/`.
+- Runtime: FastAPI backend + React/Vite frontend.
+- Main backend entrypoint: `backend/app/main.py`.
+- Legacy Node source remains under `src/`, but it is no longer the deployed runtime path.
+- Broker backend: FastAPI under `backend/app`.
+- Frontend: React/Vite under `frontend/`.
 - Package manager: npm (`package-lock.json` is present).
-- App style: single-process Express service with file-backed JSON state.
-- Container support: `Dockerfile` + `docker-compose.yml`.
-- Tests/lint tools: Node built-in tests for the relay, Python syntax checks for the new backend.
+- App style: broker backend with DB-backed state plus a browser workspace; FastAPI also owns the legacy-compatible `/miro/mcp/*` relay endpoint.
+- Container support: `backend/Dockerfile`, `frontend/Dockerfile`, `haproxy/`, and `docker-compose.yml`.
+- Tests/lint tools: Node built-in platform tests, backend Python syntax checks, and backend smoke tests.
 
 ## Rule Files (Cursor / Copilot)
 
@@ -25,9 +26,10 @@ Follow these repo-specific conventions and commands first.
 
 - Install deps (clean, reproducible): `npm ci`
 - Install deps (general): `npm install`
-- Start app locally: `npm start`
-- Start app directly with Node: `node src/index.js`
-- Start with env file prepared: `cp .env.example .env && npm start`
+- Start local full stack components with env prepared:
+  - `cp .env.example .env`
+  - `cd backend && pip install -r requirements.txt && uvicorn app.main:app --reload`
+  - `cd frontend && npm install && npm run dev`
 - Start broker backend locally: `cd backend && pip install -r requirements.txt && uvicorn app.main:app --reload`
 - Start frontend locally: `cd frontend && npm install && npm run dev`
 
@@ -38,7 +40,7 @@ Follow these repo-specific conventions and commands first.
 - Optional pre-generation of the dev certificate: `./scripts/generate-dev-cert.sh`
 - Stop stack: `docker compose down`
 - Rebuild image only: `docker compose build`
-- Tail logs: `docker compose logs -f haproxy broker-frontend broker-backend miro-mcp-relay`
+- Tail logs: `docker compose logs -f haproxy broker-frontend broker-backend`
 
 ## Build / Lint / Test Status
 
@@ -50,12 +52,14 @@ Follow these repo-specific conventions and commands first.
 
 ## Practical Verification Commands (Current Repo)
 
-- Syntax check: `node --check src/index.js`
+- Backend syntax check: `python3 -m py_compile backend/app/*.py backend/app/routers/*.py backend/app/core/*.py`
+- Frontend build check: `cd frontend && npm run build`
 - Run service smoke test after start:
   - `curl -sS http://localhost/api/v1/health`
   - `curl -sS http://localhost/healthz`
   - `curl -sS http://localhost/readyz`
 - Root endpoint check: `curl -sS http://localhost/`
+- MCP relay smoke check: `curl -sS -X POST http://localhost/miro/mcp/<profile_id> -H "X-Relay-Key: <relay_token>" -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'`
 - HTTPS dev smoke test: `curl -k -sS https://localhost/api/v1/health`
 
 ## Testing Guidance (Especially Single Test)
@@ -77,16 +81,16 @@ If a test framework is introduced later, mirror the framework-native single-test
 - `CORS_ORIGINS` should normally match the public frontend origin exposed by the proxy or load balancer.
 - `SESSION_SECURE_COOKIE=true` is appropriate whenever the browser-facing origin is HTTPS, even if TLS is terminated before the app-local HAProxy.
 - Treat secrets as sensitive:
-  - `MIRO_RELAY_API_KEY`
-  - `MIRO_RELAY_ADMIN_KEY`
-  - `MIRO_ADMIN_PASSWORD`
-- Persisted runtime data is under `DATA_DIR` (default `/app/data` in container); the legacy relay `BASE_URL` is injected from `BROKER_PUBLIC_BASE_URL` by Docker Compose.
+  - `SESSION_SECRET`
+  - `MICROSOFT_BROKER_CLIENT_SECRET`
+  - issued Miro relay tokens
+- Persisted imported legacy data for migration lives under `LEGACY_MIRO_DATA_DIR`.
 
 ## Code Style and Structure
 
 ## Language / Modules
 
-- Use modern JavaScript with ESM `import` syntax.
+- Use modern Python in `backend/`, TypeScript/React in `frontend/`, and modern JavaScript with ESM syntax in the remaining legacy/reference files under `src/`.
 - Keep files UTF-8; default to ASCII unless file already uses Unicode.
 - Prefer `const`; use `let` only when reassignment is required.
 - Avoid introducing TypeScript unless explicitly requested.
@@ -94,18 +98,17 @@ If a test framework is introduced later, mirror the framework-native single-test
 ## Imports
 
 - Keep imports at file top.
-- Group order used in `src/index.js`:
-  1) third-party packages (`express`, `dotenv`)
-  2) Node built-ins (`fs`, `path`, `crypto`, `stream`)
-- Preserve existing quote/semi style: single quotes + semicolons.
+- Preserve existing local style per language area:
+  - backend Python: existing FastAPI/SQLAlchemy style
+  - frontend TypeScript: existing React/Vite style
+  - legacy JS helpers: single quotes + semicolons
 
 ## Formatting
 
-- Match existing formatting in `src/index.js`:
-  - 2-space indentation.
-  - Semicolons required.
-  - Trailing commas only when already present in multiline literals.
-  - Keep line length reasonable; prioritize readability over strict width.
+- Match surrounding file conventions:
+  - backend Python: current repo style, typed where already used
+  - frontend TS/TSX: existing Vite/React style with double quotes
+  - legacy JS: 2-space indentation and semicolons
 - No repo formatter is configured; do not mass-reformat unrelated code.
 
 ## Naming Conventions
@@ -117,14 +120,14 @@ If a test framework is introduced later, mirror the framework-native single-test
 
 ## Types and Data Shapes
 
-- This is plain JS; enforce shape via explicit checks and defaults.
+- Backend and frontend both use explicit schemas/types; keep response shapes stable and validate inputs early.
 - Validate request inputs early (trim strings, cap length, reject invalid values).
-- For response objects, follow existing key shapes (`ok`, `error`, `profile_id`, etc.).
-- Keep persisted object schemas stable (`profiles`, `tokens`, `clients`).
+- For response objects, follow existing key shapes (`ok`, `detail`, `profile_id`, etc.).
+- Keep DB schema migrations additive and compatible with existing startup reconciliation.
 
 ## Error Handling
 
-- Wrap async route handlers in `try/catch` when they can throw.
+- Wrap async route handlers where needed and return explicit HTTP status codes with JSON errors.
 - Return explicit HTTP status codes with JSON errors for API endpoints.
 - Use non-throwing helpers for best-effort behavior where appropriate (e.g., audit logging).
 - Never leak secrets in logs or error bodies.
@@ -133,15 +136,15 @@ If a test framework is introduced later, mirror the framework-native single-test
 ## Security and Auth Practices
 
 - Use timing-safe token hash comparison for relay tokens.
-- Keep admin auth checks strict (`session` or `X-Admin-Key`/bearer fallback).
-- Maintain rate limits on sensitive routes (login/create/delete/auth start).
-- Keep security headers middleware active for all responses.
+- Keep admin auth checks strict.
+- Maintain CSRF checks on state-changing authenticated routes.
+- Keep security headers and secure cookie behavior intact.
 
 ## State, I/O, and Side Effects
 
-- JSON persistence helpers (`readJson`/`writeJson`) are sync by design; keep behavior consistent unless refactor is intentional.
-- Any change to stored files should update all relevant stores and call `saveAll()` where expected.
-- For profile lifecycle changes, keep audit events and timestamps in sync.
+- Database-backed broker state is authoritative now.
+- Legacy file-backed data under `data/` is still used only for migration import and compatibility tests.
+- For relay-token lifecycle changes, keep audit events and timestamps in sync.
 
 ## HTTP / Proxy Behavior
 
@@ -152,7 +155,7 @@ If a test framework is introduced later, mirror the framework-native single-test
 ## Agent Workflow Expectations
 
 - Make focused diffs; avoid unrelated refactors.
-- Read `README.md`, `.env.example`, and `src/index.js` before major edits.
+- Read `README.md`, `.env.example`, `backend/app/main.py`, and the relevant frontend/backend entry files before major edits.
 - Prefer adding npm scripts when introducing new tooling (build/lint/test).
 - If adding tests, include at least one single-test execution example in docs.
 - Update this file when developer workflow changes materially.

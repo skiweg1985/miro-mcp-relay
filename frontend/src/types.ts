@@ -190,6 +190,20 @@ export type ConnectionProbeResult = {
   external_user_name: string | null;
 };
 
+export type MiroRelayAccess = {
+  ok: boolean;
+  connected_account_id: string;
+  profile_id: string;
+  mcp_url: string;
+  has_relay_token: boolean;
+  relay_token: string | null;
+  mcp_config_json: string | null;
+  credentials_bundle_json: string | null;
+  connection_status: string;
+  display_name: string | null;
+  external_email: string | null;
+};
+
 export type AuditEventOut = {
   id: string;
   actor_type: string;

@@ -7,6 +7,7 @@ import type {
   DelegationGrantCreateResult,
   DelegationGrantOut,
   Health,
+  MiroRelayAccess,
   ProviderAppOut,
   ProviderDefinitionOut,
   ProviderInstanceOut,
@@ -129,6 +130,22 @@ export const api = {
     return request<ConnectionProbeResult>(`/api/v1/connections/${connectionId}/probe`, {
       method: "POST",
       csrfToken,
+    });
+  },
+  miroAccess(connectionId: string) {
+    return request<MiroRelayAccess>(`/api/v1/connections/${connectionId}/miro-access`);
+  },
+  resetMiroAccess(csrfToken: string, connectionId: string) {
+    return request<MiroRelayAccess>(`/api/v1/connections/${connectionId}/miro-access/reset`, {
+      method: "POST",
+      csrfToken,
+    });
+  },
+  exchangeMiroSetup(csrfToken: string, setupToken: string) {
+    return request<MiroRelayAccess>("/api/v1/connections/miro/setup/exchange", {
+      method: "POST",
+      csrfToken,
+      body: { setup_token: setupToken },
     });
   },
   visibleServiceClients() {

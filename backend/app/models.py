@@ -152,6 +152,8 @@ class ConnectedAccount(Base):
     organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     provider_app_id: Mapped[str] = mapped_column(ForeignKey("provider_apps.id"), index=True)
+    legacy_profile_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    legacy_relay_token_hash: Mapped[str | None] = mapped_column(Text, nullable=True)
     external_account_ref: Mapped[str | None] = mapped_column(String(255), nullable=True)
     external_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     display_name: Mapped[str | None] = mapped_column(String(255), nullable=True)

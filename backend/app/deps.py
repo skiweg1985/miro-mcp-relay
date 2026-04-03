@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.database import get_db
 from app.models import AccessMode, AuditEvent, ConnectedAccount, DelegationGrant, ProviderApp, ServiceClient, Session as SessionModel, TokenIssueEvent, TokenMaterial, User
-from app.security import dumps_json, hash_secret, issue_plain_secret, loads_json, utcnow, verify_secret
+from app.security import dumps_json, hash_secret, issue_plain_secret, loads_json, lookup_secret_hash, utcnow, verify_secret
 
 
 @dataclass
@@ -53,8 +53,7 @@ def get_current_session(
 
 def hash_secret_lookup(value: str) -> str:
     # lightweight deterministic lookup hash for bearer/session tokens
-    import hashlib
-    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+    return lookup_secret_hash(value)
 
 
 def ensure_live(value: datetime) -> datetime:

@@ -137,6 +137,8 @@ def reconcile_schema() -> None:
             inspector,
             "connected_accounts",
             {
+                "legacy_profile_id": "VARCHAR(255)",
+                "legacy_relay_token_hash": "TEXT",
                 "oauth_client_id": "VARCHAR(255)",
                 "encrypted_oauth_client_secret": "TEXT",
                 "oauth_redirect_uri": "VARCHAR(512)",

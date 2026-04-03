@@ -67,6 +67,11 @@ export function classNames(...tokens: Array<string | false | null | undefined>):
 
 export function matchesRoute(pathname: string): RouteMatch {
   if (pathname === "/" || pathname === "/login") return { name: "login", path: "/login" };
+  if (pathname === "/miro" || pathname === "/start" || pathname === "/miro/start") {
+    return { name: "connect", path: "/connect/miro", params: { providerKey: "miro" } };
+  }
+  if (pathname === "/miro/workspace") return { name: "workspace", path: "/workspace" };
+  if (pathname === "/miro/admin") return { name: "dashboard", path: "/app" };
   if (pathname === "/app") return { name: "dashboard", path: "/app" };
   if (pathname === "/app/providers") return { name: "providers", path: "/app/providers" };
   if (pathname === "/app/connections") return { name: "connections", path: "/app/connections" };

@@ -29,6 +29,10 @@ def hash_secret(value: str) -> str:
     return f"{salt}${derived.hex()}"
 
 
+def lookup_secret_hash(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
 def verify_secret(value: str, encoded: str) -> bool:
     try:
         salt, digest = encoded.split("$", 1)
@@ -36,6 +40,12 @@ def verify_secret(value: str, encoded: str) -> bool:
         return False
     derived = hashlib.pbkdf2_hmac("sha256", value.encode("utf-8"), salt.encode("utf-8"), 200_000)
     return secrets.compare_digest(derived.hex(), digest)
+
+
+def verify_lookup_secret(value: str, encoded: str | None) -> bool:
+    if not encoded:
+        return False
+    return secrets.compare_digest(lookup_secret_hash(value), encoded)
 
 
 def issue_plain_secret(bytes_length: int = 32) -> str:

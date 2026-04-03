@@ -8,10 +8,29 @@ from urllib.parse import quote
 
 from app.database import get_db
 from app.deps import diagnose_service_access, get_current_user, record_audit, record_service_access_decision, require_csrf
-from app.miro import fetch_miro_token_context, finalize_miro_callback, get_miro_provider_app, refresh_connected_account, relay_miro_request, start_miro_connection
+from app.miro import (
+    build_miro_access_payload,
+    consume_miro_setup_token,
+    ensure_legacy_miro_identity,
+    fetch_miro_token_context,
+    finalize_miro_callback,
+    get_miro_provider_app,
+    issue_relay_token,
+    refresh_connected_account,
+    relay_miro_request,
+    start_miro_connection,
+)
 from app.models import AccessMode, ConnectedAccount, ProviderApp, TokenMaterial, User
-from app.schemas import ConnectedAccountOut, ConnectionProbeResponse, MiroConnectStartRequest, MiroConnectStartResponse, ProviderAppOut
-from app.security import decrypt_text, utcnow
+from app.schemas import (
+    ConnectedAccountOut,
+    ConnectionProbeResponse,
+    MiroConnectStartRequest,
+    MiroConnectStartResponse,
+    MiroRelayAccessResponse,
+    MiroSetupExchangeRequest,
+    ProviderAppOut,
+)
+from app.security import decrypt_text, lookup_secret_hash, utcnow
 
 router = APIRouter(tags=["connections"])
 
@@ -29,6 +48,16 @@ def list_provider_apps(db: Session = Depends(get_db), current_user: User = Depen
 @router.get("/connections", response_model=list[ConnectedAccountOut])
 def list_connections(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     return db.scalars(select(ConnectedAccount).where(ConnectedAccount.user_id == current_user.id).order_by(ConnectedAccount.connected_at.desc())).all()
+
+
+def _load_user_connection(db: Session, current_user: User, connection_id: str) -> ConnectedAccount:
+    connection = db.get(ConnectedAccount, connection_id)
+    if not connection or (connection.user_id != current_user.id and not current_user.is_admin):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Connection not found")
+    provider_app = db.get(ProviderApp, connection.provider_app_id)
+    if not provider_app or provider_app.key != "miro-default":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Connection is not a Miro connection")
+    return connection
 
 
 @router.post("/connections/miro/start", response_model=MiroConnectStartResponse)
@@ -100,12 +129,7 @@ async def miro_callback(
 
 @router.post("/connections/{connection_id}/refresh", response_model=ConnectedAccountOut)
 async def refresh_connection(connection_id: str, current_user: User = Depends(get_current_user), _csrf: str = Depends(require_csrf), db: Session = Depends(get_db)):
-    connection = db.get(ConnectedAccount, connection_id)
-    if not connection or (connection.user_id != current_user.id and not current_user.is_admin):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Connection not found")
-    provider_app = db.get(ProviderApp, connection.provider_app_id)
-    if not provider_app or provider_app.key != "miro-default":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Refresh is currently implemented for Miro connections only")
+    connection = _load_user_connection(db, current_user, connection_id)
     await refresh_connected_account(db, connection)
     record_audit(
         db,
@@ -121,9 +145,7 @@ async def refresh_connection(connection_id: str, current_user: User = Depends(ge
 
 @router.post("/connections/{connection_id}/revoke", response_model=ConnectedAccountOut)
 def revoke_connection(connection_id: str, current_user: User = Depends(get_current_user), _csrf: str = Depends(require_csrf), db: Session = Depends(get_db)):
-    connection = db.get(ConnectedAccount, connection_id)
-    if not connection or (connection.user_id != current_user.id and not current_user.is_admin):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Connection not found")
+    connection = _load_user_connection(db, current_user, connection_id)
     connection.status = "revoked"
     connection.revoked_at = utcnow()
     record_audit(
@@ -146,13 +168,9 @@ async def probe_connection(
     _csrf: str = Depends(require_csrf),
     db: Session = Depends(get_db),
 ):
-    connection = db.get(ConnectedAccount, connection_id)
-    if not connection or (connection.user_id != current_user.id and not current_user.is_admin):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Connection not found")
+    connection = _load_user_connection(db, current_user, connection_id)
 
     provider_app = db.get(ProviderApp, connection.provider_app_id)
-    if not provider_app or provider_app.key != "miro-default":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Connection probe is currently implemented for Miro connections only")
 
     checked_at = utcnow()
     refreshed = False
@@ -222,6 +240,61 @@ async def probe_connection(
         refreshed=refreshed,
         message=message,
     )
+
+
+@router.get("/connections/{connection_id}/miro-access", response_model=MiroRelayAccessResponse)
+def get_miro_access(connection_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    connection = _load_user_connection(db, current_user, connection_id)
+    if not connection.legacy_profile_id:
+        owner = db.get(User, connection.user_id) or current_user
+        ensure_legacy_miro_identity(db, user=owner, connected_account=connection)
+        db.commit()
+        db.refresh(connection)
+    return MiroRelayAccessResponse(**build_miro_access_payload(connection))
+
+
+@router.post("/connections/{connection_id}/miro-access/reset", response_model=MiroRelayAccessResponse)
+def reset_miro_access(
+    connection_id: str,
+    current_user: User = Depends(get_current_user),
+    _csrf: str = Depends(require_csrf),
+    db: Session = Depends(get_db),
+):
+    connection = _load_user_connection(db, current_user, connection_id)
+    if not connection.legacy_profile_id:
+        owner = db.get(User, connection.user_id) or current_user
+        ensure_legacy_miro_identity(db, user=owner, connected_account=connection)
+    relay_token = issue_relay_token()
+
+    connection.legacy_relay_token_hash = lookup_secret_hash(relay_token)
+    record_audit(
+        db,
+        action="miro.connection.relay_token.rotated",
+        actor_type="user",
+        actor_id=current_user.id,
+        organization_id=current_user.organization_id,
+        metadata={"connected_account_id": connection.id, "profile_id": connection.legacy_profile_id},
+    )
+    db.commit()
+    db.refresh(connection)
+    return MiroRelayAccessResponse(**build_miro_access_payload(connection, relay_token))
+
+
+@router.post("/connections/miro/setup/exchange", response_model=MiroRelayAccessResponse)
+def exchange_miro_setup(
+    payload: MiroSetupExchangeRequest,
+    current_user: User = Depends(get_current_user),
+    _csrf: str = Depends(require_csrf),
+    db: Session = Depends(get_db),
+):
+    snapshot = consume_miro_setup_token(payload.setup_token)
+    if not snapshot:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Setup session expired")
+    connection = _load_user_connection(db, current_user, str(snapshot.get("connected_account_id") or ""))
+    relay_token = str(snapshot.get("relay_token") or "").strip()
+    if not relay_token:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Setup session expired")
+    return MiroRelayAccessResponse(**build_miro_access_payload(connection, relay_token))
 
 
 @router.post("/broker-proxy/miro/{connected_account_id}")

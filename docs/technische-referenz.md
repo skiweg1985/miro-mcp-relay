@@ -1,8 +1,8 @@
-# Technische Dokumentation
+# Technische Referenz
 
 ## Architekturueberblick
 
-Das Repository besteht aktuell aus drei relevanten Schichten:
+Das Repository umfasst drei Schichten:
 
 - `frontend/`
   React/Vite-Single-Page-App fuer Admin- und Self-Service-Oberflaechen
@@ -15,7 +15,7 @@ Das Repository besteht aktuell aus drei relevanten Schichten:
 
 Die neue Hauptanwendung fuer Broker-Funktionen ist das FastAPI-Backend plus React-Frontend. Der Node-Service bleibt fuer Kompatibilitaet bestehen.
 
-## Technische Hauptziele
+## Architekturprinzipien
 
 - Trennung zwischen Benutzeroberflaeche, Broker-Logik und Legacy-Relay
 - serverseitige Speicherung sensibler Tokenmaterialien
@@ -41,7 +41,7 @@ flowchart LR
 - React 18
 - TypeScript
 - Vite
-- einfache clientseitige Routing-Logik auf Basis von `window.location.pathname`
+- clientseitige Routing-Logik auf Basis von `window.location.pathname`
 
 ### Zentrale Dateien
 
@@ -59,7 +59,7 @@ flowchart LR
 
 ### Routing-Modell
 
-Die App verwendet keine externe Router-Bibliothek, sondern ein leichtgewichtiges internes Routing.
+Die App verwendet keinen externen Router; das Routing ist in der Anwendung implementiert.
 
 Admin-Routen:
 
@@ -172,7 +172,7 @@ Die zentralen Tabellen sind in `backend/app/models.py` definiert.
 
 #### UserAuthIdentity
 
-- Verknuepfung eines Benutzers mit externer Identitaet, aktuell besonders fuer Microsoft-Login
+- Verknuepfung eines Benutzers mit externer Identitaet, insbesondere fuer Microsoft-Login
 
 #### ConnectedAccount
 
@@ -269,10 +269,10 @@ Flow:
 7. `ConnectedAccount` und `TokenMaterial` werden angelegt oder aktualisiert
 8. Redirect zurueck ins Frontend auf `/connect/miro` mit Statusparametern
 
-Aktueller Status:
+Stand Self-Service und Miro:
 
-- Self-Service-Connect ist explizit fuer Miro umgesetzt
-- Refresh und Probe sind derzeit ebenfalls fuer Miro implementiert
+- Self-Service-Connect ist fuer Miro umgesetzt
+- Refresh und Probe sind fuer Miro implementiert
 
 ## Delegation und Servicezugriff
 
@@ -394,7 +394,7 @@ Merkmale:
 - Health-, Ready- und Relay-Endpunkte
 - historischer Browser-Flow fuer Miro
 
-Der neue Broker ersetzt diese Schicht nicht vollstaendig, sondern existiert aktuell parallel dazu.
+Der neue Broker ersetzt diese Schicht nicht vollstaendig, sondern existiert parallel dazu.
 
 ## Lokale Entwicklung
 
@@ -443,9 +443,9 @@ python3 -m py_compile backend/app/*.py backend/app/routers/*.py backend/app/core
 python3 -m unittest backend/test_welle1_smoke.py
 ```
 
-## Aktuelle Einschraenkungen
+## Bekannte Grenzen
 
-- Der generische Broker ist modellseitig vorbereitet, aber Self-Service-Connect ist derzeit auf Miro fokussiert.
-- Connection-Probe und Refresh sind aktuell fuer Miro implementiert.
-- Das Frontend nutzt bewusst ein leichtgewichtiges In-App-Routing statt einer umfassenden Router-Bibliothek.
-- Der Legacy-Relay und der neue Broker existieren parallel; dadurch gibt es aktuell zwei technische Pfade im Repository.
+- Der generische Broker ist modellseitig vorbereitet; der Self-Service-Connect ist auf Miro fokussiert.
+- Connection-Probe und Refresh sind fuer Miro implementiert.
+- Das Frontend setzt In-App-Routing ohne externe Router-Bibliothek ein.
+- Der Legacy-Relay und der neue Broker existieren parallel; im Repository gibt es damit zwei technische Integrationspfade.

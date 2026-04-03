@@ -1,6 +1,6 @@
-# Funktionsweise und Menuepunkte
+# Funktionsübersicht
 
-## Ziel der Anwendung
+## Zweck
 
 Die App dient als OAuth-Broker zwischen Benutzern, angebundenen Providern und internen oder externen Services.
 
@@ -20,12 +20,12 @@ Es gibt zwei Hauptrollen:
 - `Endnutzer`
   Nutzt den Self-Service-Bereich unter `/workspace` und verwaltet nur eigene Verbindungen und Grants.
 
-## Grundlegende Funktionsweise
+## Ablauf
 
-Der typische Ablauf ist:
+Standardablauf:
 
 1. Ein Benutzer meldet sich am Broker an.
-2. Der Benutzer verbindet sein Provider-Konto, aktuell vor allem Miro.
+2. Der Benutzer verbindet sein Provider-Konto (vorrangig Miro).
 3. Ein Admin legt Service-Clients an, also vertrauenswuerdige Verbraucher der Plattform.
 4. Der Benutzer oder Admin erstellt einen Delegation Grant fuer einen Service-Client.
 5. Ein Service ruft mit `X-Service-Secret` und `X-Delegated-Credential` einen Broker-Endpunkt auf.
@@ -55,15 +55,15 @@ Pfad: `/app`
 
 Zweck:
 
-- zeigt einen kompakten Ueberblick ueber den Zustand der Plattform
+- zeigt einen Ueberblick ueber den Zustand der Plattform
 - visualisiert Health-Status, Anzahl der Provider-Apps, Verbindungen, Service-Clients und Delegation Grants
 - zeigt die letzten Audit-Ereignisse
 
-Typische Nutzung:
+Verwendung:
 
-- schneller Betriebscheck
-- erste Orientierung nach dem Login
-- Sprungbrett in die einzelnen Verwaltungsbereiche
+- Betriebscheck und Status
+- Orientierung nach dem Login
+- Einstieg in die Verwaltungsbereiche
 
 ### Providers
 
@@ -91,7 +91,7 @@ Bereiche innerhalb der Seite:
 - `Create provider app`
   Anlegen einer App mit Client-ID, Secret, Redirect-URIs, Default-Scopes und Scope-Ceiling
 
-Wichtige Bedeutung:
+Rolle:
 
 - Hier wird die Policy definiert, die spaeter bei Token-Ausgabe und Relay-Zugriff ausgewertet wird.
 
@@ -119,7 +119,7 @@ Moegliche Aktionen:
 - `Store connected account`
   Manuelles Bootstrap- oder Migrationsformular fuer Verbindungen inklusive Tokenmaterial
 
-Wichtige Bedeutung:
+Rolle:
 
 - Dies ist die zentrale Betriebsseite fuer bestehende Nutzerverbindungen.
 - Der manuelle Anlagepfad ist vor allem fuer Migration, Recovery oder initiale Datenuebernahme gedacht.
@@ -140,7 +140,7 @@ Bereiche:
 - `Create service client`
   Legt einen neuen Service-Client an und verknuepft ihn mit erlaubten Provider-Apps
 
-Besonderheit:
+Hinweis:
 
 - Das `client_secret` wird nur einmal bei der Erstellung angezeigt und muss dann sicher abgelegt werden.
 
@@ -171,7 +171,7 @@ Bereiche:
 - `Create delegation grant`
   Admin-Seite zum Erstellen einer neuen delegierten Freigabe
 
-Besonderheit:
+Hinweis:
 
 - Das `delegated_credential` wird nur einmal direkt nach der Erstellung angezeigt.
 
@@ -192,7 +192,7 @@ Bereiche:
 - `Audit events`
   Allgemeine Plattform-Aktivitaeten wie Login, Verbindungsaktionen oder Grant-Aenderungen
 
-Wichtige Bedeutung:
+Rolle:
 
 - Dies ist die wichtigste Seite fuer Nachvollziehbarkeit, Troubleshooting und Governance.
 
@@ -223,7 +223,7 @@ Moegliche Aktionen:
 - `Revoke`
   Entzieht dem Broker den Zugriff auf die Verbindung
 
-Wichtige Bedeutung:
+Rolle:
 
 - Dies ist die Startseite fuer Endnutzer nach dem Login.
 
@@ -241,9 +241,9 @@ Seiteninhalt:
   Startet den OAuth-Flow
 
 - `Current Miro state`
-  Zeigt den aktuell gespeicherten Broker-Zustand der Miro-Verbindung
+  Zeigt den gespeicherten Broker-Zustand der Miro-Verbindung
 
-Besonderheit:
+Hinweis:
 
 - Der Broker speichert das Tokenmaterial serverseitig.
 - Nach erfolgreichem Callback wird automatisch zur App zurueckgeleitet.
@@ -274,7 +274,7 @@ Ein Benutzer waehlt dabei:
 - optionale Capabilities
 - Laufzeit
 
-Besonderheit:
+Hinweis:
 
 - Nur die eigenen Grants werden angezeigt.
 - Das neue `delegated_credential` wird nur einmal eingeblendet.
@@ -299,7 +299,7 @@ Bereiche:
 - `Token issue history`
   Historie aller Broker-Entscheidungen fuer eigene Grants
 
-Typische Entscheidungen:
+Moegliche Ergebnisse:
 
 - `issued`
 - `relayed`
@@ -342,10 +342,10 @@ Eine explizite Freigabe, dass ein bestimmter Service-Client im Kontext eines Ben
 
 Ein einmalig ausgegebenes Geheimnis, mit dem ein Service zusammen mit seinem Client-Secret einen konkreten Grant nutzen kann.
 
-## Aktueller Fokus der Anwendung
+## Self-Service und Downstream-Provider
 
-Der Self-Service-Flow ist aktuell stark auf Miro ausgerichtet:
+Der Self-Service-Flow ist auf Miro ausgerichtet:
 
-- Miro kann direkt aus dem Workspace verbunden werden.
-- Refresh und Probe sind derzeit fuer Miro implementiert.
-- Der Broker ist aber bereits generisch genug modelliert, um weitere Provider-Apps und Service-Szenarien aufzunehmen.
+- Miro kann aus dem Workspace verbunden werden.
+- Refresh und Probe sind fuer Miro implementiert.
+- Das Datenmodell unterstuetzt weitere Provider-Apps und Service-Szenarien.

@@ -1,3 +1,28 @@
+## 2026-04-03 – Cursor Agent – Theme toggle UI
+
+- Done:
+  - `theme-toggle.tsx`: ein Icon-Button, wechselt zyklisch System → Light → Dark; SVG-Icons (Monitor, Sonne, Mond); dezente Styles (32px Hit-Area, muted-Farbe, Hover nur leichtes `bg-subtle`).
+  - `index.css`: alte Segment-Button-Styles entfernt, `.theme-toggle-trigger` / `.theme-toggle-icon`, Login zentriert.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - frontend/src/theme-toggle.tsx
+  - frontend/src/index.css
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build`
+  - UI path: Sidebar, `/login`
+- Changelog updated:
+  - yes ([Unreleased] Changed)
+- Follow-ups:
+  - keine
+
 ## 2026-04-03 – Cursor Agent – Dark mode & theme tokens
 
 - Done:

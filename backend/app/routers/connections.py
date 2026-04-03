@@ -9,7 +9,7 @@ from starlette.responses import RedirectResponse
 
 from app.core.config import get_settings
 from app.database import get_db
-from app.deps import diagnose_service_access, get_current_user, record_audit, record_service_access_decision, require_csrf
+from app.deps import diagnose_service_access, get_current_user, record_audit, record_service_access_decision, require_csrf, service_access_audit_actor
 from app.microsoft_graph import (
     fetch_graph_me,
     finalize_microsoft_graph_callback,
@@ -502,12 +502,13 @@ async def broker_proxy_miro(
             reason=str(auth_error.detail),
             metadata={"required_mode": AccessMode.RELAY.value, "channel": "miro_proxy"},
         )
-        if event and auth_context.service_client:
+        if event and (auth_context.service_client or auth_context.grant):
+            b_actor_type, b_actor_id = service_access_audit_actor(auth_context)
             record_audit(
                 db,
                 action="service.miro.relay.blocked",
-                actor_type="service_client",
-                actor_id=auth_context.service_client.id,
+                actor_type=b_actor_type,
+                actor_id=b_actor_id,
                 organization_id=event.organization_id,
                 metadata={"token_issue_event_id": event.id, "reason": str(auth_error.detail)},
             )
@@ -527,11 +528,12 @@ async def broker_proxy_miro(
             metadata={"required_mode": AccessMode.RELAY.value, "channel": "miro_proxy"},
         )
         if event:
+            err_actor_type, err_actor_id = service_access_audit_actor(auth_context)
             record_audit(
                 db,
                 action="service.miro.relay.error",
-                actor_type="service_client",
-                actor_id=auth_context.service_client.id,
+                actor_type=err_actor_type,
+                actor_id=err_actor_id,
                 organization_id=event.organization_id,
                 metadata={
                     "grant_id": auth_context.grant.id,
@@ -551,11 +553,12 @@ async def broker_proxy_miro(
         reason=None if response.status_code < 400 else f"miro_upstream_{response.status_code}",
         metadata={"required_mode": AccessMode.RELAY.value, "channel": "miro_proxy", "upstream_status": response.status_code},
     )
+    rel_actor_type, rel_actor_id = service_access_audit_actor(auth_context)
     record_audit(
         db,
         action="service.miro.relay",
-        actor_type="service_client",
-        actor_id=auth_context.service_client.id,
+        actor_type=rel_actor_type,
+        actor_id=rel_actor_id,
         organization_id=auth_context.grant.organization_id,
         metadata={
             "grant_id": auth_context.grant.id,

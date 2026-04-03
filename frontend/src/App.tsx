@@ -960,7 +960,6 @@ function GrantsPage() {
         providerAppData.find((app) => connectionData.some((connection) => connection.provider_app_id === app.id))?.key ?? "";
       setForm((current) => ({
         ...current,
-        service_client_key: current.service_client_key || serviceClientData[0]?.key || "",
         provider_app_key: current.provider_app_key || firstProviderApp,
       }));
     } catch (error) {
@@ -1004,8 +1003,9 @@ function GrantsPage() {
     if (session.status !== "authenticated") return;
     setPending(true);
     try {
+      const scKey = form.service_client_key.trim();
       const result = await api.createMyDelegationGrant(session.csrfToken, {
-        service_client_key: form.service_client_key,
+        ...(scKey ? { service_client_key: scKey } : {}),
         provider_app_key: form.provider_app_key,
         connected_account_id: form.connected_account_id || null,
         allowed_access_modes: form.allowed_access_modes,
@@ -1057,14 +1057,18 @@ function GrantsPage() {
     <>
       <PageIntro
         eyebrow="My Grants"
-        title="Create delegated access for approved service clients"
-        description="Choose one of the service clients your organization has already approved, bind it to your own connection, and define the access modes and scope ceiling it can use."
+        title="Delegated access"
+        description="Optionally restrict a grant to a registered service client, or leave it unset to use only the delegated credential when calling the broker."
       />
 
       {createdResult ? (
         <SecretPanel
           title="Delegated credential available"
-          body={`Store the delegated credential for ${createdResult.delegation_grant.service_client_display_name} now. It will not be shown again later.`}
+          body={`Store this delegated credential${
+            createdResult.delegation_grant.service_client_display_name
+              ? ` for ${createdResult.delegation_grant.service_client_display_name}`
+              : ""
+          } now. It will not be shown again later.`}
           value={createdResult.delegated_credential}
         />
       ) : null}
@@ -1074,7 +1078,7 @@ function GrantsPage() {
           <DataTable
             columns={["Service client", "Provider", "Connection", "Modes", "State", "Expires", "Policy", "Action"]}
             rows={grants.map((grant) => [
-              grant.service_client_display_name,
+              grant.service_client_display_name ?? "Credential only",
               grant.provider_app_display_name,
               grant.connected_account_display_name ?? "Auto-select at issue time",
               grant.allowed_access_modes.join(", "),
@@ -1097,21 +1101,22 @@ function GrantsPage() {
               ),
             ])}
             emptyTitle="No grants yet"
-            emptyBody="Create your first delegated credential once you have a provider connection and an approved service client to target."
+            emptyBody="Create a delegated credential once you have a provider connection."
           />
         </Card>
 
         <Card title="Create a grant" description="This creates a one-time delegated credential for your own connected account.">
           <InlineForm
             title="New self-service grant"
-            description="Service clients are pre-created by admins. You choose the provider app, access modes, and any narrower scope ceiling."
+            description="Optionally pick a service client for governance. Leave unset to rely on the delegated credential alone."
             onSubmit={handleSubmit}
           >
-            <Field label="Service client">
+            <Field label="Service client" hint="Optional">
               <select
                 value={form.service_client_key}
                 onChange={(event) => setForm((current) => ({ ...current, service_client_key: event.target.value }))}
               >
+                <option value="">Credential only</option>
                 {serviceClients.map((client) => (
                   <option key={client.id} value={client.key}>
                     {client.display_name}
@@ -1304,7 +1309,7 @@ function TokenAccessPage() {
                 <option value="">All grants</option>
                 {grants.map((grant) => (
                   <option key={grant.id} value={grant.id}>
-                    {grant.service_client_display_name} · {grant.provider_app_display_name}
+                    {(grant.service_client_display_name ?? "Credential only") + " · " + grant.provider_app_display_name}
                   </option>
                 ))}
               </select>

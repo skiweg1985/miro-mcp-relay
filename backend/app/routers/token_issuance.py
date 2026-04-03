@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Header
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import diagnose_service_access, record_audit, record_service_access_decision
+from app.deps import diagnose_service_access, record_audit, record_service_access_decision, service_access_audit_actor
 from app.microsoft_graph import refresh_microsoft_graph_connection
 from app.models import AccessMode, ProviderApp
 from app.provider_templates import MICROSOFT_GRAPH_DIRECT_TEMPLATE, provider_app_matches_template
@@ -40,19 +40,19 @@ async def issue_provider_access_token(
             reason=str(auth_error.detail),
             metadata={"required_mode": AccessMode.DIRECT_TOKEN.value},
         )
-        if event and auth_context.service_client:
+        if event and (auth_context.service_client or auth_context.grant):
+            actor_type, actor_id = service_access_audit_actor(auth_context)
             record_audit(
                 db,
                 action="service.provider_access_token.blocked",
-                actor_type="service_client",
-                actor_id=auth_context.service_client.id,
+                actor_type=actor_type,
+                actor_id=actor_id,
                 organization_id=event.organization_id,
                 metadata={"token_issue_event_id": event.id, "reason": str(auth_error.detail)},
             )
             db.commit()
         raise auth_error
 
-    service_client = auth_context.service_client
     grant = auth_context.grant
     provider_app = auth_context.provider_app
     connected_account = auth_context.connected_account
@@ -76,11 +76,12 @@ async def issue_provider_access_token(
         reason=None,
         metadata={"required_mode": AccessMode.DIRECT_TOKEN.value},
     )
+    issued_actor_type, issued_actor_id = service_access_audit_actor(auth_context)
     record_audit(
         db,
         action="service.provider_access_token.issued",
-        actor_type="service_client",
-        actor_id=service_client.id,
+        actor_type=issued_actor_type,
+        actor_id=issued_actor_id,
         organization_id=grant.organization_id,
         metadata={"grant_id": grant.id, "connected_account_id": connected_account.id, "token_issue_event_id": event.id},
     )

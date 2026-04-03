@@ -14,6 +14,11 @@
 
 ### Changed
 
+- Delegation: `service_client_id` optional; Token-Ausgabe (`/api/v1/token-issues/provider-access`) und Miro-Relay-Proxy akzeptieren `X-Delegated-Credential` ohne `X-Service-Secret`. Optionaler `X-Service-Secret` bleibt für Grants mit gebundenem Service-Client.
+- Self-Service- und Admin-Grant-Erstellung: `service_client_key` optional; UI „Credential only“.
+- Audit bei Token-/Relay-Zugriff: `actor_type` `credential` und `actor_id` Grant-ID, wenn kein Service-Client beteiligt.
+- README: Beispiele credential-first.
+
 - Admin-Oberfläche: Navigation Dashboard, Integrations, Users, Services, Access, Logs; Integrations als Karten mit Modals; vereinfachte Bezeichnungen; Legacy-Routen `/app/providers` usw. leiten auf kanonische Pfade um.
 - Admin-APIs nach Organisation gefiltert; Login-E-Mail normalisiert.
 - Microsoft-/Miro-/Graph-OAuth-Persistenz in der DB statt In-Memory-Dicts.

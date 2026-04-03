@@ -463,14 +463,17 @@ def create_delegation_grant(payload: DelegationGrantCreate, admin: User = Depend
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    service_client = db.scalar(
-        select(ServiceClient).where(
-            ServiceClient.organization_id == admin.organization_id,
-            ServiceClient.key == payload.service_client_key,
+    sc_key = (payload.service_client_key or "").strip()
+    service_client = None
+    if sc_key:
+        service_client = db.scalar(
+            select(ServiceClient).where(
+                ServiceClient.organization_id == admin.organization_id,
+                ServiceClient.key == sc_key,
+            )
         )
-    )
-    if not service_client:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Service client not found")
+        if not service_client:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Service client not found")
 
     provider_app = db.scalar(
         select(ProviderApp).where(ProviderApp.organization_id == admin.organization_id, ProviderApp.key == payload.provider_app_key)
@@ -493,7 +496,7 @@ def create_delegation_grant(payload: DelegationGrantCreate, admin: User = Depend
     grant = DelegationGrant(
         organization_id=admin.organization_id,
         user_id=user.id,
-        service_client_id=service_client.id,
+        service_client_id=service_client.id if service_client else None,
         provider_app_id=provider_app.id,
         connected_account_id=connected_account_id,
         credential_hash=hash_secret(delegated_credential),
@@ -521,7 +524,11 @@ def create_delegation_grant(payload: DelegationGrantCreate, admin: User = Depend
         actor_type="user",
         actor_id=admin.id,
         organization_id=admin.organization_id,
-        metadata={"grant_id": grant.id, "service_client_id": service_client.id, "provider_app_id": provider_app.id},
+        metadata={
+            "grant_id": grant.id,
+            "service_client_id": service_client.id if service_client else None,
+            "provider_app_id": provider_app.id,
+        },
     )
     db.commit()
     db.refresh(grant)

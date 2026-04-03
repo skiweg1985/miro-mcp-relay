@@ -216,6 +216,42 @@ class Welle1SmokeTest(unittest.TestCase):
         self.assertEqual(blocked_only.status_code, 200)
         self.assertEqual([entry["decision"] for entry in blocked_only.json()], ["blocked"])
 
+    def test_credential_only_grant_issues_token_without_service_secret(self) -> None:
+        fixture = self._seed_service_access_fixture()
+        solo_credential = "solo-grant-credential"
+        with SessionLocal() as db:
+            graph_app = db.scalar(select(ProviderApp).where(ProviderApp.key == "microsoft-graph-default"))
+            user = db.scalar(select(User).where(User.email == fixture["user_email"]))
+            self.assertIsNotNone(graph_app)
+            self.assertIsNotNone(user)
+            db.add(
+                DelegationGrant(
+                    organization_id=user.organization_id,
+                    user_id=user.id,
+                    service_client_id=None,
+                    provider_app_id=graph_app.id,
+                    connected_account_id=fixture["graph_connection_id"],
+                    credential_hash=hash_secret(solo_credential),
+                    credential_lookup_hash=lookup_secret_hash(solo_credential),
+                    allowed_access_modes_json=dumps_json(["direct_token"]),
+                    scope_ceiling_json=dumps_json(["Mail.Read"]),
+                    environment="test",
+                )
+            )
+            db.commit()
+
+        issued = self.client.post(
+            "/api/v1/token-issues/provider-access",
+            json={
+                "provider_app_key": "microsoft-graph-default",
+                "connected_account_id": fixture["graph_connection_id"],
+                "requested_scopes": ["Mail.Read"],
+            },
+            headers={"X-Delegated-Credential": solo_credential},
+        )
+        self.assertEqual(issued.status_code, 200)
+        self.assertEqual(issued.json()["access_token"], "graph-access-token")
+
     def test_connected_accounts_filters_support_operator_views(self) -> None:
         fixture = self._seed_service_access_fixture()
         client, csrf_token = self._login_admin()

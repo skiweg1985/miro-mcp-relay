@@ -95,8 +95,8 @@ This is the reproducible Miro path that now defines feature-complete Welle 1:
 1. Start the backend and frontend.
 2. Open the frontend login page and sign in as an end user through Microsoft.
 3. Open `/connect/miro` and complete the Miro OAuth flow.
-4. In `/grants`, create a delegated credential for an approved service client.
-5. Use the returned delegated credential plus the service secret against one of these broker paths:
+4. In `/grants`, create a delegated credential (optionally tied to a service client).
+5. Call one of these broker paths with `X-Delegated-Credential`. `X-Service-Secret` is optional and only required when the grant is restricted to a service client and you use the legacy two-secret flow.
    - `POST /api/v1/token-issues/provider-access`
    - `POST /api/v1/broker-proxy/miro/{connected_account_id}`
 6. Verify the result in:
@@ -109,13 +109,14 @@ Example direct-token request:
 curl -sS \
   -X POST http://localhost/api/v1/token-issues/provider-access \
   -H "Content-Type: application/json" \
-  -H "X-Service-Secret: <service-client-secret>" \
   -H "X-Delegated-Credential: <delegated-credential>" \
   -d '{
     "provider_app_key": "microsoft-graph-default",
     "requested_scopes": ["Mail.Read"]
   }'
 ```
+
+Optional header for grants tied to a service client: `X-Service-Secret: <service-client-secret>`.
 
 ## Validation
 
@@ -245,7 +246,6 @@ POST /api/v1/admin/delegation-grants/{grant_id}/revoke
 
 ```http
 POST /api/v1/token-issues/provider-access
-X-Service-Secret: <service-client-secret>
 X-Delegated-Credential: <delegated-credential>
 Content-Type: application/json
 
@@ -255,6 +255,8 @@ Content-Type: application/json
   "requested_scopes": ["Mail.Read"]
 }
 ```
+
+Optional: `X-Service-Secret: <service-client-secret>` when the delegation grant is bound to a service client and you want the previous two-header authentication.
 
 Refresh tokens are never returned.
 

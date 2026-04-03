@@ -217,7 +217,7 @@ class DelegationGrant(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
-    service_client_id: Mapped[str] = mapped_column(ForeignKey("service_clients.id"), index=True)
+    service_client_id: Mapped[str | None] = mapped_column(ForeignKey("service_clients.id"), nullable=True, index=True)
     provider_app_id: Mapped[str] = mapped_column(ForeignKey("provider_apps.id"), index=True)
     connected_account_id: Mapped[str | None] = mapped_column(ForeignKey("connected_accounts.id"), nullable=True, index=True)
     credential_hash: Mapped[str] = mapped_column(Text)

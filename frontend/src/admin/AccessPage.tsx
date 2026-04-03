@@ -69,7 +69,6 @@ export function AccessPage() {
     setForm((current) => ({
       ...current,
       user_email: current.user_email || userData[0]?.email || "",
-      service_client_key: current.service_client_key || serviceClientData[0]?.key || "",
       provider_app_key: current.provider_app_key || providerAppData[0]?.key || "",
     }));
   };
@@ -98,9 +97,10 @@ export function AccessPage() {
     if (session.status !== "authenticated") return;
     setPending(true);
     try {
+      const scKey = form.service_client_key.trim();
       const result = await api.createDelegationGrant(session.csrfToken, {
         user_email: form.user_email,
-        service_client_key: form.service_client_key,
+        ...(scKey ? { service_client_key: scKey } : {}),
         provider_app_key: form.provider_app_key,
         connected_account_id: form.connected_account_id || null,
         allowed_access_modes: form.allowed_access_modes,
@@ -177,7 +177,9 @@ export function AccessPage() {
             columns={["Person", "Service", "Integration", "Expires", "Status", ""]}
             rows={grants.map((grant) => [
               userById[grant.user_id]?.email ?? grant.user_id,
-              serviceClientById[grant.service_client_id]?.display_name ?? grant.service_client_id,
+              grant.service_client_id
+                ? serviceClientById[grant.service_client_id]?.display_name ?? grant.service_client_id
+                : "Credential only",
               providerAppById[grant.provider_app_id]?.display_name ?? grant.provider_app_id,
               `${formatDateTime(grant.expires_at)} (${relativeTime(grant.expires_at)})`,
               <StatusBadge key={grant.id} tone={grantTone(grant)}>
@@ -213,11 +215,12 @@ export function AccessPage() {
                 </datalist>
               </>
             </Field>
-            <Field label="Service">
+            <Field label="Service" hint="Optional">
               <select
                 value={form.service_client_key}
                 onChange={(event) => setForm((current) => ({ ...current, service_client_key: event.target.value }))}
               >
+                <option value="">Credential only</option>
                 {serviceClients.map((client) => (
                   <option key={client.id} value={client.key}>
                     {client.display_name}

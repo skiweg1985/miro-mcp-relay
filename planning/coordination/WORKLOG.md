@@ -1,3 +1,29 @@
+## 2026-04-03 – Agent – Credential-only Token-Abruf
+
+- Done:
+  - `delegation_grants.service_client_id` nullable; `reconcile_schema` DROP NOT NULL.
+  - `diagnose_service_access`: Grant per Credential; `X-Service-Secret` optional; `service_access_audit_actor` für Audit (`credential` / Grant-ID).
+  - Token-Issuance + Miro-Broker-Proxy; User/Admin-Grant-Erstellung ohne Service-Client; Frontend Grants/Access „Credential only“; README + technische Referenz + Funktionsübersicht.
+  - Smoke-Test `test_credential_only_grant_issues_token_without_service_secret`.
+- Next:
+  - optional: Postgres-Migration verifizieren (ALTER bereits in reconcile).
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign (lokal)
+  - PR: none
+- Files touched:
+  - backend/app/models.py, deps.py, seed.py, schemas.py, routers/user.py, routers/admin.py, routers/token_issuance.py, routers/connections.py, test_welle1_smoke.py
+  - frontend/src/App.tsx, admin/AccessPage.tsx, types.ts
+  - README.md, docs/CHANGELOG.md, docs/technische-referenz.md, docs/funktionsuebersicht.md
+- Test notes:
+  - commands: `python3 -m unittest backend/test_welle1_smoke.py`, `cd frontend && npm run build`
+  - endpoints: `POST /api/v1/token-issues/provider-access` mit nur `X-Delegated-Credential`
+- Changelog updated:
+  - yes ([Unreleased] Changed)
+- Follow-ups:
+  - none
+
 ## 2026-04-03 – Agent – App-Audit Umsetzung
 
 - Done:

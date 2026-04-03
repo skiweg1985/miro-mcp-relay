@@ -173,7 +173,7 @@ export type ConnectedAccountOut = {
 export type DelegationGrantOut = {
   id: string;
   user_id: string;
-  service_client_id: string;
+  service_client_id: string | null;
   provider_app_id: string;
   connected_account_id: string | null;
   environment: string | null;
@@ -199,9 +199,9 @@ export type VisibleServiceClientOut = {
 
 export type SelfServiceDelegationGrantOut = {
   id: string;
-  service_client_id: string;
-  service_client_key: string;
-  service_client_display_name: string;
+  service_client_id: string | null;
+  service_client_key: string | null;
+  service_client_display_name: string | null;
   provider_app_id: string;
   provider_app_key: string;
   provider_app_display_name: string;

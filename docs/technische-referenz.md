@@ -281,7 +281,7 @@ Stand Self-Service und Miro:
 
 ### Grundprinzip
 
-Ein Service darf nicht allein mit seinem Shared Secret auf Providerdaten zugreifen. Zusaetzlich wird ein `delegated_credential` benoetigt, das an einen konkreten Grant gebunden ist.
+Zugriff erfolgt mit einem `delegated_credential`, das an einen konkreten Grant gebunden ist. Optional kann der Grant an einen Service-Client gebunden sein; dann kann zusaetzlich `X-Service-Secret` zur Abwaertskompatibilitaet verlangt werden. Grants ohne Service-Client reichen mit `X-Delegated-Credential` allein.
 
 ### Direct Token Issuance
 
@@ -289,10 +289,10 @@ Endpunkt:
 
 - `POST /api/v1/token-issues/provider-access`
 
-Erwartete Header:
+Header:
 
-- `X-Service-Secret`
-- `X-Delegated-Credential`
+- `X-Delegated-Credential` (Pflicht)
+- `X-Service-Secret` (optional, z. B. bei aelteren Grants mit Service-Client-Bindung)
 
 Payload:
 
@@ -302,7 +302,7 @@ Payload:
 
 Das Backend prueft unter anderem:
 
-- Service-Client-Authentifizierung
+- optional Service-Client-Abgleich, wenn mitgegeben
 - Gueltigkeit des Grants
 - erlaubten Access-Mode
 - Scope-Grenzen
@@ -321,7 +321,7 @@ Endpunkt:
 
 - `POST /api/v1/broker-proxy/miro/{connected_account_id}`
 
-Auch hier werden `X-Service-Secret` und `X-Delegated-Credential` erwartet. Der Broker validiert die Berechtigung und leitet den Request danach gegen Miro weiter.
+`X-Delegated-Credential` ist Pflicht; `X-Service-Secret` optional (siehe Direct Token). Der Broker validiert die Berechtigung und leitet den Request danach gegen Miro weiter.
 
 ## API-Struktur
 

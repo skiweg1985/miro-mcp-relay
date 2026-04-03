@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from sqlalchemy import inspect, select, text
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -139,6 +140,7 @@ def reconcile_schema() -> None:
                 "credential_lookup_hash": "VARCHAR(64)",
             },
         )
+        _ensure_delegation_grant_service_client_nullable(conn, inspector)
         _ensure_columns(
             conn,
             inspector,
@@ -159,6 +161,28 @@ def _ensure_columns(conn, inspector, table_name: str, columns: dict[str, str]) -
         if column_name in existing_columns:
             continue
         conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_sql}"))
+
+
+def _ensure_delegation_grant_service_client_nullable(conn, inspector) -> None:
+    """Existing DBs may have NOT NULL on delegation_grants.service_client_id; credential-only grants need NULL."""
+    table_name = "delegation_grants"
+    column_name = "service_client_id"
+    existing_tables = set(inspector.get_table_names())
+    if table_name not in existing_tables:
+        return
+    columns = {c["name"]: c for c in inspector.get_columns(table_name)}
+    if column_name not in columns:
+        return
+    if columns[column_name].get("nullable") is True:
+        return
+    dialect = conn.engine.dialect.name
+    try:
+        if dialect == "postgresql":
+            conn.execute(text(f'ALTER TABLE "{table_name}" ALTER COLUMN "{column_name}" DROP NOT NULL'))
+        else:
+            conn.execute(text(f"ALTER TABLE {table_name} ALTER COLUMN {column_name} DROP NOT NULL"))
+    except OperationalError:
+        pass
 
 
 def _ensure_provider_definition(

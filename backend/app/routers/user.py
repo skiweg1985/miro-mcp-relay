@@ -29,16 +29,16 @@ def _grant_to_out(
     connections: dict[str, ConnectedAccount],
     capabilities: dict[str, list[str]],
 ) -> SelfServiceDelegationGrantOut:
-    service_client = service_clients.get(grant.service_client_id)
+    service_client = service_clients.get(grant.service_client_id) if grant.service_client_id else None
     provider_app = provider_apps.get(grant.provider_app_id)
     connection = connections.get(grant.connected_account_id or "")
-    if not service_client or not provider_app:
+    if not provider_app:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Grant dependencies not found")
     return SelfServiceDelegationGrantOut(
         id=grant.id,
-        service_client_id=service_client.id,
-        service_client_key=service_client.key,
-        service_client_display_name=service_client.display_name,
+        service_client_id=service_client.id if service_client else None,
+        service_client_key=service_client.key if service_client else None,
+        service_client_display_name=service_client.display_name if service_client else None,
         provider_app_id=provider_app.id,
         provider_app_key=provider_app.key,
         provider_app_display_name=provider_app.display_name,
@@ -106,15 +106,18 @@ def create_my_delegation_grant(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    service_client = db.scalar(
-        select(ServiceClient).where(
-            ServiceClient.organization_id == current_user.organization_id,
-            ServiceClient.key == payload.service_client_key,
-            ServiceClient.is_enabled.is_(True),
+    sc_key = (payload.service_client_key or "").strip()
+    service_client = None
+    if sc_key:
+        service_client = db.scalar(
+            select(ServiceClient).where(
+                ServiceClient.organization_id == current_user.organization_id,
+                ServiceClient.key == sc_key,
+                ServiceClient.is_enabled.is_(True),
+            )
         )
-    )
-    if not service_client:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Service client not found")
+        if not service_client:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Service client not found")
 
     provider_app = db.scalar(
         select(ProviderApp).where(
@@ -126,9 +129,10 @@ def create_my_delegation_grant(
     if not provider_app:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider app not found")
 
-    allowed_provider_app_keys = loads_json(service_client.allowed_provider_app_keys_json, [])
-    if allowed_provider_app_keys and provider_app.key not in allowed_provider_app_keys:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Service client is not allowed for this provider app")
+    if service_client:
+        allowed_provider_app_keys = loads_json(service_client.allowed_provider_app_keys_json, [])
+        if allowed_provider_app_keys and provider_app.key not in allowed_provider_app_keys:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Service client is not allowed for this provider app")
 
     allowed_access_modes = [mode for mode in payload.allowed_access_modes if mode in {"relay", "direct_token"}]
     if not allowed_access_modes:
@@ -161,7 +165,7 @@ def create_my_delegation_grant(
     grant = DelegationGrant(
         organization_id=current_user.organization_id,
         user_id=current_user.id,
-        service_client_id=service_client.id,
+        service_client_id=service_client.id if service_client else None,
         provider_app_id=provider_app.id,
         connected_account_id=connected_account.id if connected_account else None,
         credential_hash=hash_secret(delegated_credential),
@@ -189,13 +193,17 @@ def create_my_delegation_grant(
         actor_type="user",
         actor_id=current_user.id,
         organization_id=current_user.organization_id,
-        metadata={"grant_id": grant.id, "service_client_id": service_client.id, "provider_app_id": provider_app.id},
+        metadata={
+            "grant_id": grant.id,
+            "service_client_id": service_client.id if service_client else None,
+            "provider_app_id": provider_app.id,
+        },
     )
     db.commit()
     return SelfServiceDelegationGrantSecretResponse(
         delegation_grant=_grant_to_out(
             grant,
-            service_clients={service_client.id: service_client},
+            service_clients={service_client.id: service_client} if service_client else {},
             provider_apps={provider_app.id: provider_app},
             connections={connected_account.id: connected_account} if connected_account else {},
             capabilities={grant.id: payload.capabilities},
@@ -221,7 +229,7 @@ def revoke_my_delegation_grant(grant_id: str, current_user: User = Depends(get_c
     )
     db.commit()
 
-    service_client = db.get(ServiceClient, grant.service_client_id)
+    service_client = db.get(ServiceClient, grant.service_client_id) if grant.service_client_id else None
     provider_app = db.get(ProviderApp, grant.provider_app_id)
     connection = db.get(ConnectedAccount, grant.connected_account_id) if grant.connected_account_id else None
     capability_rows = db.scalars(
@@ -229,7 +237,7 @@ def revoke_my_delegation_grant(grant_id: str, current_user: User = Depends(get_c
     ).all()
     return _grant_to_out(
         grant,
-        service_clients={service_client.id: service_client},
+        service_clients={service_client.id: service_client} if service_client else {},
         provider_apps={provider_app.id: provider_app},
         connections={connection.id: connection} if connection else {},
         capabilities={grant.id: [capability.capability_key for capability in capability_rows]},

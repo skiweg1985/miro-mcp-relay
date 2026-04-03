@@ -290,7 +290,7 @@ class MiroMigrationImportResponse(BaseModel):
 
 class DelegationGrantCreate(BaseModel):
     user_email: str
-    service_client_key: str
+    service_client_key: str | None = None
     provider_app_key: str
     connected_account_id: str | None = None
     allowed_access_modes: list[str] = Field(default_factory=list)
@@ -305,7 +305,7 @@ class DelegationGrantOut(BaseModel):
 
     id: str
     user_id: str
-    service_client_id: str
+    service_client_id: str | None = None
     provider_app_id: str
     connected_account_id: str | None = None
     environment: str | None = None
@@ -332,7 +332,7 @@ class VisibleServiceClientOut(BaseModel):
 
 
 class SelfServiceDelegationGrantCreate(BaseModel):
-    service_client_key: str
+    service_client_key: str | None = None
     provider_app_key: str
     connected_account_id: str | None = None
     allowed_access_modes: list[str] = Field(default_factory=list)
@@ -344,9 +344,9 @@ class SelfServiceDelegationGrantCreate(BaseModel):
 
 class SelfServiceDelegationGrantOut(BaseModel):
     id: str
-    service_client_id: str
-    service_client_key: str
-    service_client_display_name: str
+    service_client_id: str | None = None
+    service_client_key: str | None = None
+    service_client_display_name: str | None = None
     provider_app_id: str
     provider_app_key: str
     provider_app_display_name: str

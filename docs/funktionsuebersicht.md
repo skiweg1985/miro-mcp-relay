@@ -28,7 +28,7 @@ Standardablauf:
 2. Der Benutzer verbindet sein Provider-Konto (vorrangig Miro).
 3. Ein Admin legt Service-Clients an, also vertrauenswuerdige Verbraucher der Plattform.
 4. Der Benutzer oder Admin erstellt einen Delegation Grant fuer einen Service-Client.
-5. Ein Service ruft mit `X-Service-Secret` und `X-Delegated-Credential` einen Broker-Endpunkt auf.
+5. Ein Aufrufer nutzt `X-Delegated-Credential`; optional kommt `X-Service-Secret` hinzu, wenn der Grant an einen Service-Client gebunden ist.
 6. Der Broker prueft Berechtigung, Scope-Grenzen, Modus und Verbindung und gibt entweder Zugriff frei oder blockiert den Vorgang.
 
 ## Einstiegspunkte

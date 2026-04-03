@@ -54,6 +54,19 @@ export type Health = {
   service: string;
 };
 
+export type BrokerCallbackUrls = {
+  ok: boolean;
+  microsoft_login: string;
+  microsoft_graph: string;
+  miro: string;
+  custom_oauth: string;
+};
+
+export type IntegrationTestResult = {
+  ok: boolean;
+  message: string;
+};
+
 export type ProviderDefinitionOut = {
   id: string;
   key: string;
@@ -340,11 +353,11 @@ export type SelfServiceDelegationGrantFormValues = {
 export type RouteMatch =
   | { name: "login"; path: "/login" }
   | { name: "dashboard"; path: "/app" }
-  | { name: "providers"; path: "/app/providers" }
-  | { name: "connections"; path: "/app/connections" }
-  | { name: "serviceClients"; path: "/app/service-clients" }
-  | { name: "delegation"; path: "/app/delegation" }
-  | { name: "audit"; path: "/app/audit" }
+  | { name: "integrations"; path: "/app/integrations" }
+  | { name: "users"; path: "/app/users" }
+  | { name: "services"; path: "/app/services" }
+  | { name: "access"; path: "/app/access" }
+  | { name: "logs"; path: "/app/logs" }
   | { name: "workspace"; path: "/workspace" }
   | { name: "grants"; path: "/grants" }
   | { name: "connect"; path: `/connect/${string}`; params: { providerKey: string } }

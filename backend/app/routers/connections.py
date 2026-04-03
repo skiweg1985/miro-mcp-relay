@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from starlette.responses import RedirectResponse
 
+from app.core.config import get_settings
 from app.database import get_db
 from app.deps import diagnose_service_access, get_current_user, record_audit, record_service_access_decision, require_csrf
 from app.microsoft_graph import (
@@ -194,6 +195,15 @@ async def start_miro(
     )
     db.commit()
     return MiroConnectStartResponse(auth_url=auth_url, state=state)
+
+
+@router.get("/connections/provider-oauth/callback")
+def provider_oauth_callback():
+    settings = get_settings()
+    return RedirectResponse(
+        url=f"{settings.frontend_base_url.rstrip('/')}/app/integrations?oauth_callback=unsupported",
+        status_code=302,
+    )
 
 
 @router.get("/connections/miro/callback")

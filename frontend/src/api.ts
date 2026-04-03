@@ -6,7 +6,9 @@ import type {
   ConnectedAccountOut,
   DelegationGrantCreateResult,
   DelegationGrantOut,
+  BrokerCallbackUrls,
   Health,
+  IntegrationTestResult,
   LoginOptionsResponse,
   MiroRelayAccess,
   ProviderAppOut,
@@ -80,6 +82,9 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 export const api = {
   health() {
     return request<Health>("/api/v1/health");
+  },
+  brokerCallbackUrls() {
+    return request<BrokerCallbackUrls>("/api/v1/broker-callback-urls");
   },
   loginOptions() {
     return request<LoginOptionsResponse>("/api/v1/auth/login-options");
@@ -291,6 +296,13 @@ export const api = {
   },
   auditEvents(csrfToken: string, limit = 200) {
     return request<AuditEventOut[]>(`/api/v1/admin/audit?limit=${limit}`, { csrfToken });
+  },
+  testIntegration(csrfToken: string, templateKey: string) {
+    return request<IntegrationTestResult>("/api/v1/admin/integrations/test", {
+      method: "POST",
+      csrfToken,
+      body: { template_key: templateKey },
+    });
   },
   adminTokenIssues(
     csrfToken: string,

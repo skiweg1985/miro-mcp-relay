@@ -7,7 +7,8 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Organization, ProviderDefinition, ProviderInstance
 from app.provider_templates import MICROSOFT_BROKER_LOGIN_TEMPLATE, get_provider_app_by_template, serialize_json_field
-from app.schemas import LoginOptionsResponse, ProviderDefinitionOut
+from app.core.config import get_settings
+from app.schemas import BrokerCallbackUrlsOut, LoginOptionsResponse, ProviderDefinitionOut
 
 router = APIRouter(tags=["public"])
 
@@ -15,6 +16,19 @@ router = APIRouter(tags=["public"])
 @router.get("/health")
 def health():
     return {"ok": True, "service": "oauth-broker-backend"}
+
+
+@router.get("/broker-callback-urls", response_model=BrokerCallbackUrlsOut)
+def broker_callback_urls():
+    settings = get_settings()
+    base = settings.broker_public_base_url.rstrip("/")
+    api = settings.api_v1_prefix
+    return BrokerCallbackUrlsOut(
+        microsoft_login=f"{base}{api}/auth/microsoft/callback",
+        microsoft_graph=f"{base}{api}/connections/microsoft-graph/callback",
+        miro=f"{base}{api}/connections/miro/callback",
+        custom_oauth=f"{base}{api}/connections/provider-oauth/callback",
+    )
 
 
 @router.get("/provider-definitions", response_model=list[ProviderDefinitionOut])

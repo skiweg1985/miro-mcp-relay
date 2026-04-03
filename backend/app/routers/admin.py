@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -11,8 +12,12 @@ from app.deps import record_audit, require_admin, require_csrf
 from app.miro import import_legacy_miro_data, migration_status
 from app.models import AuditEvent, ConnectedAccount, DelegationGrant, GrantedCapability, ProviderApp, ProviderDefinition, ProviderInstance, ServiceClient, TokenIssueEvent, TokenMaterial, User
 from app.provider_templates import (
+    MICROSOFT_BROKER_LOGIN_TEMPLATE,
+    MICROSOFT_GRAPH_DIRECT_TEMPLATE,
+    MIRO_RELAY_TEMPLATE,
     dump_settings,
     enforce_singleton_template,
+    get_provider_app_by_template,
     normalize_instance_settings,
     serialize_json_field,
     validate_template_assignment,
@@ -24,6 +29,8 @@ from app.schemas import (
     DelegationGrantCreate,
     DelegationGrantOut,
     DelegationGrantSecretResponse,
+    IntegrationTestOut,
+    IntegrationTestRequest,
     MiroMigrationImportResponse,
     MiroMigrationStatus,
     ProviderAppCreate,
@@ -604,6 +611,56 @@ def list_token_issues(
         )
         for issue in issues
     ]
+
+
+@router.post("/integrations/test", response_model=IntegrationTestOut, dependencies=[Depends(require_csrf)])
+async def test_integration_configuration(
+    payload: IntegrationTestRequest,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    template_key = payload.template_key.strip()
+    known = {
+        MICROSOFT_BROKER_LOGIN_TEMPLATE,
+        MICROSOFT_GRAPH_DIRECT_TEMPLATE,
+        MIRO_RELAY_TEMPLATE,
+    }
+    if template_key not in known:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported integration type")
+
+    provider_app = get_provider_app_by_template(
+        db,
+        organization_id=admin.organization_id,
+        template_key=template_key,
+        enabled_only=False,
+    )
+    if not provider_app:
+        return IntegrationTestOut(ok=False, message="No configuration found for this integration yet.")
+
+    if template_key in {MICROSOFT_BROKER_LOGIN_TEMPLATE, MICROSOFT_GRAPH_DIRECT_TEMPLATE}:
+        instance = db.get(ProviderInstance, provider_app.provider_instance_id)
+        if not instance or instance.organization_id != admin.organization_id:
+            return IntegrationTestOut(ok=False, message="Integration instance is missing.")
+        settings = loads_json(instance.settings_json, {})
+        tenant_id = str(settings.get("tenant_id") or "common").strip() or "common"
+        url = f"https://login.microsoftonline.com/{tenant_id}/v2.0/.well-known/openid-configuration"
+        try:
+            async with httpx.AsyncClient(timeout=12.0) as client:
+                response = await client.get(url)
+        except httpx.RequestError as exc:
+            return IntegrationTestOut(ok=False, message=f"Could not reach Microsoft OpenID discovery ({exc.__class__.__name__}).")
+        if response.status_code == 200:
+            return IntegrationTestOut(ok=True, message="Microsoft OpenID discovery succeeded.")
+        return IntegrationTestOut(ok=False, message=f"Microsoft OpenID discovery returned HTTP {response.status_code}.")
+
+    try:
+        async with httpx.AsyncClient(timeout=12.0) as client:
+            response = await client.get("https://mcp.miro.com/authorize", follow_redirects=False)
+    except httpx.RequestError as exc:
+        return IntegrationTestOut(ok=False, message=f"Could not reach Miro authorize URL ({exc.__class__.__name__}).")
+    if response.status_code in {200, 302, 303, 307, 308}:
+        return IntegrationTestOut(ok=True, message="Miro authorization endpoint responded.")
+    return IntegrationTestOut(ok=False, message=f"Miro authorization endpoint returned HTTP {response.status_code}.")
 
 
 @router.get("/migrations/miro/status", response_model=MiroMigrationStatus, dependencies=[Depends(require_csrf)])

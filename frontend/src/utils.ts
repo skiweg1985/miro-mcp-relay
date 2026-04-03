@@ -1,5 +1,19 @@
 import type { RouteMatch } from "./types";
 
+const LEGACY_ADMIN_PATHS: Record<string, string> = {
+  "/app/providers": "/app/integrations",
+  "/app/connections": "/app/users",
+  "/app/service-clients": "/app/services",
+  "/app/delegation": "/app/access",
+  "/app/audit": "/app/logs",
+};
+
+/** If the browser is on a legacy admin URL, returns the canonical path to replace the history entry. */
+export function replaceLegacyAdminPath(pathname: string): string | null {
+  const raw = pathname.length > 1 && pathname.endsWith("/") ? pathname.replace(/\/+$/, "") : pathname;
+  return LEGACY_ADMIN_PATHS[raw] ?? null;
+}
+
 export function parseLines(value: string): string[] {
   return value
     .split(/\r?\n|,/)
@@ -70,8 +84,8 @@ export function classNames(...tokens: Array<string | false | null | undefined>):
 }
 
 export function matchesRoute(pathname: string): RouteMatch {
-  const path =
-    pathname.length > 1 && pathname.endsWith("/") ? pathname.replace(/\/+$/, "") : pathname;
+  const raw = pathname.length > 1 && pathname.endsWith("/") ? pathname.replace(/\/+$/, "") : pathname;
+  const path = LEGACY_ADMIN_PATHS[raw] ?? raw;
   if (path === "/" || path === "/login") return { name: "login", path: "/login" };
   if (path === "/miro" || path === "/start" || path === "/miro/start") {
     return { name: "connect", path: "/connect/miro", params: { providerKey: "miro" } };
@@ -79,11 +93,11 @@ export function matchesRoute(pathname: string): RouteMatch {
   if (path === "/miro/workspace") return { name: "workspace", path: "/workspace" };
   if (path === "/miro/admin") return { name: "dashboard", path: "/app" };
   if (path === "/app") return { name: "dashboard", path: "/app" };
-  if (path === "/app/providers") return { name: "providers", path: "/app/providers" };
-  if (path === "/app/connections") return { name: "connections", path: "/app/connections" };
-  if (path === "/app/service-clients") return { name: "serviceClients", path: "/app/service-clients" };
-  if (path === "/app/delegation") return { name: "delegation", path: "/app/delegation" };
-  if (path === "/app/audit") return { name: "audit", path: "/app/audit" };
+  if (path === "/app/integrations") return { name: "integrations", path: "/app/integrations" };
+  if (path === "/app/users") return { name: "users", path: "/app/users" };
+  if (path === "/app/services") return { name: "services", path: "/app/services" };
+  if (path === "/app/access") return { name: "access", path: "/app/access" };
+  if (path === "/app/logs") return { name: "logs", path: "/app/logs" };
   if (path === "/workspace") return { name: "workspace", path: "/workspace" };
   if (path === "/grants") return { name: "grants", path: "/grants" };
   if (path === "/token-access") return { name: "tokenAccess", path: "/token-access" };

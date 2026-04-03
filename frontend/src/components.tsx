@@ -135,7 +135,7 @@ export function SecretPanel({
     <div className="secret-panel">
       <div className="secret-panel-header">
         <div>
-          <p className="eyebrow">One-time secret</p>
+          <p className="eyebrow">Sensitive value</p>
           <h3>{title}</h3>
           <p>{body}</p>
         </div>

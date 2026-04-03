@@ -41,6 +41,23 @@ class LoginOptionsResponse(BaseModel):
     microsoft_display_name: str | None = None
 
 
+class BrokerCallbackUrlsOut(BaseModel):
+    ok: bool = True
+    microsoft_login: str
+    microsoft_graph: str
+    miro: str
+    custom_oauth: str
+
+
+class IntegrationTestRequest(BaseModel):
+    template_key: str = Field(min_length=3, max_length=120)
+
+
+class IntegrationTestOut(BaseModel):
+    ok: bool
+    message: str
+
+
 class ProviderDefinitionOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

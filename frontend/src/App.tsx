@@ -21,9 +21,8 @@ import {
   DataTable,
   EmptyState,
   Field,
-  FormActions,
-  InlineForm,
   LoadingScreen,
+  Modal,
   PageIntro,
   SecretPanel,
   StatusBadge,
@@ -883,50 +882,43 @@ function ConnectProviderPage({ onNavigate, providerKey }: { onNavigate: (path: s
         }
       />
 
-      <div className="two-column">
-        <Card title={`${providerRouteLabel(providerKey)} authorization`} description="This flow uses the broker backend callback and comes back into your workspace automatically.">
-          <div className="stack-form">
-            <p className="lede">
-              {existingConnection
-                ? `An existing ${providerRouteLabel(providerKey)} connection was found. Reconnect to refresh stored credentials and keep the same broker-side identity.`
-                : `No ${providerRouteLabel(providerKey)} connection exists yet. Start the flow to create your first broker-held account.`}
-            </p>
-            <div className="inline-actions">
-              <button type="button" className="primary-button" disabled={pending} onClick={() => void startConnect()}>
-                {pending ? "Redirecting..." : existingConnection ? `Reconnect ${providerRouteLabel(providerKey)}` : `Connect ${providerRouteLabel(providerKey)}`}
-              </button>
+      <Card title={`${providerRouteLabel(providerKey)} connection`} description="This flow uses the broker backend callback and returns you to the workspace automatically.">
+        {existingConnection ? (
+          <div className="stack-list">
+            <div className="stack-cell">
+              <strong>Account</strong>
+              <span>{existingConnection.display_name || existingConnection.external_email || existingConnection.id}</span>
+            </div>
+            <div className="stack-cell">
+              <strong>Status</strong>
+              <span>{existingConnection.status === "connected" && existingConnection.last_error ? "Connected with attention needed" : existingConnection.status}</span>
+            </div>
+            <div className="stack-cell">
+              <strong>Connected</strong>
+              <span>{formatDateTime(existingConnection.connected_at)}</span>
+            </div>
+            <div className="stack-cell">
+              <strong>Last broker note</strong>
+              <span>{existingConnection.last_error ? friendlyBrokerMessage(existingConnection.last_error) : "No recent issue recorded"}</span>
             </div>
           </div>
-        </Card>
-
-        <Card title="Current provider state" description="If you already have a connection, you can see the current broker-held record before reconnecting.">
-          {existingConnection ? (
-            <div className="stack-list">
-              <div className="stack-cell">
-                <strong>Account</strong>
-                <span>{existingConnection.display_name || existingConnection.external_email || existingConnection.id}</span>
-              </div>
-              <div className="stack-cell">
-                <strong>Status</strong>
-                <span>{existingConnection.status === "connected" && existingConnection.last_error ? "Connected with attention needed" : existingConnection.status}</span>
-              </div>
-              <div className="stack-cell">
-                <strong>Connected</strong>
-                <span>{formatDateTime(existingConnection.connected_at)}</span>
-              </div>
-              <div className="stack-cell">
-                <strong>Last broker note</strong>
-                <span>{existingConnection.last_error ? friendlyBrokerMessage(existingConnection.last_error) : "No recent issue recorded"}</span>
-              </div>
-            </div>
-          ) : (
-            <EmptyState
-              title={`No ${providerRouteLabel(providerKey)} connection yet`}
-              body={`Start the authorization flow to create a broker-managed ${providerRouteLabel(providerKey)} connection for your workspace.`}
-            />
-          )}
-        </Card>
-      </div>
+        ) : (
+          <EmptyState
+            title={`No ${providerRouteLabel(providerKey)} connection yet`}
+            body={`Start the authorization flow to create a broker-managed ${providerRouteLabel(providerKey)} connection for your workspace.`}
+          />
+        )}
+        <p className="lede">
+          {existingConnection
+            ? `Reconnect to refresh stored credentials and keep the same broker-side identity.`
+            : `Start the flow to create your first broker-held account.`}
+        </p>
+        <div className="inline-actions">
+          <button type="button" className="primary-button" disabled={pending} onClick={() => void startConnect()}>
+            {pending ? "Redirecting…" : existingConnection ? `Reconnect ${providerRouteLabel(providerKey)}` : `Connect ${providerRouteLabel(providerKey)}`}
+          </button>
+        </div>
+      </Card>
 
       {templateKey === "miro-relay" ? (
         <>
@@ -958,6 +950,7 @@ function GrantsPage() {
   const [grants, setGrants] = useState<SelfServiceDelegationGrantOut[]>([]);
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(false);
+  const [grantModalOpen, setGrantModalOpen] = useState(false);
   const [createdResult, setCreatedResult] = useState<SelfServiceDelegationGrantCreateResult | null>(null);
   const [form, setForm] = useState<SelfServiceDelegationGrantFormValues>({
     service_client_key: "",
@@ -1044,6 +1037,7 @@ function GrantsPage() {
       });
       setCreatedResult(result);
       notify({ tone: "success", title: "Delegated credential created" });
+      setGrantModalOpen(false);
       setForm((current) => ({
         ...current,
         connected_account_id: "",
@@ -1087,6 +1081,11 @@ function GrantsPage() {
         eyebrow="My Grants"
         title="Delegated access"
         description="Optionally restrict a grant to a registered service client, or leave it unset to use only the delegated credential when calling the broker."
+        actions={
+          <button type="button" className="primary-button" onClick={() => setGrantModalOpen(true)}>
+            New grant
+          </button>
+        }
       />
 
       {createdResult ? (
@@ -1101,130 +1100,136 @@ function GrantsPage() {
         />
       ) : null}
 
-      <div className="two-column">
-        <Card title="Your grants" description="Only your own grants appear here, and you can revoke them whenever a downstream consumer should lose access.">
-          <DataTable
-            columns={["Service client", "Provider", "Connection", "Modes", "State", "Expires", "Policy", "Action"]}
-            rows={grants.map((grant) => [
-              grant.service_client_display_name ?? "Credential only",
-              grant.provider_app_display_name,
-              grant.connected_account_display_name ?? "Auto-select at issue time",
-              grant.allowed_access_modes.join(", "),
-              <StatusBadge key={`${grant.id}-state`} tone={grantTone(grant)}>
-                {grantState(grant)}
-              </StatusBadge>,
-              `${formatDateTime(grant.expires_at)} (${relativeTime(grant.expires_at)})`,
-              <div className="stack-cell" key={`${grant.id}-policy`}>
-                <strong>Scopes</strong>
-                <span>{grant.scope_ceiling.length ? grant.scope_ceiling.join(", ") : "Inherited from provider app"}</span>
-                <strong>Capabilities</strong>
-                <span>{grant.capabilities.length ? grant.capabilities.join(", ") : "No extra capabilities"}</span>
-              </div>,
-              grant.revoked_at ? (
-                "Closed"
-              ) : (
-                <button type="button" className="ghost-button" onClick={() => void revokeGrant(grant.id)}>
-                  Revoke
-                </button>
-              ),
-            ])}
-            emptyTitle="No grants yet"
-            emptyBody="Create a delegated credential once you have a provider connection."
-          />
-        </Card>
+      <Card title="Your grants" description="Only your own grants appear here, and you can revoke them whenever a downstream consumer should lose access.">
+        <DataTable
+          columns={["Service client", "Provider", "Connection", "Modes", "State", "Expires", "Policy", "Action"]}
+          rows={grants.map((grant) => [
+            grant.service_client_display_name ?? "Credential only",
+            grant.provider_app_display_name,
+            grant.connected_account_display_name ?? "Auto-select at issue time",
+            grant.allowed_access_modes.join(", "),
+            <StatusBadge key={`${grant.id}-state`} tone={grantTone(grant)}>
+              {grantState(grant)}
+            </StatusBadge>,
+            `${formatDateTime(grant.expires_at)} (${relativeTime(grant.expires_at)})`,
+            <div className="stack-cell" key={`${grant.id}-policy`}>
+              <strong>Scopes</strong>
+              <span>{grant.scope_ceiling.length ? grant.scope_ceiling.join(", ") : "Inherited from provider app"}</span>
+              <strong>Capabilities</strong>
+              <span>{grant.capabilities.length ? grant.capabilities.join(", ") : "No extra capabilities"}</span>
+            </div>,
+            grant.revoked_at ? (
+              "Closed"
+            ) : (
+              <button type="button" className="ghost-button" onClick={() => void revokeGrant(grant.id)}>
+                Revoke
+              </button>
+            ),
+          ])}
+          emptyTitle="No grants yet"
+          emptyBody="Create a delegated credential once you have a provider connection."
+        />
+      </Card>
 
-        <Card title="Create a grant" description="This creates a one-time delegated credential for your own connected account.">
-          <InlineForm
-            title="New self-service grant"
-            description="Optionally pick a service client for governance. Leave unset to rely on the delegated credential alone."
-            onSubmit={handleSubmit}
-          >
-            <Field label="Service client" hint="Optional">
-              <select
-                value={form.service_client_key}
-                onChange={(event) => setForm((current) => ({ ...current, service_client_key: event.target.value }))}
-              >
-                <option value="">Credential only</option>
-                {serviceClients.map((client) => (
-                  <option key={client.id} value={client.key}>
-                    {client.display_name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Provider app">
-              <select
-                value={form.provider_app_key}
-                onChange={(event) => setForm((current) => ({ ...current, provider_app_key: event.target.value, connected_account_id: "" }))}
-              >
-                {availableProviderApps.map((app) => (
-                  <option key={app.id} value={app.key}>
-                    {app.display_name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Connection">
-              <select
-                value={form.connected_account_id}
-                onChange={(event) => setForm((current) => ({ ...current, connected_account_id: event.target.value }))}
-              >
-                <option value="">Auto-select matching active connection</option>
-                {eligibleConnections.map((connection) => (
-                  <option key={connection.id} value={connection.id}>
-                    {connection.display_name || connection.external_email || connection.id}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Allowed access modes">
-              <div className="check-grid compact">
-                {["relay", "direct_token"].map((mode) => (
-                  <label key={mode} className="check-option">
-                    <input
-                      type="checkbox"
-                      checked={form.allowed_access_modes.includes(mode)}
-                      onChange={() => toggleMode(mode)}
-                    />
-                    <span>{userAccessModeLabel(mode)}</span>
-                  </label>
-                ))}
-              </div>
-            </Field>
-            <Field label="Scope ceiling" hint="Comma or newline separated">
-              <textarea
-                value={form.scope_ceiling_text}
-                onChange={(event) => setForm((current) => ({ ...current, scope_ceiling_text: event.target.value }))}
-              />
-            </Field>
-            <Field label="Capabilities" hint="Comma or newline separated">
-              <textarea
-                value={form.capabilities_text}
-                onChange={(event) => setForm((current) => ({ ...current, capabilities_text: event.target.value }))}
-              />
-            </Field>
-            <Field label="Environment">
-              <input
-                value={form.environment}
-                onChange={(event) => setForm((current) => ({ ...current, environment: event.target.value }))}
-                placeholder="production"
-              />
-            </Field>
-            <Field label="Expiry (hours)">
-              <input
-                type="number"
-                min={1}
-                max={24 * 365}
-                value={form.expires_in_hours}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, expires_in_hours: Number(event.target.value) || 24 }))
-                }
-              />
-            </Field>
-            <FormActions pending={pending} submitLabel="Create delegated credential" />
-          </InlineForm>
-        </Card>
-      </div>
+      {grantModalOpen ? (
+        <Modal title="New grant" wide onClose={() => setGrantModalOpen(false)}>
+          <form className="stack-form" onSubmit={handleSubmit}>
+            <p className="lede">Optionally pick a service client for governance. Leave unset to rely on the delegated credential alone.</p>
+            <div className="form-grid">
+              <Field label="Service client" hint="Optional">
+                <select
+                  value={form.service_client_key}
+                  onChange={(event) => setForm((current) => ({ ...current, service_client_key: event.target.value }))}
+                >
+                  <option value="">Credential only</option>
+                  {serviceClients.map((client) => (
+                    <option key={client.id} value={client.key}>
+                      {client.display_name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Provider app">
+                <select
+                  value={form.provider_app_key}
+                  onChange={(event) => setForm((current) => ({ ...current, provider_app_key: event.target.value, connected_account_id: "" }))}
+                >
+                  {availableProviderApps.map((app) => (
+                    <option key={app.id} value={app.key}>
+                      {app.display_name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Connection">
+                <select
+                  value={form.connected_account_id}
+                  onChange={(event) => setForm((current) => ({ ...current, connected_account_id: event.target.value }))}
+                >
+                  <option value="">Auto-select matching active connection</option>
+                  {eligibleConnections.map((connection) => (
+                    <option key={connection.id} value={connection.id}>
+                      {connection.display_name || connection.external_email || connection.id}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Allowed access modes">
+                <div className="check-grid compact">
+                  {["relay", "direct_token"].map((mode) => (
+                    <label key={mode} className="check-option">
+                      <input
+                        type="checkbox"
+                        checked={form.allowed_access_modes.includes(mode)}
+                        onChange={() => toggleMode(mode)}
+                      />
+                      <span>{userAccessModeLabel(mode)}</span>
+                    </label>
+                  ))}
+                </div>
+              </Field>
+              <Field label="Scope ceiling" hint="Comma or newline separated">
+                <textarea
+                  value={form.scope_ceiling_text}
+                  onChange={(event) => setForm((current) => ({ ...current, scope_ceiling_text: event.target.value }))}
+                />
+              </Field>
+              <Field label="Capabilities" hint="Comma or newline separated">
+                <textarea
+                  value={form.capabilities_text}
+                  onChange={(event) => setForm((current) => ({ ...current, capabilities_text: event.target.value }))}
+                />
+              </Field>
+              <Field label="Environment">
+                <input
+                  value={form.environment}
+                  onChange={(event) => setForm((current) => ({ ...current, environment: event.target.value }))}
+                  placeholder="production"
+                />
+              </Field>
+              <Field label="Expiry (hours)">
+                <input
+                  type="number"
+                  min={1}
+                  max={24 * 365}
+                  value={form.expires_in_hours}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, expires_in_hours: Number(event.target.value) || 24 }))
+                  }
+                />
+              </Field>
+            </div>
+            <div className="modal-form-actions">
+              <button type="button" className="ghost-button" onClick={() => setGrantModalOpen(false)}>
+                Cancel
+              </button>
+              <button type="submit" className="primary-button" disabled={pending}>
+                {pending ? "Working…" : "Create delegated credential"}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      ) : null}
     </>
   );
 }
@@ -1242,6 +1247,8 @@ function TokenAccessPage() {
   const [serviceClientFilter, setServiceClientFilter] = useState("");
   const [grantFilter, setGrantFilter] = useState("");
   const [decisionFilter, setDecisionFilter] = useState("");
+  const [filterModalOpen, setFilterModalOpen] = useState(false);
+  const [probeModalOpen, setProbeModalOpen] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -1261,6 +1268,9 @@ function TokenAccessPage() {
       setConnections(connectionData);
       setIssues(issueData);
       setProbeConnectionId((current) => current || connectionData[0]?.id || "");
+      if (!connectionData.length) {
+        setProbeResult(null);
+      }
     } catch (error) {
       notify({
         tone: "error",
@@ -1291,6 +1301,9 @@ function TokenAccessPage() {
         description: result.ok ? "The broker could reach the provider using the stored connection." : friendlyBrokerMessage(result.message),
       });
       await load();
+      if (result.ok) {
+        setProbeModalOpen(false);
+      }
     } catch (error) {
       notify({
         tone: "error",
@@ -1312,6 +1325,12 @@ function TokenAccessPage() {
         description="Review token issuance history for your grants and run a safe probe against a current connection when something looks wrong."
         actions={
           <div className="inline-actions">
+            <button type="button" className="ghost-button" onClick={() => setFilterModalOpen(true)}>
+              Filter history
+            </button>
+            <button type="button" className="ghost-button" onClick={() => setProbeModalOpen(true)}>
+              Test connection
+            </button>
             <button type="button" className="ghost-button" onClick={() => void load()}>
               Reload
             </button>
@@ -1319,8 +1338,48 @@ function TokenAccessPage() {
         }
       />
 
-      <div className="two-column">
-        <Card title="Filters" description="Limit the history to a specific service client or grant.">
+      {probeResult ? (
+        <Card title="Latest probe" description="The probe checks broker-to-provider access and never exposes raw access tokens.">
+          <div className="stack-list">
+            <div className="stack-cell">
+              <strong>Status</strong>
+              <span>{probeResult.ok ? "Healthy connection" : friendlyBrokerMessage(probeResult.message)}</span>
+            </div>
+            <div className="stack-cell">
+              <strong>Checked</strong>
+              <span>{formatDateTime(probeResult.checked_at)}</span>
+            </div>
+            <div className="stack-cell">
+              <strong>Resolved provider identity</strong>
+              <span>{probeResult.external_user_name || probeResult.external_user_id || "Not returned"}</span>
+            </div>
+          </div>
+        </Card>
+      ) : null}
+
+      <Card title="Token issue history" description="Read-only audit trail of broker token issuance decisions for your own grants.">
+        <DataTable
+          columns={["Time", "Service client", "Grant", "Provider", "Decision", "Scopes", "Metadata"]}
+          rows={filteredIssues.map((issue) => [
+            formatDateTime(issue.created_at),
+            issue.service_client_display_name ?? issue.service_client_id ?? "Unknown",
+            issue.delegation_grant_id ?? "Unknown",
+            issue.provider_app_display_name ?? issue.provider_app_id ?? "Unknown",
+            <StatusBadge key={issue.id} tone={decisionTone(issue.decision)}>
+              {issue.reason ? `${issue.decision}: ${friendlyBrokerMessage(issue.reason)}` : issue.decision}
+            </StatusBadge>,
+            issue.scopes.length ? issue.scopes.join(", ") : "Inherited",
+            <pre className="audit-metadata" key={`${issue.id}-metadata`}>
+              {JSON.stringify(issue.metadata, null, 2)}
+            </pre>,
+          ])}
+          emptyTitle="No token issues recorded"
+          emptyBody="Once a service client uses one of your grants, the broker records the issuance result here."
+        />
+      </Card>
+
+      {filterModalOpen ? (
+        <Modal title="Filter history" onClose={() => setFilterModalOpen(false)}>
           <div className="stack-form">
             <Field label="Service client">
               <select value={serviceClientFilter} onChange={(event) => setServiceClientFilter(event.target.value)}>
@@ -1352,22 +1411,33 @@ function TokenAccessPage() {
               </select>
             </Field>
           </div>
-        </Card>
+          <div className="modal-form-actions">
+            <button type="button" className="primary-button" onClick={() => setFilterModalOpen(false)}>
+              Done
+            </button>
+          </div>
+        </Modal>
+      ) : null}
 
-        <Card title="Connection probe" description="The probe checks broker-to-provider access and never exposes raw access tokens.">
+      {probeModalOpen ? (
+        <Modal title="Test connection" onClose={() => setProbeModalOpen(false)}>
           <div className="stack-form">
             <Field label="Connection">
               <select value={probeConnectionId} onChange={(event) => setProbeConnectionId(event.target.value)}>
-                {connections.map((connection) => (
-                  <option key={connection.id} value={connection.id}>
-                    {connection.display_name || connection.external_email || connection.id}
-                  </option>
-                ))}
+                {connections.length ? (
+                  connections.map((connection) => (
+                    <option key={connection.id} value={connection.id}>
+                      {connection.display_name || connection.external_email || connection.id}
+                    </option>
+                  ))
+                ) : (
+                  <option value="">No connections</option>
+                )}
               </select>
             </Field>
             <div className="inline-actions">
               <button type="button" className="primary-button" disabled={probePending || !probeConnectionId} onClick={() => void runProbe()}>
-                {probePending ? "Probing..." : "Run probe"}
+                {probePending ? "Probing…" : "Run probe"}
               </button>
             </div>
             {probeResult ? (
@@ -1387,29 +1457,13 @@ function TokenAccessPage() {
               </div>
             ) : null}
           </div>
-        </Card>
-      </div>
-
-      <Card title="Token issue history" description="Read-only audit trail of broker token issuance decisions for your own grants.">
-        <DataTable
-          columns={["Time", "Service client", "Grant", "Provider", "Decision", "Scopes", "Metadata"]}
-          rows={filteredIssues.map((issue) => [
-            formatDateTime(issue.created_at),
-            issue.service_client_display_name ?? issue.service_client_id ?? "Unknown",
-            issue.delegation_grant_id ?? "Unknown",
-            issue.provider_app_display_name ?? issue.provider_app_id ?? "Unknown",
-            <StatusBadge key={issue.id} tone={decisionTone(issue.decision)}>
-              {issue.reason ? `${issue.decision}: ${friendlyBrokerMessage(issue.reason)}` : issue.decision}
-            </StatusBadge>,
-            issue.scopes.length ? issue.scopes.join(", ") : "Inherited",
-            <pre className="audit-metadata" key={`${issue.id}-metadata`}>
-              {JSON.stringify(issue.metadata, null, 2)}
-            </pre>,
-          ])}
-          emptyTitle="No token issues recorded"
-          emptyBody="Once a service client uses one of your grants, the broker records the issuance result here."
-        />
-      </Card>
+          <div className="modal-form-actions">
+            <button type="button" className="ghost-button" onClick={() => setProbeModalOpen(false)}>
+              Close
+            </button>
+          </div>
+        </Modal>
+      ) : null}
     </>
   );
 }

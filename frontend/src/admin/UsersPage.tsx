@@ -1,7 +1,7 @@
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 
 import { api } from "../api";
-import { Card, DataTable, Field, FormActions, InlineForm, LoadingScreen, PageIntro, StatusBadge } from "../components";
+import { Card, DataTable, Field, LoadingScreen, Modal, PageIntro, StatusBadge } from "../components";
 import { useAppContext } from "../app-context";
 import { isApiError } from "../errors";
 import type {
@@ -41,7 +41,7 @@ export function UsersPage() {
   const [busyActions, setBusyActions] = useState<Set<string>>(() => new Set());
   const [pending, setPending] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [advancedManual, setAdvancedManual] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
   const [filters, setFilters] = useState({
     userEmail: "",
     providerAppKey: "",
@@ -130,6 +130,7 @@ export function UsersPage() {
         refresh_expires_at: toIsoDateTime(form.refresh_expires_at),
       });
       notify({ tone: "success", title: "Account stored" });
+      setImportModalOpen(false);
       setForm((current) => ({
         ...current,
         external_account_ref: "",
@@ -321,93 +322,104 @@ export function UsersPage() {
           ) : null}
 
           <Card title="Manual token import" description="For migration or recovery when the normal sign-in flow is not available.">
-            <button type="button" className="ghost-button advanced-toggle" onClick={() => setAdvancedManual((v) => !v)}>
-              Advanced settings
+            <button type="button" className="primary-button" onClick={() => setImportModalOpen(true)}>
+              Import tokens
             </button>
-            {advancedManual ? (
-              <InlineForm title="Store tokens" description="Pastes provider tokens into secure storage for a user." onSubmit={handleSubmit}>
-                <Field label="Email">
-                  <>
+          </Card>
+
+          {importModalOpen ? (
+            <Modal title="Import tokens" wide onClose={() => setImportModalOpen(false)}>
+              <form className="stack-form" onSubmit={handleSubmit}>
+                <p className="lede">Pastes provider tokens into secure storage for a user.</p>
+                <div className="form-grid">
+                  <Field label="Email">
+                    <>
+                      <input
+                        list="user-emails-tab"
+                        value={form.user_email}
+                        onChange={(event) => setForm((current) => ({ ...current, user_email: event.target.value }))}
+                        required
+                      />
+                      <datalist id="user-emails-tab">
+                        {users.map((user) => (
+                          <option key={user.id} value={user.email} />
+                        ))}
+                      </datalist>
+                    </>
+                  </Field>
+                  <Field label="Integration">
+                    <select
+                      value={form.provider_app_key}
+                      onChange={(event) => setForm((current) => ({ ...current, provider_app_key: event.target.value }))}
+                    >
+                      {providerApps.map((app) => (
+                        <option key={app.id} value={app.key}>
+                          {app.display_name}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Display name">
+                    <input value={form.display_name} onChange={(event) => setForm((current) => ({ ...current, display_name: event.target.value }))} />
+                  </Field>
+                  <Field label="External account ref">
                     <input
-                      list="user-emails-tab"
-                      value={form.user_email}
-                      onChange={(event) => setForm((current) => ({ ...current, user_email: event.target.value }))}
+                      value={form.external_account_ref}
+                      onChange={(event) => setForm((current) => ({ ...current, external_account_ref: event.target.value }))}
+                    />
+                  </Field>
+                  <Field label="External email">
+                    <input
+                      value={form.external_email}
+                      onChange={(event) => setForm((current) => ({ ...current, external_email: event.target.value }))}
+                      type="email"
+                    />
+                  </Field>
+                  <Field label="Consented scopes" hint="Comma or newline separated">
+                    <textarea
+                      value={form.consented_scopes_text}
+                      onChange={(event) => setForm((current) => ({ ...current, consented_scopes_text: event.target.value }))}
+                    />
+                  </Field>
+                  <Field label="Access token">
+                    <textarea
+                      value={form.access_token}
+                      onChange={(event) => setForm((current) => ({ ...current, access_token: event.target.value }))}
                       required
                     />
-                    <datalist id="user-emails-tab">
-                      {users.map((user) => (
-                        <option key={user.id} value={user.email} />
-                      ))}
-                    </datalist>
-                  </>
-                </Field>
-                <Field label="Integration">
-                  <select
-                    value={form.provider_app_key}
-                    onChange={(event) => setForm((current) => ({ ...current, provider_app_key: event.target.value }))}
-                  >
-                    {providerApps.map((app) => (
-                      <option key={app.id} value={app.key}>
-                        {app.display_name}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="Display name">
-                  <input value={form.display_name} onChange={(event) => setForm((current) => ({ ...current, display_name: event.target.value }))} />
-                </Field>
-                <Field label="External account ref">
-                  <input
-                    value={form.external_account_ref}
-                    onChange={(event) => setForm((current) => ({ ...current, external_account_ref: event.target.value }))}
-                  />
-                </Field>
-                <Field label="External email">
-                  <input
-                    value={form.external_email}
-                    onChange={(event) => setForm((current) => ({ ...current, external_email: event.target.value }))}
-                    type="email"
-                  />
-                </Field>
-                <Field label="Consented scopes" hint="Comma or newline separated">
-                  <textarea
-                    value={form.consented_scopes_text}
-                    onChange={(event) => setForm((current) => ({ ...current, consented_scopes_text: event.target.value }))}
-                  />
-                </Field>
-                <Field label="Access token">
-                  <textarea
-                    value={form.access_token}
-                    onChange={(event) => setForm((current) => ({ ...current, access_token: event.target.value }))}
-                    required
-                  />
-                </Field>
-                <Field label="Refresh token">
-                  <textarea value={form.refresh_token} onChange={(event) => setForm((current) => ({ ...current, refresh_token: event.target.value }))} />
-                </Field>
-                <Field label="Token type">
-                  <input value={form.token_type} onChange={(event) => setForm((current) => ({ ...current, token_type: event.target.value }))} />
-                </Field>
-                <Field label="Access token expiry">
-                  <input
-                    value={form.expires_at}
-                    onChange={(event) => setForm((current) => ({ ...current, expires_at: event.target.value }))}
-                    type="datetime-local"
-                  />
-                </Field>
-                <Field label="Refresh token expiry">
-                  <input
-                    value={form.refresh_expires_at}
-                    onChange={(event) => setForm((current) => ({ ...current, refresh_expires_at: event.target.value }))}
-                    type="datetime-local"
-                  />
-                </Field>
-                <FormActions pending={pending} submitLabel="Store" />
-              </InlineForm>
-            ) : (
-              <p className="lede">Open advanced settings to import tokens manually.</p>
-            )}
-          </Card>
+                  </Field>
+                  <Field label="Refresh token">
+                    <textarea value={form.refresh_token} onChange={(event) => setForm((current) => ({ ...current, refresh_token: event.target.value }))} />
+                  </Field>
+                  <Field label="Token type">
+                    <input value={form.token_type} onChange={(event) => setForm((current) => ({ ...current, token_type: event.target.value }))} />
+                  </Field>
+                  <Field label="Access token expiry">
+                    <input
+                      value={form.expires_at}
+                      onChange={(event) => setForm((current) => ({ ...current, expires_at: event.target.value }))}
+                      type="datetime-local"
+                    />
+                  </Field>
+                  <Field label="Refresh token expiry">
+                    <input
+                      value={form.refresh_expires_at}
+                      onChange={(event) => setForm((current) => ({ ...current, refresh_expires_at: event.target.value }))}
+                      type="datetime-local"
+                    />
+                  </Field>
+                </div>
+                <div className="modal-form-actions">
+                  <button type="button" className="ghost-button" onClick={() => setImportModalOpen(false)}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="primary-button" disabled={pending}>
+                    {pending ? "Working…" : "Store"}
+                  </button>
+                </div>
+              </form>
+            </Modal>
+          ) : null}
         </>
       )}
     </>

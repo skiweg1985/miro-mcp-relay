@@ -96,6 +96,29 @@
 - Follow-ups:
   - none
 
+## 2026-04-03 – Cursor – Frontend Modal-Refactor
+
+- Done:
+  - Gemeinsame `Modal`-Komponente; Admin- und Workspace-Formulare in Modals verschoben (Services, Access, Grants, Token-Import, Token-Access Filter/Probe); Integrations-Wizard (`SetupDrawer`) als zentriertes Modal; Connect-Provider-Seite einspaltig; CSS für breite Modals und Wizard-Panel.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign (lokal)
+  - PR: none
+- Files touched:
+  - frontend/src/components.tsx, App.tsx, index.css
+  - frontend/src/admin/ServicesPage.tsx, AccessPage.tsx, UsersPage.tsx, SetupDrawer.tsx
+  - docs/CHANGELOG.md, planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build`
+  - UI path: /app/services, /app/access, /app/users (Connections), /grants, /token-access, /connect/*, /app/integrations
+- Changelog updated:
+  - yes ([Unreleased] Changed)
+- Follow-ups:
+  - keine
+
 ## 2026-04-03 – Agent – Credential-only Token-Abruf
 
 - Done:

@@ -1,4 +1,4 @@
-import { type FormEvent, type ReactNode, useMemo, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useId, useMemo, useState } from "react";
 
 import { useAppContext } from "./app-context";
 import { classNames, copyToClipboard } from "./utils";
@@ -8,6 +8,39 @@ export function LoadingScreen({ label }: { label: string }) {
     <div className="splash-screen">
       <div className="spinner" aria-hidden="true" />
       <p>{label}</p>
+    </div>
+  );
+}
+
+export function Modal({
+  title,
+  onClose,
+  children,
+  wide,
+}: {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+  wide?: boolean;
+}) {
+  const titleId = useId();
+  useEffect(() => {
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [onClose]);
+
+  return (
+    <div className="modal-root" role="dialog" aria-modal="true" aria-labelledby={titleId} style={{ zIndex: 85 }}>
+      <button type="button" className="modal-backdrop" aria-label="Dismiss" onClick={onClose} />
+      <div className={classNames("modal-panel", wide && "modal-panel--wide")}>
+        <div className="modal-panel-header">
+          <h2 id={titleId}>{title}</h2>
+        </div>
+        <div className="modal-panel-body compact-form">{children}</div>
+      </div>
     </div>
   );
 }

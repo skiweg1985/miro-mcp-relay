@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { type ReactNode, useEffect } from "react";
 
 import { useAppContext } from "../app-context";
 import { classNames, copyToClipboard } from "../utils";
@@ -24,11 +24,25 @@ export function SetupDrawer({
   footer: ReactNode;
   wide?: boolean;
 }) {
+  useEffect(() => {
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [onClose]);
+
   return (
-    <div className="drawer-root" role="dialog" aria-modal="true" aria-labelledby="drawer-title">
-      <button type="button" className="drawer-backdrop" aria-label="Close" onClick={onClose} />
-      <div className={classNames("drawer-panel", wide && "drawer-panel-wide")}>
-        <header className="drawer-header">
+    <div className="modal-root" role="dialog" aria-modal="true" aria-labelledby="drawer-title" style={{ zIndex: 90 }}>
+      <button type="button" className="modal-backdrop" aria-label="Close" onClick={onClose} />
+      <div
+        className={classNames(
+          "modal-panel",
+          "modal-panel--wizard",
+          wide && "modal-panel--wizard-wide",
+        )}
+      >
+        <header className="modal-panel-header modal-wizard-header">
           <div>
             <p className="drawer-kicker">Configuration</p>
             <h2 id="drawer-title">{title}</h2>
@@ -54,7 +68,7 @@ export function SetupDrawer({
           </ol>
         </nav>
 
-        <div className="drawer-body">{children}</div>
+        <div className="modal-panel-body modal-panel-body--wizard">{children}</div>
         <footer className="drawer-footer">{footer}</footer>
       </div>
     </div>

@@ -16,7 +16,6 @@ import {
   ToastViewport,
 } from "./components";
 import type {
-  ApiError,
   AuditEventOut,
   ConnectedAccountFormValues,
   ConnectedAccountOut,
@@ -42,6 +41,7 @@ import type {
   UserOut,
   VisibleServiceClientOut,
 } from "./types";
+import { isApiError } from "./errors";
 import {
   formatDateTime,
   formatJson,
@@ -50,10 +50,6 @@ import {
   relativeTime,
   toIsoDateTime,
 } from "./utils";
-
-function isApiError(error: unknown): error is ApiError {
-  return typeof error === "object" && error !== null && "message" in error;
-}
 
 function connectionTone(connection: ConnectedAccountOut): "neutral" | "success" | "warn" | "danger" {
   if (connection.status === "revoked") return "warn";
@@ -192,8 +188,8 @@ function NavLink({
 
 function LoginPage({ onSuccess }: { onSuccess: (path: string) => void }) {
   const { login, notify } = useAppContext();
-  const [email, setEmail] = useState("admin@example.com");
-  const [password, setPassword] = useState("change-me-admin-password");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [pending, setPending] = useState(false);
   const [microsoftPending, setMicrosoftPending] = useState(false);
   const [microsoftEnabled, setMicrosoftEnabled] = useState(false);
@@ -1119,7 +1115,7 @@ function AdminConnectionsPage() {
   const [providerApps, setProviderApps] = useState<ProviderAppOut[]>([]);
   const [connections, setConnections] = useState<ConnectedAccountOut[]>([]);
   const [probeResult, setProbeResult] = useState<ConnectionProbeResult | null>(null);
-  const [busyAction, setBusyAction] = useState("");
+  const [busyActions, setBusyActions] = useState<Set<string>>(() => new Set());
   const [pending, setPending] = useState(false);
   const [filters, setFilters] = useState({
     userEmail: "",
@@ -1158,6 +1154,7 @@ function AdminConnectionsPage() {
   };
 
   useEffect(() => {
+    if (session.status !== "authenticated") return;
     void load().catch((error) =>
       notify({
         tone: "error",
@@ -1165,25 +1162,24 @@ function AdminConnectionsPage() {
         description: isApiError(error) ? error.message : "Unexpected connection loading error.",
       }),
     );
-  }, [notify, session]);
-
-  useEffect(() => {
-    if (session.status !== "authenticated") return;
-    void load().catch((error) =>
-      notify({
-        tone: "error",
-        title: "Failed to apply connection filters",
-        description: isApiError(error) ? error.message : "Unexpected connection filter error.",
-      }),
-    );
   }, [filters, notify, session]);
 
   const runAction = async (actionKey: string, action: () => Promise<void>) => {
-    setBusyAction(actionKey);
+    setBusyActions((prev) => new Set(prev).add(actionKey));
     try {
       await action();
+    } catch (error) {
+      notify({
+        tone: "error",
+        title: "Action failed",
+        description: isApiError(error) ? error.message : "Unexpected error.",
+      });
     } finally {
-      setBusyAction("");
+      setBusyActions((prev) => {
+        const next = new Set(prev);
+        next.delete(actionKey);
+        return next;
+      });
     }
   };
 
@@ -1321,26 +1317,26 @@ function AdminConnectionsPage() {
                 <button
                   type="button"
                   className="ghost-button"
-                  disabled={busyAction === `refresh:${connection.id}`}
+                  disabled={busyActions.has(`refresh:${connection.id}`)}
                   onClick={() => void handleRefresh(connection.id)}
                 >
-                  {busyAction === `refresh:${connection.id}` ? "Refreshing..." : "Refresh"}
+                  {busyActions.has(`refresh:${connection.id}`) ? "Refreshing..." : "Refresh"}
                 </button>
                 <button
                   type="button"
                   className="ghost-button"
-                  disabled={busyAction === `probe:${connection.id}`}
+                  disabled={busyActions.has(`probe:${connection.id}`)}
                   onClick={() => void handleProbe(connection.id)}
                 >
-                  {busyAction === `probe:${connection.id}` ? "Probing..." : "Probe"}
+                  {busyActions.has(`probe:${connection.id}`) ? "Probing..." : "Probe"}
                 </button>
                 <button
                   type="button"
                   className="ghost-button"
-                  disabled={busyAction === `revoke:${connection.id}`}
+                  disabled={busyActions.has(`revoke:${connection.id}`)}
                   onClick={() => void handleRevoke(connection.id)}
                 >
-                  {busyAction === `revoke:${connection.id}` ? "Revoking..." : "Revoke"}
+                  {busyActions.has(`revoke:${connection.id}`) ? "Revoking..." : "Revoke"}
                 </button>
               </div>,
             ])}
@@ -2071,7 +2067,7 @@ function WorkspacePage({ onNavigate }: { onNavigate: (path: string) => void }) {
   const [miroAccess, setMiroAccess] = useState<MiroRelayAccess | null>(null);
   const [loading, setLoading] = useState(true);
   const [probeResult, setProbeResult] = useState<ConnectionProbeResult | null>(null);
-  const [busyAction, setBusyAction] = useState("");
+  const [busyActions, setBusyActions] = useState<Set<string>>(() => new Set());
   const [tokenPending, setTokenPending] = useState(false);
 
   const load = async () => {
@@ -2114,11 +2110,21 @@ function WorkspacePage({ onNavigate }: { onNavigate: (path: string) => void }) {
   ].filter((target) => findProviderAppByTemplate(providerApps, target.templateKey));
 
   const runAction = async (actionKey: string, fn: () => Promise<void>) => {
-    setBusyAction(actionKey);
+    setBusyActions((prev) => new Set(prev).add(actionKey));
     try {
       await fn();
+    } catch (error) {
+      notify({
+        tone: "error",
+        title: "Action failed",
+        description: isApiError(error) ? error.message : "Unexpected error.",
+      });
     } finally {
-      setBusyAction("");
+      setBusyActions((prev) => {
+        const next = new Set(prev);
+        next.delete(actionKey);
+        return next;
+      });
     }
   };
 
@@ -2255,26 +2261,26 @@ function WorkspacePage({ onNavigate }: { onNavigate: (path: string) => void }) {
               <button
                 type="button"
                 className="ghost-button"
-                disabled={busyAction === `refresh:${connection.id}`}
+                disabled={busyActions.has(`refresh:${connection.id}`)}
                 onClick={() => void handleRefresh(connection.id)}
               >
-                {busyAction === `refresh:${connection.id}` ? "Refreshing..." : "Refresh"}
+                {busyActions.has(`refresh:${connection.id}`) ? "Refreshing..." : "Refresh"}
               </button>
               <button
                 type="button"
                 className="ghost-button"
-                disabled={busyAction === `probe:${connection.id}`}
+                disabled={busyActions.has(`probe:${connection.id}`)}
                 onClick={() => void handleProbe(connection.id)}
               >
-                {busyAction === `probe:${connection.id}` ? "Probing..." : "Probe"}
+                {busyActions.has(`probe:${connection.id}`) ? "Probing..." : "Probe"}
               </button>
               <button
                 type="button"
                 className="ghost-button"
-                disabled={busyAction === `revoke:${connection.id}`}
+                disabled={busyActions.has(`revoke:${connection.id}`)}
                 onClick={() => void handleRevoke(connection.id)}
               >
-                {busyAction === `revoke:${connection.id}` ? "Revoking..." : "Revoke"}
+                {busyActions.has(`revoke:${connection.id}`) ? "Revoking..." : "Revoke"}
               </button>
             </div>,
           ])}
@@ -3043,7 +3049,7 @@ function AuthenticatedApp() {
     if (session.status !== "authenticated") return;
 
     if (session.user.is_admin) {
-      if (route.name === "login" || route.name === "workspace" || route.name === "connect" || route.name === "grants" || route.name === "tokenAccess") {
+      if (route.name === "login") {
         navigate("/app");
       }
       return;
@@ -3075,10 +3081,6 @@ function AuthenticatedApp() {
   }
 
   if (session.user.is_admin) {
-    if (route.name === "workspace" || route.name === "connect" || route.name === "grants" || route.name === "tokenAccess") {
-      return <LoadingScreen label="Redirecting to the control deck..." />;
-    }
-
     if (route.name === "notFound") {
       return <NotFoundPage onNavigate={navigate} fallbackPath="/app" />;
     }

@@ -38,7 +38,7 @@ from app.schemas import (
     TokenIssueEventOut,
     UserOut,
 )
-from app.security import dumps_json, encrypt_text, hash_secret, issue_plain_secret, loads_json, utcnow
+from app.security import dumps_json, encrypt_text, hash_secret, issue_plain_secret, loads_json, lookup_secret_hash, utcnow
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -139,7 +139,7 @@ def _apply_provider_app_payload(
 
 @router.get("/users", response_model=list[UserOut], dependencies=[Depends(require_csrf)])
 def list_users(_admin: User = Depends(require_admin), db: Session = Depends(get_db)):
-    return db.scalars(select(User).order_by(User.created_at.desc())).all()
+    return db.scalars(select(User).where(User.organization_id == _admin.organization_id).order_by(User.created_at.desc())).all()
 
 
 @router.get("/provider-instances", response_model=list[ProviderInstanceOut], dependencies=[Depends(require_csrf)])
@@ -336,7 +336,9 @@ def update_provider_app(
 
 @router.get("/service-clients", response_model=list[ServiceClientOut], dependencies=[Depends(require_csrf)])
 def list_service_clients(_admin: User = Depends(require_admin), db: Session = Depends(get_db)):
-    return db.scalars(select(ServiceClient).order_by(ServiceClient.created_at.desc())).all()
+    return db.scalars(
+        select(ServiceClient).where(ServiceClient.organization_id == _admin.organization_id).order_by(ServiceClient.created_at.desc())
+    ).all()
 
 
 @router.post("/service-clients", response_model=ServiceClientSecretResponse, dependencies=[Depends(require_csrf)])
@@ -347,6 +349,7 @@ def create_service_client(payload: ServiceClientCreate, admin: User = Depends(re
         key=payload.key,
         display_name=payload.display_name,
         secret_hash=hash_secret(secret),
+        secret_lookup_hash=lookup_secret_hash(secret),
         environment=payload.environment,
         allowed_provider_app_keys_json=dumps_json(payload.allowed_provider_app_keys),
     )
@@ -386,11 +389,15 @@ def list_connected_accounts(
 
 @router.post("/connected-accounts/manual", response_model=ConnectedAccountOut, dependencies=[Depends(require_csrf)])
 def create_connected_account(payload: ConnectedAccountCreate, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
-    user = db.scalar(select(User).where(User.email == payload.user_email))
+    user = db.scalar(
+        select(User).where(User.organization_id == admin.organization_id, User.email == payload.user_email.strip().lower())
+    )
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    provider_app = db.scalar(select(ProviderApp).where(ProviderApp.key == payload.provider_app_key))
+    provider_app = db.scalar(
+        select(ProviderApp).where(ProviderApp.organization_id == admin.organization_id, ProviderApp.key == payload.provider_app_key)
+    )
     if not provider_app:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider app not found")
 
@@ -436,27 +443,43 @@ def create_connected_account(payload: ConnectedAccountCreate, admin: User = Depe
 
 @router.get("/delegation-grants", response_model=list[DelegationGrantOut], dependencies=[Depends(require_csrf)])
 def list_delegation_grants(_admin: User = Depends(require_admin), db: Session = Depends(get_db)):
-    return db.scalars(select(DelegationGrant).order_by(DelegationGrant.created_at.desc())).all()
+    return db.scalars(
+        select(DelegationGrant).where(DelegationGrant.organization_id == _admin.organization_id).order_by(DelegationGrant.created_at.desc())
+    ).all()
 
 
 @router.post("/delegation-grants", response_model=DelegationGrantSecretResponse, dependencies=[Depends(require_csrf)])
 def create_delegation_grant(payload: DelegationGrantCreate, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
-    user = db.scalar(select(User).where(User.email == payload.user_email))
+    user = db.scalar(
+        select(User).where(User.organization_id == admin.organization_id, User.email == payload.user_email.strip().lower())
+    )
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    service_client = db.scalar(select(ServiceClient).where(ServiceClient.key == payload.service_client_key))
+    service_client = db.scalar(
+        select(ServiceClient).where(
+            ServiceClient.organization_id == admin.organization_id,
+            ServiceClient.key == payload.service_client_key,
+        )
+    )
     if not service_client:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Service client not found")
 
-    provider_app = db.scalar(select(ProviderApp).where(ProviderApp.key == payload.provider_app_key))
+    provider_app = db.scalar(
+        select(ProviderApp).where(ProviderApp.organization_id == admin.organization_id, ProviderApp.key == payload.provider_app_key)
+    )
     if not provider_app:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider app not found")
 
     connected_account_id = payload.connected_account_id
     if connected_account_id:
         connected_account = db.get(ConnectedAccount, connected_account_id)
-        if not connected_account or connected_account.user_id != user.id or connected_account.provider_app_id != provider_app.id:
+        if (
+            not connected_account
+            or connected_account.organization_id != admin.organization_id
+            or connected_account.user_id != user.id
+            or connected_account.provider_app_id != provider_app.id
+        ):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Connected account mismatch")
 
     delegated_credential = issue_plain_secret()
@@ -467,6 +490,7 @@ def create_delegation_grant(payload: DelegationGrantCreate, admin: User = Depend
         provider_app_id=provider_app.id,
         connected_account_id=connected_account_id,
         credential_hash=hash_secret(delegated_credential),
+        credential_lookup_hash=lookup_secret_hash(delegated_credential),
         allowed_access_modes_json=dumps_json(payload.allowed_access_modes),
         scope_ceiling_json=dumps_json(payload.scope_ceiling),
         environment=payload.environment,
@@ -500,7 +524,7 @@ def create_delegation_grant(payload: DelegationGrantCreate, admin: User = Depend
 @router.post("/delegation-grants/{grant_id}/revoke", response_model=DelegationGrantOut, dependencies=[Depends(require_csrf)])
 def revoke_delegation_grant(grant_id: str, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
     grant = db.get(DelegationGrant, grant_id)
-    if not grant:
+    if not grant or grant.organization_id != admin.organization_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Delegation grant not found")
     grant.is_enabled = False
     grant.revoked_at = utcnow()
@@ -512,7 +536,12 @@ def revoke_delegation_grant(grant_id: str, admin: User = Depends(require_admin),
 
 @router.get("/audit", response_model=list[AuditEventOut], dependencies=[Depends(require_csrf)])
 def list_audit_events(_admin: User = Depends(require_admin), db: Session = Depends(get_db), limit: int = 200):
-    return db.scalars(select(AuditEvent).order_by(AuditEvent.created_at.desc()).limit(max(1, min(limit, 1000)))).all()
+    return db.scalars(
+        select(AuditEvent)
+        .where(AuditEvent.organization_id == _admin.organization_id)
+        .order_by(AuditEvent.created_at.desc())
+        .limit(max(1, min(limit, 1000)))
+    ).all()
 
 
 @router.get("/token-issues", response_model=list[TokenIssueEventOut], dependencies=[Depends(require_csrf)])

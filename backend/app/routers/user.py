@@ -16,7 +16,7 @@ from app.schemas import (
     TokenIssueEventOut,
     VisibleServiceClientOut,
 )
-from app.security import dumps_json, hash_secret, issue_plain_secret, loads_json, utcnow
+from app.security import dumps_json, hash_secret, issue_plain_secret, loads_json, lookup_secret_hash, utcnow
 
 router = APIRouter(tags=["user"])
 
@@ -165,6 +165,7 @@ def create_my_delegation_grant(
         provider_app_id=provider_app.id,
         connected_account_id=connected_account.id if connected_account else None,
         credential_hash=hash_secret(delegated_credential),
+        credential_lookup_hash=lookup_secret_hash(delegated_credential),
         allowed_access_modes_json=dumps_json(allowed_access_modes),
         scope_ceiling_json=dumps_json(payload.scope_ceiling),
         environment=payload.environment,

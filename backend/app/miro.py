@@ -5,7 +5,7 @@ import hashlib
 import json
 import secrets
 import time
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -19,9 +19,10 @@ from starlette.background import BackgroundTask
 from starlette.responses import RedirectResponse, StreamingResponse
 
 from app.core.config import get_settings
+from app.oauth_pending_store import pop_oauth_pending_payload, put_oauth_pending
 from app.models import AccessMode, ConnectedAccount, Organization, ProviderApp, TokenMaterial, User
 from app.provider_templates import MIRO_RELAY_TEMPLATE, get_provider_app_by_template
-from app.security import decrypt_text, dumps_json, encrypt_text, loads_json, lookup_secret_hash, utcnow, verify_lookup_secret
+from app.security import decrypt_text, dumps_json, encrypt_text, ensure_utc, loads_json, lookup_secret_hash, utcnow, verify_lookup_secret
 
 
 @dataclass
@@ -34,12 +35,9 @@ class PendingMiroAuth:
     oauth_client_id: str
     oauth_client_secret: str
     redirect_uri: str
-    created_at: float
 
 
-PENDING_AUTH: dict[str, PendingMiroAuth] = {}
 BREAKER = {"consecutive_fails": 0, "open_until": 0.0}
-PENDING_SETUP: dict[str, dict[str, Any]] = {}
 
 
 def b64url(raw: bytes) -> str:
@@ -94,20 +92,6 @@ def callback_url() -> str:
 def public_miro_mcp_url(profile_id: str) -> str:
     settings = get_settings()
     return f"{settings.broker_public_base_url.rstrip('/')}/miro/mcp/{quote(profile_id, safe='')}"
-
-
-def cleanup_pending_auth(max_age_seconds: int = 900) -> None:
-    now = time.time()
-    expired = [state for state, payload in PENDING_AUTH.items() if now - payload.created_at > max_age_seconds]
-    for state in expired:
-        PENDING_AUTH.pop(state, None)
-
-
-def cleanup_pending_setup(max_age_seconds: int = 900) -> None:
-    now = time.time()
-    expired = [token for token, payload in PENDING_SETUP.items() if now - float(payload.get("created_at") or 0.0) > max_age_seconds]
-    for token in expired:
-        PENDING_SETUP.pop(token, None)
 
 
 def parse_email_like(value: str | None) -> str | None:
@@ -208,7 +192,6 @@ async def start_miro_connection(
     target_user: User,
     connected_account: ConnectedAccount | None = None,
 ) -> tuple[str, str]:
-    cleanup_pending_auth()
     provider_app = get_miro_provider_app(db)
     verifier, challenge = make_pkce()
     state = make_state()
@@ -223,16 +206,22 @@ async def start_miro_connection(
         client_secret = registration["client_secret"]
         redirect_uri = registration["redirect_uri"]
 
-    PENDING_AUTH[state] = PendingMiroAuth(
-        user_id=target_user.id,
-        provider_app_id=provider_app.id,
-        verifier=verifier,
-        email_hint=parse_email_like(target_user.email),
-        connected_account_id=connected_account.id if connected_account else None,
-        oauth_client_id=client_id,
-        oauth_client_secret=client_secret,
-        redirect_uri=redirect_uri,
-        created_at=time.time(),
+    put_oauth_pending(
+        db,
+        state,
+        "miro_connect",
+        asdict(
+            PendingMiroAuth(
+                user_id=target_user.id,
+                provider_app_id=provider_app.id,
+                verifier=verifier,
+                email_hint=parse_email_like(target_user.email),
+                connected_account_id=connected_account.id if connected_account else None,
+                oauth_client_id=client_id,
+                oauth_client_secret=client_secret,
+                redirect_uri=redirect_uri,
+            )
+        ),
     )
 
     settings = get_settings()
@@ -348,20 +337,22 @@ def build_miro_access_payload(connected_account: ConnectedAccount, relay_token: 
     }
 
 
-def issue_miro_setup_token(*, connected_account_id: str, relay_token: str) -> str:
-    cleanup_pending_setup()
+def issue_miro_setup_token(*, db: Session, connected_account_id: str, relay_token: str) -> str:
     setup_token = b64url(secrets.token_bytes(24))
-    PENDING_SETUP[setup_token] = {
-        "connected_account_id": connected_account_id,
-        "relay_token": relay_token,
-        "created_at": time.time(),
-    }
+    put_oauth_pending(
+        db,
+        setup_token,
+        "miro_setup",
+        {"connected_account_id": connected_account_id, "relay_token": relay_token},
+    )
     return setup_token
 
 
-def consume_miro_setup_token(setup_token: str) -> dict[str, Any] | None:
-    cleanup_pending_setup()
-    return PENDING_SETUP.pop(setup_token, None)
+def consume_miro_setup_token(db: Session, setup_token: str) -> dict[str, Any] | None:
+    result = pop_oauth_pending_payload(db, setup_token)
+    if result is not None:
+        db.commit()
+    return result
 
 
 def resolve_legacy_miro_connection(db: Session, profile_id: str) -> ConnectedAccount | None:
@@ -376,9 +367,10 @@ def validate_relay_token(connected_account: ConnectedAccount, supplied_token: st
 
 
 async def finalize_miro_callback(db: Session, state: str, code: str) -> RedirectResponse:
-    payload = PENDING_AUTH.pop(state, None)
-    if not payload:
+    raw = pop_oauth_pending_payload(db, state)
+    if not raw:
         raise HTTPException(status_code=400, detail="Invalid or expired OAuth state")
+    payload = PendingMiroAuth(**raw)
 
     user = db.get(User, payload.user_id)
     if not user:
@@ -466,7 +458,7 @@ async def finalize_miro_callback(db: Session, state: str, code: str) -> Redirect
     db.commit()
     redirect_url = f"{settings.frontend_base_url.rstrip('/')}/connect/miro?miro_status=connected&connected_account_id={connected_account.id}"
     if relay_token:
-        setup_token = issue_miro_setup_token(connected_account_id=connected_account.id, relay_token=relay_token)
+        setup_token = issue_miro_setup_token(db=db, connected_account_id=connected_account.id, relay_token=relay_token)
         redirect_url = f"{redirect_url}&miro_setup={quote(setup_token, safe='')}"
     return RedirectResponse(url=redirect_url, status_code=302)
 
@@ -511,7 +503,8 @@ async def current_access_token(db: Session, connected_account: ConnectedAccount)
     token_material = db.scalar(select(TokenMaterial).where(TokenMaterial.connected_account_id == connected_account.id))
     if not token_material or not token_material.encrypted_access_token:
         raise HTTPException(status_code=404, detail="Connected account has no access token")
-    if token_material.expires_at and token_material.expires_at <= utcnow():
+    exp = ensure_utc(token_material.expires_at)
+    if exp is not None and exp <= utcnow():
         token_material = await refresh_connected_account(db, connected_account)
     token = decrypt_text(token_material.encrypted_access_token)
     if not token:

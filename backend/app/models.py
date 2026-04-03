@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import StrEnum
 from uuid import uuid4
 
@@ -12,6 +12,10 @@ from app.database import Base
 
 def new_id() -> str:
     return str(uuid4())
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 class ProviderRole(StrEnum):
@@ -35,8 +39,8 @@ class Organization(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     slug: Mapped[str] = mapped_column(String(120), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(200))
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
 
 
 class User(Base):
@@ -49,8 +53,8 @@ class User(Base):
     password_hash: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
 
     __table_args__ = (UniqueConstraint("organization_id", "email", name="uq_users_org_email"),)
 
@@ -64,7 +68,7 @@ class Session(Base):
     csrf_token_hash: Mapped[str] = mapped_column(Text)
     expires_at: Mapped[datetime] = mapped_column(DateTime, index=True)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
 
 class ProviderDefinition(Base):
@@ -77,8 +81,8 @@ class ProviderDefinition(Base):
     supports_broker_auth: Mapped[bool] = mapped_column(Boolean, default=False)
     supports_downstream_oauth: Mapped[bool] = mapped_column(Boolean, default=True)
     metadata_json: Mapped[str] = mapped_column(Text, default="{}")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
 
 
 class ProviderInstance(Base):
@@ -96,8 +100,8 @@ class ProviderInstance(Base):
     userinfo_endpoint: Mapped[str | None] = mapped_column(String(512), nullable=True)
     settings_json: Mapped[str] = mapped_column(Text, default="{}")
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
 
     __table_args__ = (UniqueConstraint("organization_id", "key", name="uq_provider_instances_org_key"),)
 
@@ -121,8 +125,8 @@ class ProviderApp(Base):
     allow_direct_token_return: Mapped[bool] = mapped_column(Boolean, default=False)
     relay_protocol: Mapped[str | None] = mapped_column(String(120), nullable=True)
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
 
     __table_args__ = (UniqueConstraint("organization_id", "key", name="uq_provider_apps_org_key"),)
 
@@ -142,7 +146,7 @@ class UserAuthIdentity(Base):
     display_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     preferred_username: Mapped[str | None] = mapped_column(String(255), nullable=True)
     claims_json: Mapped[str] = mapped_column(Text, default="{}")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
     __table_args__ = (UniqueConstraint("provider_instance_id", "subject", name="uq_auth_identity_provider_subject"),)
 
@@ -164,11 +168,11 @@ class ConnectedAccount(Base):
     oauth_redirect_uri: Mapped[str | None] = mapped_column(String(512), nullable=True)
     consented_scopes_json: Mapped[str] = mapped_column(Text, default="[]")
     status: Mapped[str] = mapped_column(String(64), default="connected")
-    connected_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    connected_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
 
 
 class TokenMaterial(Base):
@@ -184,8 +188,8 @@ class TokenMaterial(Base):
     expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     refresh_expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     key_version: Mapped[int] = mapped_column(Integer, default=1)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
 
 
 class ServiceClient(Base):
@@ -197,11 +201,12 @@ class ServiceClient(Base):
     display_name: Mapped[str] = mapped_column(String(255))
     auth_method: Mapped[str] = mapped_column(String(64), default=ServiceAuthMethod.SHARED_SECRET.value)
     secret_hash: Mapped[str] = mapped_column(Text)
+    secret_lookup_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     environment: Mapped[str | None] = mapped_column(String(64), nullable=True)
     allowed_provider_app_keys_json: Mapped[str] = mapped_column(Text, default="[]")
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
 
     __table_args__ = (UniqueConstraint("organization_id", "key", name="uq_service_clients_org_key"),)
 
@@ -216,14 +221,15 @@ class DelegationGrant(Base):
     provider_app_id: Mapped[str] = mapped_column(ForeignKey("provider_apps.id"), index=True)
     connected_account_id: Mapped[str | None] = mapped_column(ForeignKey("connected_accounts.id"), nullable=True, index=True)
     credential_hash: Mapped[str] = mapped_column(Text)
+    credential_lookup_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     allowed_access_modes_json: Mapped[str] = mapped_column(Text, default="[]")
     scope_ceiling_json: Mapped[str] = mapped_column(Text, default="[]")
     environment: Mapped[str | None] = mapped_column(String(64), nullable=True)
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
 
 
 class GrantedCapability(Base):
@@ -234,7 +240,7 @@ class GrantedCapability(Base):
     delegation_grant_id: Mapped[str] = mapped_column(ForeignKey("delegation_grants.id"), index=True)
     capability_key: Mapped[str] = mapped_column(String(255))
     scope_hint: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
 
 class TokenIssueEvent(Base):
@@ -251,7 +257,7 @@ class TokenIssueEvent(Base):
     reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
     scopes_json: Mapped[str] = mapped_column(Text, default="[]")
     metadata_json: Mapped[str] = mapped_column(Text, default="{}")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
 
 class AuditEvent(Base):
@@ -263,7 +269,7 @@ class AuditEvent(Base):
     actor_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
     action: Mapped[str] = mapped_column(String(255), index=True)
     metadata_json: Mapped[str] = mapped_column(Text, default="{}")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
 
 class Job(Base):
@@ -276,5 +282,15 @@ class Job(Base):
     status: Mapped[str] = mapped_column(String(64), default="pending")
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     next_run_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
+
+
+class OAuthPendingState(Base):
+    __tablename__ = "oauth_pending_states"
+
+    state_key: Mapped[str] = mapped_column(String(128), primary_key=True)
+    flow: Mapped[str] = mapped_column(String(64), index=True)
+    payload_json: Mapped[str] = mapped_column(Text)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)

@@ -4,8 +4,6 @@ import base64
 import hashlib
 import json
 import secrets
-import time
-from dataclasses import dataclass
 from urllib.parse import quote
 
 import httpx
@@ -16,6 +14,7 @@ from starlette.responses import RedirectResponse
 
 from app.core.config import get_settings
 from app.database import get_db
+from app.oauth_pending_store import pop_oauth_pending_payload, put_oauth_pending
 from app.deps import clear_session_cookie, get_current_session, get_current_user, record_audit, refresh_csrf_token
 from app.models import Organization, ProviderApp, ProviderInstance, Session as SessionModel, User, UserAuthIdentity
 from app.provider_templates import MICROSOFT_BROKER_LOGIN_TEMPLATE, get_provider_app_by_template
@@ -23,16 +22,6 @@ from app.schemas import AuthFlowStartResponse, LoginRequest, SessionResponse, Us
 from app.security import decrypt_text, dumps_json, hash_secret, issue_plain_secret, loads_json, session_expiry, utcnow, verify_secret
 
 router = APIRouter(tags=["auth"])
-
-
-@dataclass
-class PendingMicrosoftAuth:
-    verifier: str
-    nonce: str
-    created_at: float
-
-
-PENDING_MICROSOFT_AUTH: dict[str, PendingMicrosoftAuth] = {}
 
 
 def _lookup_hash(value: str) -> str:
@@ -51,13 +40,6 @@ def _make_pkce() -> tuple[str, str]:
 
 def _make_state() -> str:
     return _b64url(secrets.token_bytes(24))
-
-
-def _cleanup_pending_auth(max_age_seconds: int = 900) -> None:
-    now = time.time()
-    expired = [state for state, payload in PENDING_MICROSOFT_AUTH.items() if now - payload.created_at > max_age_seconds]
-    for state in expired:
-        PENDING_MICROSOFT_AUTH.pop(state, None)
 
 
 def _parse_email_like(value: str | None) -> str | None:
@@ -145,7 +127,8 @@ def _login_error_redirect(message: str) -> RedirectResponse:
 
 @router.post("/auth/login", response_model=SessionResponse)
 def login(payload: LoginRequest, response: Response, db: Session = Depends(get_db)):
-    user = db.scalar(select(User).where(User.email == payload.email, User.is_active.is_(True)))
+    email_norm = str(payload.email or "").strip().lower()
+    user = db.scalar(select(User).where(User.email == email_norm, User.is_active.is_(True)))
     if not user or not user.password_hash or not verify_secret(payload.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
@@ -164,13 +147,13 @@ def login(payload: LoginRequest, response: Response, db: Session = Depends(get_d
 
 @router.post("/auth/microsoft/start", response_model=AuthFlowStartResponse)
 def start_microsoft_login(db: Session = Depends(get_db)):
-    _cleanup_pending_auth()
     provider_instance, provider_app = _get_microsoft_broker_config(db)
     settings = get_settings()
     verifier, challenge = _make_pkce()
     state = _make_state()
     nonce = _make_state()
-    PENDING_MICROSOFT_AUTH[state] = PendingMicrosoftAuth(verifier=verifier, nonce=nonce, created_at=time.time())
+    put_oauth_pending(db, state, "microsoft_login", {"verifier": verifier, "nonce": nonce})
+    db.commit()
     params = {
         "client_id": provider_app.client_id,
         "response_type": "code",
@@ -192,9 +175,11 @@ async def microsoft_callback(code: str | None = None, state: str | None = None, 
     if not code or not state:
         return _login_error_redirect("Missing Microsoft login callback parameters")
 
-    pending = PENDING_MICROSOFT_AUTH.pop(state, None)
-    if not pending:
+    raw = pop_oauth_pending_payload(db, state)
+    if not raw:
         return _login_error_redirect("Invalid or expired Microsoft login state")
+    pending_verifier = str(raw.get("verifier") or "")
+    pending_nonce = str(raw.get("nonce") or "")
 
     try:
         provider_instance, provider_app = _get_microsoft_broker_config(db)
@@ -209,7 +194,7 @@ async def microsoft_callback(code: str | None = None, state: str | None = None, 
                     "client_secret": client_secret,
                     "code": code,
                     "redirect_uri": _microsoft_redirect_uri(settings),
-                    "code_verifier": pending.verifier,
+                    "code_verifier": pending_verifier,
                 },
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
@@ -219,7 +204,7 @@ async def microsoft_callback(code: str | None = None, state: str | None = None, 
         token_data = response.json()
         claims = _decode_jwt_payload(token_data.get("id_token")) or {}
         nonce = str(claims.get("nonce") or "").strip()
-        if nonce and nonce != pending.nonce:
+        if not nonce or nonce != pending_nonce:
             return _login_error_redirect("Microsoft login nonce validation failed")
         subject = str(claims.get("sub") or "").strip()
         email = _parse_email_like(

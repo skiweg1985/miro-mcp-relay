@@ -4,8 +4,7 @@ import base64
 import hashlib
 import json
 import secrets
-import time
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import timedelta
 from typing import Any
 from urllib.parse import quote
@@ -17,6 +16,7 @@ from sqlalchemy.orm import Session
 from starlette.responses import RedirectResponse
 
 from app.core.config import get_settings
+from app.oauth_pending_store import pop_oauth_pending_payload, put_oauth_pending
 from app.models import ConnectedAccount, ProviderApp, ProviderInstance, TokenMaterial, User
 from app.provider_templates import MICROSOFT_GRAPH_DIRECT_TEMPLATE, get_provider_app_by_template
 from app.security import decrypt_text, dumps_json, encrypt_text, loads_json, utcnow
@@ -30,10 +30,6 @@ class PendingMicrosoftGraphAuth:
     nonce: str
     connected_account_id: str | None
     redirect_uri: str
-    created_at: float
-
-
-PENDING_MICROSOFT_GRAPH_AUTH: dict[str, PendingMicrosoftGraphAuth] = {}
 
 
 def _b64url(raw: bytes) -> str:
@@ -48,13 +44,6 @@ def _make_pkce() -> tuple[str, str]:
 
 def _make_state() -> str:
     return _b64url(secrets.token_bytes(24))
-
-
-def _cleanup_pending_auth(max_age_seconds: int = 900) -> None:
-    now = time.time()
-    expired = [state for state, payload in PENDING_MICROSOFT_GRAPH_AUTH.items() if now - payload.created_at > max_age_seconds]
-    for state in expired:
-        PENDING_MICROSOFT_GRAPH_AUTH.pop(state, None)
 
 
 def _parse_email_like(value: str | None) -> str | None:
@@ -115,20 +104,25 @@ async def start_microsoft_graph_connection(
     user: User,
     connected_account: ConnectedAccount | None = None,
 ) -> tuple[str, str, ProviderApp]:
-    _cleanup_pending_auth()
     provider_app = get_microsoft_graph_provider_app(db, user.organization_id)
     verifier, challenge = _make_pkce()
     state = _make_state()
     nonce = _make_state()
     redirect_uri = _configured_redirect_uri(provider_app)
-    PENDING_MICROSOFT_GRAPH_AUTH[state] = PendingMicrosoftGraphAuth(
-        user_id=user.id,
-        provider_app_id=provider_app.id,
-        verifier=verifier,
-        nonce=nonce,
-        connected_account_id=connected_account.id if connected_account else None,
-        redirect_uri=redirect_uri,
-        created_at=time.time(),
+    put_oauth_pending(
+        db,
+        state,
+        "microsoft_graph_connect",
+        asdict(
+            PendingMicrosoftGraphAuth(
+                user_id=user.id,
+                provider_app_id=provider_app.id,
+                verifier=verifier,
+                nonce=nonce,
+                connected_account_id=connected_account.id if connected_account else None,
+                redirect_uri=redirect_uri,
+            )
+        ),
     )
     instance = db.get(ProviderInstance, provider_app.provider_instance_id)
     if not instance or not instance.authorization_endpoint:
@@ -148,13 +142,14 @@ async def start_microsoft_graph_connection(
 
 
 async def finalize_microsoft_graph_callback(db: Session, state: str, code: str) -> RedirectResponse:
-    pending = PENDING_MICROSOFT_GRAPH_AUTH.pop(state, None)
+    raw = pop_oauth_pending_payload(db, state)
     settings = get_settings()
-    if not pending:
+    if not raw:
         return RedirectResponse(
             url=f"{settings.frontend_base_url.rstrip('/')}/connect/microsoft-graph?provider_status=error&message={quote('Invalid or expired Microsoft Graph state')}",
             status_code=302,
         )
+    pending = PendingMicrosoftGraphAuth(**raw)
     provider_app = db.get(ProviderApp, pending.provider_app_id)
     if not provider_app or not provider_app.client_id or not provider_app.encrypted_client_secret:
         return RedirectResponse(
@@ -191,7 +186,7 @@ async def finalize_microsoft_graph_callback(db: Session, state: str, code: str) 
     token_data = response.json()
     claims = _decode_jwt_payload(token_data.get("id_token")) or {}
     nonce = str(claims.get("nonce") or "").strip()
-    if nonce and nonce != pending.nonce:
+    if not nonce or nonce != pending.nonce:
         return RedirectResponse(
             url=f"{settings.frontend_base_url.rstrip('/')}/connect/microsoft-graph?provider_status=error&message={quote('Microsoft Graph nonce validation failed')}",
             status_code=302,

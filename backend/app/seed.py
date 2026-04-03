@@ -11,7 +11,9 @@ from app.provider_templates import (
     MICROSOFT_GRAPH_DIRECT_TEMPLATE,
     MIRO_RELAY_TEMPLATE,
     dump_settings,
+    normalize_instance_settings,
     provider_definition_metadata,
+    provider_templates,
 )
 from app.security import dumps_json, hash_secret
 
@@ -27,11 +29,12 @@ def init_db() -> None:
             db.add(org)
             db.flush()
 
-        admin = db.scalar(select(User).where(User.organization_id == org.id, User.email == settings.bootstrap_admin_email))
+        bootstrap_email = str(settings.bootstrap_admin_email or "").strip().lower()
+        admin = db.scalar(select(User).where(User.organization_id == org.id, User.email == bootstrap_email))
         if not admin:
             admin = User(
                 organization_id=org.id,
-                email=settings.bootstrap_admin_email,
+                email=bootstrap_email,
                 display_name=settings.bootstrap_admin_display_name,
                 password_hash=hash_secret(settings.bootstrap_admin_password),
                 is_admin=True,
@@ -59,6 +62,12 @@ def init_db() -> None:
             metadata=definition_metadata.get("microsoft", {}),
         )
 
+        _seed_builtin_provider_apps(
+            db,
+            organization_id=org.id,
+            miro_definition_id=miro.id,
+            microsoft_definition_id=microsoft.id,
+        )
         _backfill_legacy_templates(db, organization_id=org.id, miro_definition_id=miro.id, microsoft_definition_id=microsoft.id)
         db.commit()
 
@@ -118,6 +127,7 @@ def reconcile_schema() -> None:
             "service_clients",
             {
                 "is_enabled": "BOOLEAN DEFAULT TRUE",
+                "secret_lookup_hash": "VARCHAR(64)",
             },
         )
         _ensure_columns(
@@ -126,6 +136,7 @@ def reconcile_schema() -> None:
             "delegation_grants",
             {
                 "is_enabled": "BOOLEAN DEFAULT TRUE",
+                "credential_lookup_hash": "VARCHAR(64)",
             },
         )
         _ensure_columns(
@@ -180,6 +191,61 @@ def _ensure_provider_definition(
     db.add(provider_definition)
     db.flush()
     return provider_definition
+
+
+def _seed_builtin_provider_apps(
+    db: Session,
+    *,
+    organization_id: str,
+    miro_definition_id: str,
+    microsoft_definition_id: str,
+) -> None:
+    if db.scalar(select(ProviderApp).where(ProviderApp.key == "miro-default")):
+        return
+    templates = provider_templates()
+    seed_specs: list[tuple[str, str, str]] = [
+        (MIRO_RELAY_TEMPLATE, "miro-default", miro_definition_id),
+        (MICROSOFT_BROKER_LOGIN_TEMPLATE, "microsoft-broker-default", microsoft_definition_id),
+        (MICROSOFT_GRAPH_DIRECT_TEMPLATE, "microsoft-graph-default", microsoft_definition_id),
+    ]
+    for template_key, provider_app_key, definition_id in seed_specs:
+        meta = templates[template_key]
+        inst = meta["instance"]
+        app = meta["app"]
+        normalized_settings, derived = normalize_instance_settings(meta["provider_definition_key"], dict(inst.get("settings") or {}))
+        provider_instance = ProviderInstance(
+            organization_id=organization_id,
+            provider_definition_id=definition_id,
+            key=inst["key"],
+            display_name=inst["display_name"],
+            role=inst["role"],
+            issuer=derived.get("issuer") if derived.get("issuer") else inst.get("issuer"),
+            authorization_endpoint=derived.get("authorization_endpoint") if derived.get("authorization_endpoint") else inst.get("authorization_endpoint"),
+            token_endpoint=derived.get("token_endpoint") if derived.get("token_endpoint") else inst.get("token_endpoint"),
+            userinfo_endpoint=inst.get("userinfo_endpoint"),
+            settings_json=dump_settings(normalized_settings),
+            is_enabled=True,
+        )
+        db.add(provider_instance)
+        db.flush()
+        provider_app = ProviderApp(
+            organization_id=organization_id,
+            provider_instance_id=provider_instance.id,
+            key=provider_app_key,
+            template_key=template_key,
+            display_name=app["display_name"],
+            client_id=app.get("client_id"),
+            redirect_uris_json=dumps_json(app.get("redirect_uris") or []),
+            default_scopes_json=dumps_json(app.get("default_scopes") or []),
+            scope_ceiling_json=dumps_json(app.get("scope_ceiling") or []),
+            access_mode=app["access_mode"],
+            allow_relay=app["allow_relay"],
+            allow_direct_token_return=app["allow_direct_token_return"],
+            relay_protocol=app.get("relay_protocol"),
+            is_enabled=True,
+        )
+        db.add(provider_app)
+    db.flush()
 
 
 def _backfill_legacy_templates(db: Session, *, organization_id: str, miro_definition_id: str, microsoft_definition_id: str) -> None:

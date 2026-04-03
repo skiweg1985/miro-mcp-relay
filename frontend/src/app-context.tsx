@@ -9,7 +9,8 @@ import {
 } from "react";
 
 import { api } from "./api";
-import type { ApiError, SessionState, Toast, UserOut } from "./types";
+import { isApiError } from "./errors";
+import type { SessionState, Toast, UserOut } from "./types";
 
 type AppContextValue = {
   session: SessionState;
@@ -23,10 +24,6 @@ type AppContextValue = {
 
 const AppContext = createContext<AppContextValue | null>(null);
 
-function isApiError(error: unknown): error is ApiError {
-  return typeof error === "object" && error !== null && "status" in error;
-}
-
 export function AppProvider({ children }: PropsWithChildren) {
   const [session, setSession] = useState<SessionState>({
     status: "booting",
@@ -39,21 +36,16 @@ export function AppProvider({ children }: PropsWithChildren) {
     setToasts((current) => current.filter((toast) => toast.id !== id));
   }, []);
 
-  const notify = useCallback((toast: Omit<Toast, "id">) => {
-    const id = Date.now() + Math.floor(Math.random() * 1000);
-    setToasts((current) => [...current, { ...toast, id }]);
-  }, []);
-
-  useEffect(() => {
-    const timeouts = toasts.map((toast) =>
+  const notify = useCallback(
+    (toast: Omit<Toast, "id">) => {
+      const id = Date.now() + Math.floor(Math.random() * 1000);
+      setToasts((current) => [...current, { ...toast, id }]);
       window.setTimeout(() => {
-        dismissToast(toast.id);
-      }, 4200),
-    );
-    return () => {
-      timeouts.forEach((timeout) => window.clearTimeout(timeout));
-    };
-  }, [toasts]);
+        dismissToast(id);
+      }, 4200);
+    },
+    [dismissToast],
+  );
 
   const setAuthenticatedSession = (user: UserOut, csrfToken: string) => {
     setSession({

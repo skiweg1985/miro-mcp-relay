@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import httpx
-from fastapi import APIRouter, Header, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from sqlalchemy.orm import Session
 from starlette.responses import RedirectResponse
 
 from app.core.config import get_settings
-from app.database import SessionLocal
+from app.database import get_db
 from app.miro import breaker_open, miro_ready_url, relay_miro_request, resolve_legacy_miro_connection, validate_relay_token
 from app.security import utcnow
 
@@ -46,6 +47,7 @@ def miro_admin_redirect():
 async def legacy_miro_mcp_proxy(
     profile_id: str,
     request: Request,
+    db: Session = Depends(get_db),
     x_relay_key: str | None = Header(default=None, alias="X-Relay-Key"),
     authorization: str | None = Header(default=None),
 ):
@@ -54,15 +56,14 @@ async def legacy_miro_mcp_proxy(
         bearer = authorization[7:].strip()
     supplied_token = x_relay_key or bearer
 
-    with SessionLocal() as db:
-        connection = resolve_legacy_miro_connection(db, profile_id)
-        if not connection:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
-        if connection.status != "connected":
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Profile is not connected")
-        if not validate_relay_token(connection, supplied_token):
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid relay token")
-        return await relay_miro_request(db, connection, request)
+    connection = resolve_legacy_miro_connection(db, profile_id)
+    if not connection:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found")
+    if connection.status != "connected":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Profile is not connected")
+    if not validate_relay_token(connection, supplied_token):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid relay token")
+    return await relay_miro_request(db, connection, request)
 
 
 @router.get("/healthz")

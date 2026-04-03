@@ -9,13 +9,13 @@ from app.microsoft_graph import refresh_microsoft_graph_connection
 from app.models import AccessMode, ProviderApp
 from app.provider_templates import MICROSOFT_GRAPH_DIRECT_TEMPLATE, provider_app_matches_template
 from app.schemas import ProviderAccessIssueRequest, ProviderAccessIssueResponse
-from app.security import decrypt_text, loads_json, utcnow
+from app.security import decrypt_text, ensure_utc, loads_json, utcnow
 
 router = APIRouter(prefix="/token-issues", tags=["token-issuance"])
 
 
 @router.post("/provider-access", response_model=ProviderAccessIssueResponse)
-def issue_provider_access_token(
+async def issue_provider_access_token(
     payload: ProviderAccessIssueRequest,
     db: Session = Depends(get_db),
     x_service_secret: str | None = Header(default=None, alias="X-Service-Secret"),
@@ -58,12 +58,13 @@ def issue_provider_access_token(
     connected_account = auth_context.connected_account
     token_material = auth_context.token_material
 
+    exp = ensure_utc(token_material.expires_at)
     if (
         provider_app_matches_template(provider_app, MICROSOFT_GRAPH_DIRECT_TEMPLATE)
-        and token_material.expires_at
-        and token_material.expires_at <= utcnow()
+        and exp is not None
+        and exp <= utcnow()
     ):
-        token_material = awaitable_refresh_graph(db, connected_account)
+        token_material = await refresh_microsoft_graph_connection(db, connected_account)
 
     scopes = loads_json(token_material.scopes_json, [])
     event = record_service_access_decision(
@@ -94,15 +95,3 @@ def issue_provider_access_token(
         scopes=payload.requested_scopes or scopes,
         audit_event_id=event.id,
     )
-
-
-def awaitable_refresh_graph(db: Session, connected_account):
-    import asyncio
-
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = None
-    if loop and loop.is_running():
-        raise RuntimeError("Synchronous token issuance cannot refresh Microsoft Graph tokens from an active event loop")
-    return asyncio.run(refresh_microsoft_graph_connection(db, connected_account))

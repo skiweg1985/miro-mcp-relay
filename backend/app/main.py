@@ -17,9 +17,12 @@ def create_app() -> FastAPI:
         redoc_url=f"{settings.api_v1_prefix}/redoc",
         openapi_url=f"{settings.api_v1_prefix}/openapi.json",
     )
+    cors_origins = settings.cors_origin_list
+    if not cors_origins:
+        raise RuntimeError("CORS_ORIGINS must list at least one origin when using credential cookies")
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.cors_origin_list or ["*"],
+        allow_origins=cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

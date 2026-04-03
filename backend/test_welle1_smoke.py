@@ -31,7 +31,7 @@ from app.database import Base, SessionLocal, engine
 from app.main import create_app
 from app.miro import issue_miro_setup_token
 from app.models import ConnectedAccount, DelegationGrant, ProviderApp, ServiceClient, TokenMaterial, User
-from app.security import dumps_json, encrypt_text, hash_secret
+from app.security import dumps_json, encrypt_text, hash_secret, lookup_secret_hash
 from app.seed import init_db
 
 
@@ -76,6 +76,7 @@ class Welle1SmokeTest(unittest.TestCase):
                 key="svc-agent",
                 display_name="Service Agent",
                 secret_hash=hash_secret(service_secret),
+                secret_lookup_hash=lookup_secret_hash(service_secret),
                 environment="test",
                 allowed_provider_app_keys_json=dumps_json(["microsoft-graph-default", "miro-default"]),
             )
@@ -133,6 +134,7 @@ class Welle1SmokeTest(unittest.TestCase):
                     provider_app_id=graph_app.id,
                     connected_account_id=graph_connection.id,
                     credential_hash=hash_secret(graph_credential),
+                    credential_lookup_hash=lookup_secret_hash(graph_credential),
                     allowed_access_modes_json=dumps_json(["direct_token"]),
                     scope_ceiling_json=dumps_json(["Mail.Read"]),
                     environment="test",
@@ -146,6 +148,7 @@ class Welle1SmokeTest(unittest.TestCase):
                     provider_app_id=miro_app.id,
                     connected_account_id=miro_connection.id,
                     credential_hash=hash_secret(miro_credential),
+                    credential_lookup_hash=lookup_secret_hash(miro_credential),
                     allowed_access_modes_json=dumps_json(["direct_token", "relay"]),
                     scope_ceiling_json=dumps_json(["boards:read"]),
                     environment="test",
@@ -250,10 +253,13 @@ class Welle1SmokeTest(unittest.TestCase):
         self.assertIn("/miro/mcp/person_example.com", rotated_body["mcp_url"])
         self.assertIn("X-Relay-Key", rotated_body["mcp_config_json"])
 
-        setup_token = issue_miro_setup_token(
-            connected_account_id=fixture["miro_connection_id"],
-            relay_token="setup-relay-token",
-        )
+        with SessionLocal() as db:
+            setup_token = issue_miro_setup_token(
+                db=db,
+                connected_account_id=fixture["miro_connection_id"],
+                relay_token="setup-relay-token",
+            )
+            db.commit()
         exchanged = client.post(
             "/api/v1/connections/miro/setup/exchange",
             json={"setup_token": setup_token},

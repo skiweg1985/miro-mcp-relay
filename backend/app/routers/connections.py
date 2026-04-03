@@ -249,7 +249,13 @@ async def microsoft_graph_callback(
             url=f"{settings.frontend_base_url.rstrip('/')}/connect/microsoft-graph?provider_status=error&message={quote('Missing or expired Microsoft Graph callback parameters')}",
             status_code=302,
         )
-    return await finalize_microsoft_graph_callback(db, state, code)
+    try:
+        return await finalize_microsoft_graph_callback(db, state, code)
+    except HTTPException as exc:
+        return RedirectResponse(
+            url=f"{settings.frontend_base_url.rstrip('/')}/connect/microsoft-graph?provider_status=error&message={quote(str(exc.detail))}",
+            status_code=302,
+        )
 
 
 @router.post("/connections/{connection_id}/refresh", response_model=ConnectedAccountOut)
@@ -443,7 +449,7 @@ def exchange_miro_setup(
     _csrf: str = Depends(require_csrf),
     db: Session = Depends(get_db),
 ):
-    snapshot = consume_miro_setup_token(payload.setup_token)
+    snapshot = consume_miro_setup_token(db, payload.setup_token)
     if not snapshot:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Setup session expired")
     connection = _load_user_connection(db, current_user, str(snapshot.get("connected_account_id") or ""))

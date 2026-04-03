@@ -50,19 +50,21 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   });
 
   if (!response.ok) {
+    const text = await response.text();
     let detail: unknown;
     let message = `Request failed with status ${response.status}`;
-    try {
-      detail = await response.json();
-      if (typeof detail === "object" && detail !== null && "detail" in detail) {
-        const detailMessage = (detail as { detail?: unknown }).detail;
-        if (typeof detailMessage === "string") {
-          message = detailMessage;
+    if (text) {
+      try {
+        detail = JSON.parse(text) as unknown;
+        if (typeof detail === "object" && detail !== null && "detail" in detail) {
+          const detailMessage = (detail as { detail?: unknown }).detail;
+          if (typeof detailMessage === "string") {
+            message = detailMessage;
+          }
         }
+      } catch {
+        message = text;
       }
-    } catch {
-      const text = await response.text();
-      if (text) message = text;
     }
     const error: ApiError = { status: response.status, message, detail };
     throw error;

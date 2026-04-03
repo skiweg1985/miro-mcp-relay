@@ -6,6 +6,7 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
+    "start:legacy-relay": "node src/index.js",
     "test": "node --test"
   },
   "dependencies": {

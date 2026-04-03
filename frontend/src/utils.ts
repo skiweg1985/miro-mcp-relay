@@ -54,9 +54,13 @@ export function formatJson(value: string): string {
 
 export async function copyToClipboard(value: string): Promise<boolean> {
   if (!value) return false;
-  if (navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(value);
-    return true;
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value);
+      return true;
+    }
+  } catch {
+    return false;
   }
   return false;
 }
@@ -66,26 +70,28 @@ export function classNames(...tokens: Array<string | false | null | undefined>):
 }
 
 export function matchesRoute(pathname: string): RouteMatch {
-  if (pathname === "/" || pathname === "/login") return { name: "login", path: "/login" };
-  if (pathname === "/miro" || pathname === "/start" || pathname === "/miro/start") {
+  const path =
+    pathname.length > 1 && pathname.endsWith("/") ? pathname.replace(/\/+$/, "") : pathname;
+  if (path === "/" || path === "/login") return { name: "login", path: "/login" };
+  if (path === "/miro" || path === "/start" || path === "/miro/start") {
     return { name: "connect", path: "/connect/miro", params: { providerKey: "miro" } };
   }
-  if (pathname === "/miro/workspace") return { name: "workspace", path: "/workspace" };
-  if (pathname === "/miro/admin") return { name: "dashboard", path: "/app" };
-  if (pathname === "/app") return { name: "dashboard", path: "/app" };
-  if (pathname === "/app/providers") return { name: "providers", path: "/app/providers" };
-  if (pathname === "/app/connections") return { name: "connections", path: "/app/connections" };
-  if (pathname === "/app/service-clients") return { name: "serviceClients", path: "/app/service-clients" };
-  if (pathname === "/app/delegation") return { name: "delegation", path: "/app/delegation" };
-  if (pathname === "/app/audit") return { name: "audit", path: "/app/audit" };
-  if (pathname === "/workspace") return { name: "workspace", path: "/workspace" };
-  if (pathname === "/grants") return { name: "grants", path: "/grants" };
-  if (pathname === "/token-access") return { name: "tokenAccess", path: "/token-access" };
-  if (pathname.startsWith("/connect/")) {
-    const providerKey = pathname.slice("/connect/".length).trim();
+  if (path === "/miro/workspace") return { name: "workspace", path: "/workspace" };
+  if (path === "/miro/admin") return { name: "dashboard", path: "/app" };
+  if (path === "/app") return { name: "dashboard", path: "/app" };
+  if (path === "/app/providers") return { name: "providers", path: "/app/providers" };
+  if (path === "/app/connections") return { name: "connections", path: "/app/connections" };
+  if (path === "/app/service-clients") return { name: "serviceClients", path: "/app/service-clients" };
+  if (path === "/app/delegation") return { name: "delegation", path: "/app/delegation" };
+  if (path === "/app/audit") return { name: "audit", path: "/app/audit" };
+  if (path === "/workspace") return { name: "workspace", path: "/workspace" };
+  if (path === "/grants") return { name: "grants", path: "/grants" };
+  if (path === "/token-access") return { name: "tokenAccess", path: "/token-access" };
+  if (path.startsWith("/connect/")) {
+    const providerKey = path.slice("/connect/".length).trim();
     if (providerKey) {
       return { name: "connect", path: `/connect/${providerKey}`, params: { providerKey } };
     }
   }
-  return { name: "notFound", path: pathname };
+  return { name: "notFound", path: path };
 }

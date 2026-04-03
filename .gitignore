@@ -1,3 +1,4 @@
+.env
 broker.db
 broker.db-*
 __pycache__/

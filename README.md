@@ -1,12 +1,30 @@
 # miro-mcp-relay
 
-OAuth relay/proxy for `https://mcp.miro.com/`, with multi-profile support.
+OAuth broker/relay for `https://mcp.miro.com/`, now evolving into a generic OAuth broker and delegated token access platform.
+
+## Current architecture
+
+This repository now contains two layers:
+
+- `src/index.js`: the existing Node-based Miro relay, kept in place for compatibility
+- `backend/app`: a new FastAPI broker backend with DB-backed users, sessions, provider definitions/apps, connected accounts, service clients, delegation grants, and audited token issuance
+- `frontend/`: a minimal React/Vite shell for the new broker UI
+
+The intended migration shape is:
+
+- keep the existing Miro MCP relay alive
+- move broker identity, configuration, connected-account management, and delegated token issuance into the new backend
+- grow the new frontend around those APIs
 
 ## Features
 
 - Profile-based Miro OAuth (PKCE)
 - Per-profile MCP endpoint: `/miro/mcp/<profile_id>`
 - Per-profile relay token (`X-Relay-Key`)
+- Configurable provider app policy with `access_mode`: `relay`, `direct_token`, `hybrid`
+- Generic service client + delegated credential model for brokered access
+- Direct provider access-token issuance endpoint for explicitly allowed provider apps
+- Separate relay-call and token-issue audit streams
 - Self-service + admin deregistration options
 - Admin governance actions: list profiles, rotate relay token, revoke OAuth
 - OAuth identity check visibility (expected vs detected Miro email)
@@ -24,6 +42,37 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
+This starts:
+
+- `postgres` on `localhost:5432`
+- `oauth-broker-backend` on `localhost:8000`
+- `miro-mcp-relay` on `localhost:8787`
+
+Primary new-stack surfaces:
+
+- broker API docs: [http://localhost:8000/api/v1/docs](http://localhost:8000/api/v1/docs)
+- broker frontend shell: [http://localhost:5173](http://localhost:5173)
+
+For local development without Docker:
+
+```bash
+cp .env.example .env
+npm install
+npm start
+```
+
+```bash
+cd backend
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+```
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
 ## BASE_URL note (important)
 
 Set `BASE_URL` to host+port only.
@@ -36,20 +85,144 @@ Set `BASE_URL` to host+port only.
 
 Open:
 
-- `/miro` → landing page with two clear paths: connect your own Miro account or open admin management
+- `/miro` → full-screen onboarding wizard that starts the connection flow immediately
 - `/start` → alias that redirects to `/miro`
-- `/miro/start` → dedicated onboarding page for the guided user flow
-- `/miro/workspace` → self-service "My connection" page for status, reconnect, and deregistration
+- `/miro/start` → dedicated browser entry for the guided wizard
+- `/miro/workspace` → self-service page for status, reconnect, and deregistration
 - `/miro/admin` → admin governance UI with login, profile list, token rotation, OAuth revoke, delete, and audit
 - `/miro/start?email=user@example.com` → jump directly into the guided OAuth enrollment for that email
-- primary user journey is: enter email → authorize with Miro → copy MCP config
+- primary user journey is: begin → enter email → authorize with Miro → copy MCP config
 - profile id is URL-safe: `@` is replaced with `_`
 - profile + relay token are finalized only after successful `/miro/auth/callback`
-- callback success page prioritizes copyable MCP config, then one-time backup credentials
+- callback success page shows the MCP config first and keeps recovery details hidden until requested
 - OAuth callback now shows expected profile email vs detected Miro user details for manual verification
 - if `MIRO_START_REQUIRE_ADMIN=true`, also pass `&admin_key=...`
 
 ## API
+
+## New broker backend API
+
+The new backend lives under `/api/v1`.
+
+### Health
+
+```http
+GET /api/v1/health
+```
+
+### Login
+
+Seeded local admin login:
+
+```http
+POST /api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@example.com",
+  "password": "change-me-admin-password"
+}
+```
+
+Response includes a CSRF token. Send that token in `X-CSRF-Token` for state-changing authenticated requests.
+
+### Provider definitions
+
+```http
+GET /api/v1/provider-definitions
+```
+
+### Admin provider instances/apps
+
+```http
+GET /api/v1/admin/provider-instances
+GET /api/v1/admin/provider-apps
+POST /api/v1/admin/provider-instances
+POST /api/v1/admin/provider-apps
+```
+
+### Admin connected accounts
+
+For now, the new backend supports manual connected-account creation for migration/bootstrap:
+
+```http
+POST /api/v1/admin/connected-accounts/manual
+```
+
+This stores provider tokens encrypted in the database and keeps refresh tokens inside the broker.
+
+### Miro connection and relay in the new backend
+
+```http
+POST /api/v1/connections/miro/start
+GET /api/v1/connections/miro/callback
+POST /api/v1/connections/{id}/refresh
+POST /api/v1/connections/{id}/revoke
+POST /api/v1/broker-proxy/miro/{connected_account_id}
+```
+
+The new FastAPI backend now owns the active Miro migration path:
+
+- start OAuth from the broker backend
+- complete callback into the broker frontend
+- refresh stored Miro tokens from encrypted token material
+- relay MCP traffic through the new broker proxy path
+
+### Miro migration endpoints
+
+```http
+GET /api/v1/admin/migrations/miro/status
+POST /api/v1/admin/migrations/miro/import
+```
+
+These endpoints import legacy file-backed Miro profiles, tokens, and dynamic OAuth clients from `data/` into:
+
+- broker users
+- Miro connected accounts
+- encrypted token material
+
+### Service clients and delegation grants
+
+```http
+GET /api/v1/admin/service-clients
+POST /api/v1/admin/service-clients
+GET /api/v1/admin/delegation-grants
+POST /api/v1/admin/delegation-grants
+POST /api/v1/admin/delegation-grants/{grant_id}/revoke
+```
+
+### Direct provider access token issuance
+
+```http
+POST /api/v1/token-issues/provider-access
+X-Service-Secret: <service-client-secret>
+X-Delegated-Credential: <delegated-credential>
+Content-Type: application/json
+
+{
+  "provider_app_key": "microsoft-graph-default",
+  "connected_account_id": "<optional-connected-account-id>",
+  "requested_scopes": ["Mail.Read"]
+}
+```
+
+Refresh tokens are never returned.
+
+### Provider policy and delegated access
+
+The built-in Miro provider app is seeded as `miro-default`.
+
+- default mode is `relay`
+- legacy Miro MCP clients continue to use `/miro/mcp/<profile_id>`
+- future providers can be configured with the same `access_mode` policy model
+
+Supported access modes:
+
+- `relay`: broker keeps provider tokens and relays requests
+- `direct_token`: authorized services can request a real provider access token
+- `hybrid`: both are available, subject to policy
+
+For Miro, the new backend currently uses relay as the primary supported mode.
 
 ### 1) Create profile (admin)
 
@@ -140,6 +313,89 @@ GET /miro/admin/audit?lines=200
 X-Admin-Key: <ADMIN_KEY>
 ```
 
+### 8) Provider app policy (admin)
+
+List provider apps:
+
+```http
+GET /broker/admin/provider-apps
+X-Admin-Key: <ADMIN_KEY>
+```
+
+Create or update a provider app policy:
+
+```http
+POST /broker/admin/provider-apps
+X-Admin-Key: <ADMIN_KEY>
+Content-Type: application/json
+
+{
+  "id": "miro-default",
+  "provider_key": "miro",
+  "display_name": "Miro MCP Relay",
+  "access_mode": "relay",
+  "allow_relay": true,
+  "allow_direct_token_return": false,
+  "relay_protocol": "mcp_streamable_http",
+  "allowed_service_ids": ["agent-zero"]
+}
+```
+
+### 9) Service clients + delegated credentials (admin)
+
+Create a service client:
+
+```http
+POST /broker/admin/service-clients
+X-Admin-Key: <ADMIN_KEY>
+Content-Type: application/json
+
+{
+  "service_id": "agent-zero",
+  "display_name": "Agent Zero",
+  "allowed_provider_app_ids": ["miro-default"],
+  "environment": "prod"
+}
+```
+
+Create a delegation grant:
+
+```http
+POST /broker/admin/delegation-grants
+X-Admin-Key: <ADMIN_KEY>
+Content-Type: application/json
+
+{
+  "profile_id": "user_example.com",
+  "service_id": "agent-zero",
+  "provider_key": "miro",
+  "provider_app_id": "miro-default",
+  "allowed_access_modes": ["relay"],
+  "expires_in_hours": 24
+}
+```
+
+### 10) Service relay and direct token access
+
+Relay through the broker with delegated service credentials:
+
+```http
+POST /broker/relay/miro/<profile_id>
+X-Service-Key: <service_key>
+X-Delegated-Credential: <delegated_credential>
+Content-Type: application/json
+```
+
+Request a provider access token directly:
+
+```http
+POST /broker/provider-access/miro/<profile_id>
+X-Service-Key: <service_key>
+X-Delegated-Credential: <delegated_credential>
+```
+
+Refresh tokens are never returned.
+
 ## Agent Zero example
 
 ```json
@@ -175,11 +431,28 @@ backend be_miro_relay
 
 - Use HTTPS in production
 - Use long random keys for admin + relay
+- Treat `service_key` and `delegated_credential` like secrets; both are shown only once
+- Keep `access_mode=relay` for sensitive integrations unless direct token return is explicitly required
 - Restrict `/miro/mcp/*` by IP if possible
 - Rotate keys periodically
 - Optional: set `MIRO_START_REQUIRE_ADMIN=true` to protect browser onboarding
 - Pending profiles are auto-deleted after `MIRO_PENDING_PROFILE_TTL_MINUTES` (default 15)
 - OAuth email check mode is `MIRO_OAUTH_EMAIL_MODE=warn` by default (fail-open); set `strict` after validation
 - OAuth scopes are configurable via `MIRO_OAUTH_SCOPE` (default `boards:read boards:write`)
+- `MIRO_PROVIDER_ACCESS_MODE`, `MIRO_PROVIDER_ALLOW_RELAY`, and `MIRO_PROVIDER_ALLOW_DIRECT_TOKEN_RETURN` seed the built-in Miro provider-app policy
 - Basic rate limiting is active on enroll/auth/delete endpoints
 - Browser UI supports both self-service deregistration and admin override deregistration
+
+## Tests
+
+Run all tests:
+
+```bash
+npm test
+```
+
+Run the policy tests only:
+
+```bash
+node --test test/platform.test.js
+```

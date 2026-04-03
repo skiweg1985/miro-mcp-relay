@@ -4,6 +4,17 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { Readable } from 'stream';
+import {
+  ACCESS_MODE_DIRECT_TOKEN,
+  ACCESS_MODE_RELAY,
+  createDefaultMiroProviderApp,
+  isProviderAppRelayEnabled,
+  normalizeAccessMode,
+  normalizeAllowedAccessModes,
+  normalizeProviderApp,
+  normalizeStringArray,
+  validateServiceAccess
+} from './platform.js';
 
 dotenv.config();
 
@@ -31,13 +42,21 @@ const DATA_DIR = process.env.DATA_DIR || path.resolve(process.cwd(), 'data');
 const TOKEN_FILE = path.join(DATA_DIR, 'tokens.json');
 const CLIENT_FILE = path.join(DATA_DIR, 'oauth-clients.json');
 const PROFILE_FILE = path.join(DATA_DIR, 'profiles.json');
+const PROVIDER_APP_FILE = path.join(DATA_DIR, 'provider-apps.json');
+const SERVICE_CLIENT_FILE = path.join(DATA_DIR, 'service-clients.json');
+const DELEGATION_FILE = path.join(DATA_DIR, 'delegation-grants.json');
 const AUDIT_FILE = path.join(DATA_DIR, 'audit.log');
+const RELAY_CALL_FILE = path.join(DATA_DIR, 'relay-calls.log');
+const TOKEN_ISSUE_FILE = path.join(DATA_DIR, 'token-issues.log');
 const MCP_BASE = 'https://mcp.miro.com';
 const BREAKER_FAIL_THRESHOLD = Number(process.env.MIRO_BREAKER_FAIL_THRESHOLD || 5);
 const BREAKER_OPEN_MS = Number(process.env.MIRO_BREAKER_OPEN_MS || 30000);
 const MCP_RETRY_COUNT = Number(process.env.MIRO_MCP_RETRY_COUNT || 2);
 const OAUTH_EMAIL_MODE = String(process.env.MIRO_OAUTH_EMAIL_MODE || 'warn').trim().toLowerCase() === 'strict' ? 'strict' : 'warn';
 const OAUTH_SCOPE = String(process.env.MIRO_OAUTH_SCOPE || 'boards:read boards:write').trim() || 'boards:read boards:write';
+const MIRO_PROVIDER_ACCESS_MODE = normalizeAccessMode(process.env.MIRO_PROVIDER_ACCESS_MODE || ACCESS_MODE_RELAY, ACCESS_MODE_RELAY);
+const MIRO_PROVIDER_ALLOW_RELAY = String(process.env.MIRO_PROVIDER_ALLOW_RELAY || 'true').trim().toLowerCase() !== 'false';
+const MIRO_PROVIDER_ALLOW_DIRECT_TOKEN_RETURN = String(process.env.MIRO_PROVIDER_ALLOW_DIRECT_TOKEN_RETURN || 'false').trim().toLowerCase() === 'true';
 
 if (!RELAY_API_KEY) {
   console.warn('⚠️ MIRO_RELAY_API_KEY is empty. Set it in .env for secure usage.');
@@ -57,6 +76,10 @@ function writeJson(file, obj) {
   fs.writeFileSync(file, JSON.stringify(obj, null, 2));
 }
 
+function appendJsonLine(file, obj) {
+  fs.appendFileSync(file, JSON.stringify(obj) + '\n');
+}
+
 function b64url(buf) {
   return buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
@@ -69,6 +92,14 @@ function makePkce() {
 
 function newRelayToken() {
   return b64url(crypto.randomBytes(32));
+}
+
+function newOpaqueSecret(bytes = 32) {
+  return b64url(crypto.randomBytes(bytes));
+}
+
+function newRecordId(prefix) {
+  return `${prefix}_${b64url(crypto.randomBytes(12))}`;
 }
 
 function tokenHash(raw) {
@@ -202,6 +233,784 @@ function escapeHtml(value) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function renderExperienceDots(total = 3, activeIndex = 0) {
+  const dots = Array.from({ length: total }, (_value, index) => {
+    const stateClass = index === activeIndex ? ' is-active' : (index < activeIndex ? ' is-complete' : '');
+    return `<span class="experience-dot${stateClass}"></span>`;
+  }).join('');
+
+  return `<div class="experience-progress" aria-hidden="true">${dots}</div>`;
+}
+
+function renderExperiencePage({
+  title,
+  body,
+  script = ''
+}) {
+  return `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${escapeHtml(title)}</title>
+    <style>
+      :root {
+        --bg:#f3f3f1;
+        --panel:rgba(255,255,255,.3);
+        --panel-strong:rgba(255,255,255,.46);
+        --panel-soft:rgba(255,255,255,.18);
+        --line:rgba(255,255,255,.56);
+        --line-soft:rgba(0,0,0,.08);
+        --text:rgba(8,8,8,.96);
+        --muted:rgba(8,8,8,.52);
+        --shadow:0 32px 120px rgba(0,0,0,.16);
+        --shadow-soft:0 18px 48px rgba(0,0,0,.1);
+        --ease:cubic-bezier(.22, 1, .36, 1);
+      }
+      * { box-sizing:border-box; }
+      html, body { min-height:100%; }
+      body {
+        margin:0;
+        color:var(--text);
+        font-family:"SF Pro Display","SF Pro Text","Inter","Helvetica Neue",sans-serif;
+        background:
+          radial-gradient(circle at 18% 14%, rgba(255,255,255,.92), transparent 28%),
+          radial-gradient(circle at 82% 12%, rgba(0,0,0,.09), transparent 22%),
+          radial-gradient(circle at 50% 108%, rgba(0,0,0,.08), transparent 32%),
+          linear-gradient(180deg, #fafaf9 0%, #ececea 100%);
+        overflow-x:hidden;
+      }
+      body::before,
+      body::after {
+        content:'';
+        position:fixed;
+        inset:auto;
+        pointer-events:none;
+        border-radius:999px;
+        filter:blur(88px);
+        opacity:.85;
+        z-index:0;
+      }
+      body::before {
+        width:32vw;
+        height:32vw;
+        min-width:240px;
+        min-height:240px;
+        top:-8vw;
+        left:-10vw;
+        background:rgba(255,255,255,.88);
+      }
+      body::after {
+        width:28vw;
+        height:28vw;
+        min-width:220px;
+        min-height:220px;
+        right:-6vw;
+        bottom:-10vw;
+        background:rgba(0,0,0,.08);
+      }
+      a,
+      button,
+      input,
+      textarea {
+        font:inherit;
+      }
+      code,
+      .mono {
+        font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      }
+      .experience-root {
+        position:relative;
+        z-index:1;
+        min-height:100vh;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        padding:24px;
+      }
+      .experience-stage {
+        position:relative;
+        width:min(100%, 960px);
+        min-height:min(86vh, 860px);
+        display:flex;
+        align-items:center;
+        justify-content:center;
+      }
+      .experience-atmosphere,
+      .experience-atmosphere::before,
+      .experience-atmosphere::after {
+        position:absolute;
+        inset:auto;
+        border-radius:999px;
+        pointer-events:none;
+        filter:blur(70px);
+        transition:transform 1.1s var(--ease), opacity 1.1s var(--ease);
+      }
+      .experience-atmosphere {
+        width:30vw;
+        height:30vw;
+        min-width:220px;
+        min-height:220px;
+        top:4%;
+        right:5%;
+        background:rgba(255,255,255,.66);
+      }
+      .experience-atmosphere::before,
+      .experience-atmosphere::after {
+        content:'';
+      }
+      .experience-atmosphere::before {
+        width:18vw;
+        height:18vw;
+        min-width:150px;
+        min-height:150px;
+        left:-38%;
+        top:34%;
+        background:rgba(0,0,0,.06);
+      }
+      .experience-atmosphere::after {
+        width:14vw;
+        height:14vw;
+        min-width:120px;
+        min-height:120px;
+        right:10%;
+        bottom:-18%;
+        background:rgba(255,255,255,.52);
+      }
+      .experience-surface {
+        position:relative;
+        width:100%;
+        min-height:min(86vh, 860px);
+        border-radius:44px;
+        border:1px solid var(--line);
+        background:
+          linear-gradient(180deg, rgba(255,255,255,.48), rgba(255,255,255,.2)),
+          rgba(255,255,255,.14);
+        backdrop-filter:blur(34px);
+        -webkit-backdrop-filter:blur(34px);
+        box-shadow:var(--shadow), inset 0 1px 0 rgba(255,255,255,.92);
+        overflow:hidden;
+      }
+      .experience-surface::before {
+        content:'';
+        position:absolute;
+        inset:0;
+        background:linear-gradient(180deg, rgba(255,255,255,.56), transparent 28%);
+        pointer-events:none;
+      }
+      .experience-progress {
+        position:absolute;
+        top:30px;
+        left:50%;
+        transform:translateX(-50%);
+        display:flex;
+        gap:10px;
+        z-index:2;
+      }
+      .experience-dot {
+        width:8px;
+        height:8px;
+        border-radius:999px;
+        background:rgba(0,0,0,.14);
+        transform:scale(.9);
+        transition:transform .7s var(--ease), background .7s var(--ease), opacity .7s var(--ease);
+      }
+      .experience-dot.is-active {
+        background:rgba(0,0,0,.92);
+        transform:scale(1.35);
+      }
+      .experience-dot.is-complete {
+        background:rgba(0,0,0,.34);
+      }
+      .experience-viewport {
+        position:relative;
+        overflow:hidden;
+        min-height:min(86vh, 860px);
+      }
+      .experience-track {
+        display:flex;
+        min-height:min(86vh, 860px);
+        width:100%;
+        will-change:transform;
+        transition:transform .9s var(--ease);
+      }
+      .experience-step {
+        flex:0 0 100%;
+        min-height:min(86vh, 860px);
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        padding:92px 44px 44px;
+        opacity:.24;
+        transform:translate3d(0, 0, 0) scale(.98);
+        filter:blur(18px);
+        transition:opacity .9s var(--ease), transform .9s var(--ease), filter .9s var(--ease);
+      }
+      .experience-step.is-active {
+        opacity:1;
+        transform:translate3d(0, 0, 0) scale(1);
+        filter:blur(0);
+      }
+      .experience-step.is-adjacent {
+        opacity:.42;
+        transform:translate3d(0, 0, 0) scale(.985);
+        filter:blur(8px);
+      }
+      .experience-step-static {
+        min-height:min(86vh, 860px);
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        padding:92px 44px 44px;
+      }
+      .experience-copy {
+        width:min(100%, 620px);
+        display:grid;
+        justify-items:center;
+        text-align:center;
+        gap:22px;
+      }
+      .experience-copy h1 {
+        margin:0;
+        font-size:clamp(48px, 9vw, 92px);
+        line-height:.92;
+        letter-spacing:-.085em;
+        font-weight:600;
+      }
+      .experience-copy p {
+        margin:0;
+        max-width:30ch;
+        color:var(--muted);
+        font-size:clamp(16px, 2.4vw, 20px);
+        line-height:1.45;
+        letter-spacing:-.02em;
+      }
+      .experience-control {
+        width:min(100%, 440px);
+      }
+      .experience-button,
+      .experience-link-button {
+        width:100%;
+        min-height:64px;
+        border:none;
+        border-radius:999px;
+        display:inline-flex;
+        align-items:center;
+        justify-content:center;
+        padding:18px 28px;
+        text-decoration:none;
+        background:rgba(10,10,10,.94);
+        color:rgba(255,255,255,.96);
+        box-shadow:0 20px 60px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.14);
+        transition:transform .45s var(--ease), box-shadow .45s var(--ease), background .45s var(--ease), filter .45s var(--ease);
+        cursor:pointer;
+      }
+      .experience-button:hover,
+      .experience-link-button:hover {
+        transform:translateY(-2px) scale(1.01);
+        background:rgba(0,0,0,.98);
+        box-shadow:0 24px 70px rgba(0,0,0,.22), 0 0 34px rgba(255,255,255,.12), inset 0 1px 0 rgba(255,255,255,.18);
+      }
+      .experience-button:active,
+      .experience-link-button:active {
+        transform:translateY(0) scale(.995);
+      }
+      .experience-input {
+        width:100%;
+        height:74px;
+        padding:0 26px;
+        border:none;
+        border-radius:999px;
+        text-align:center;
+        color:var(--text);
+        background:rgba(255,255,255,.42);
+        border:1px solid rgba(255,255,255,.68);
+        box-shadow:var(--shadow-soft), inset 0 1px 0 rgba(255,255,255,.92);
+        backdrop-filter:blur(28px);
+        -webkit-backdrop-filter:blur(28px);
+        font-size:clamp(22px, 3.6vw, 32px);
+        letter-spacing:-.045em;
+        transition:border-color .4s var(--ease), box-shadow .4s var(--ease), background .4s var(--ease), transform .4s var(--ease);
+      }
+      .experience-input::placeholder {
+        color:rgba(8,8,8,.28);
+      }
+      .experience-input:focus {
+        outline:none;
+        background:rgba(255,255,255,.6);
+        border-color:rgba(255,255,255,.84);
+        transform:translateY(-1px) scale(1.002);
+        box-shadow:0 24px 70px rgba(0,0,0,.14), 0 0 24px rgba(255,255,255,.28), inset 0 1px 0 rgba(255,255,255,.98);
+      }
+      .experience-output {
+        width:min(100%, 560px);
+        min-height:236px;
+        padding:24px 22px;
+        border-radius:30px;
+        border:1px solid rgba(255,255,255,.62);
+        background:rgba(255,255,255,.3);
+        color:var(--text);
+        font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size:14px;
+        line-height:1.6;
+        resize:none;
+        box-shadow:var(--shadow-soft), inset 0 1px 0 rgba(255,255,255,.92);
+        backdrop-filter:blur(28px);
+        -webkit-backdrop-filter:blur(28px);
+        transition:transform .4s var(--ease), box-shadow .4s var(--ease), background .4s var(--ease);
+      }
+      .experience-output:hover,
+      .experience-output:focus {
+        outline:none;
+        transform:translateY(-1px);
+        background:rgba(255,255,255,.4);
+        box-shadow:0 24px 70px rgba(0,0,0,.14), 0 0 30px rgba(255,255,255,.16), inset 0 1px 0 rgba(255,255,255,.96);
+      }
+      .experience-details {
+        width:min(100%, 560px);
+        border-radius:26px;
+        border:1px solid rgba(255,255,255,.52);
+        background:rgba(255,255,255,.16);
+        backdrop-filter:blur(24px);
+        -webkit-backdrop-filter:blur(24px);
+        overflow:hidden;
+      }
+      .experience-details summary {
+        cursor:pointer;
+        list-style:none;
+        padding:18px 22px;
+        color:var(--muted);
+        text-align:left;
+      }
+      .experience-details summary::-webkit-details-marker {
+        display:none;
+      }
+      .experience-details-body {
+        padding:0 18px 18px;
+        display:grid;
+        gap:14px;
+      }
+      .experience-meta {
+        color:var(--muted);
+        font-size:13px;
+        line-height:1.5;
+        text-align:left;
+      }
+      .experience-single-control {
+        width:min(100%, 560px);
+      }
+      .experience-ghost {
+        display:inline-flex;
+        align-items:center;
+        justify-content:center;
+        width:100%;
+        min-height:60px;
+        border-radius:999px;
+        border:1px solid rgba(255,255,255,.58);
+        background:rgba(255,255,255,.18);
+        color:var(--text);
+        text-decoration:none;
+        backdrop-filter:blur(24px);
+        -webkit-backdrop-filter:blur(24px);
+        transition:transform .45s var(--ease), background .45s var(--ease), box-shadow .45s var(--ease);
+      }
+      .experience-ghost:hover {
+        transform:translateY(-2px);
+        background:rgba(255,255,255,.28);
+        box-shadow:0 18px 44px rgba(0,0,0,.1);
+      }
+      @media (max-width: 720px) {
+        .experience-root {
+          padding:14px;
+        }
+        .experience-stage,
+        .experience-surface,
+        .experience-viewport,
+        .experience-track,
+        .experience-step,
+        .experience-step-static {
+          min-height:calc(100vh - 28px);
+        }
+        .experience-surface {
+          border-radius:34px;
+        }
+        .experience-step,
+        .experience-step-static {
+          padding:84px 24px 28px;
+        }
+        .experience-progress {
+          top:24px;
+        }
+        .experience-copy {
+          width:100%;
+        }
+        .experience-copy h1 {
+          font-size:clamp(42px, 15vw, 68px);
+        }
+        .experience-input {
+          height:68px;
+          font-size:24px;
+        }
+        .experience-output {
+          min-height:220px;
+          font-size:13px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="experience-root">
+      ${body}
+    </main>
+    ${script ? `<script>${script}</script>` : ''}
+  </body>
+</html>`;
+}
+
+function renderOnboardingStep({
+  index,
+  title = '',
+  subtitle = '',
+  control = ''
+}) {
+  return `
+    <section class="experience-step${index === 0 ? ' is-active' : ''}" data-step="${index}" aria-hidden="${index === 0 ? 'false' : 'true'}">
+      <div class="experience-copy">
+        <h1>${escapeHtml(title)}</h1>
+        ${subtitle ? `<p>${escapeHtml(subtitle)}</p>` : ''}
+        <div class="experience-control">${control}</div>
+      </div>
+    </section>`;
+}
+
+function renderOnboardingExperiencePage({ adminKey = '' } = {}) {
+  const hiddenAdminInput = adminKey ? `<input type="hidden" name="admin_key" value="${escapeHtml(adminKey)}" />` : '';
+
+  return renderExperiencePage({
+    title: 'Connect - Miro Relay',
+    body: `
+      <section class="experience-stage">
+        <div id="experienceAtmosphere" class="experience-atmosphere"></div>
+        <div class="experience-surface">
+          ${renderExperienceDots(3, 0)}
+          <div id="experienceViewport" class="experience-viewport">
+            <div id="experienceTrack" class="experience-track">
+              ${renderOnboardingStep({
+                index: 0,
+                title: 'Connect Miro',
+                subtitle: 'A short, quiet setup.',
+                control: '<button id="wizardBegin" class="experience-button" type="button">Begin</button>'
+              })}
+              ${renderOnboardingStep({
+                index: 1,
+                title: 'Your email',
+                subtitle: 'Press return when it feels right.',
+                control: `
+                  <form id="wizardEmailForm" novalidate>
+                    <input id="wizardEmail" class="experience-input" type="email" inputmode="email" autocomplete="email" placeholder="name@company.com" aria-label="Email" />
+                  </form>`
+              })}
+              ${renderOnboardingStep({
+                index: 2,
+                title: 'Miro opens next',
+                subtitle: 'We will use your email.',
+                control: `
+                  <form id="wizardContinueForm" method="get" action="/miro/start">
+                    ${hiddenAdminInput}
+                    <input id="wizardEmailSubmit" type="hidden" name="email" value="" />
+                    <button class="experience-button" type="submit">Continue to Miro</button>
+                  </form>`
+              })}
+            </div>
+          </div>
+        </div>
+      </section>`,
+    script: `
+      const WIZARD_TOTAL_STEPS = 3;
+      const WIZARD_STORAGE_KEY = 'miroRelayWizardEmail';
+      const wizardState = {
+        current: 0,
+        touchStartX: null,
+        email: '',
+        emailError: false
+      };
+
+      const wizardElements = {
+        atmosphere: document.getElementById('experienceAtmosphere'),
+        viewport: document.getElementById('experienceViewport'),
+        track: document.getElementById('experienceTrack'),
+        steps: Array.from(document.querySelectorAll('.experience-step')),
+        dots: Array.from(document.querySelectorAll('.experience-dot')),
+        begin: document.getElementById('wizardBegin'),
+        emailForm: document.getElementById('wizardEmailForm'),
+        email: document.getElementById('wizardEmail'),
+        continueForm: document.getElementById('wizardContinueForm'),
+        submitEmail: document.getElementById('wizardEmailSubmit')
+      };
+
+      function normalizeEmail(value) {
+        return String(value || '').trim().toLowerCase();
+      }
+
+      function isValidEmail(value) {
+        return /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(normalizeEmail(value));
+      }
+
+      function syncEmail() {
+        wizardState.email = normalizeEmail(wizardElements.email.value);
+        wizardState.emailError = false;
+        wizardElements.submitEmail.value = wizardState.email;
+        try {
+          if (wizardState.email) {
+            window.sessionStorage.setItem(WIZARD_STORAGE_KEY, wizardState.email);
+          } else {
+            window.sessionStorage.removeItem(WIZARD_STORAGE_KEY);
+          }
+        } catch (_error) {}
+      }
+
+      function stepSubtitle(index) {
+        if (index === 1) {
+          return wizardState.emailError ? 'Use a real email.' : 'Press return when it feels right.';
+        }
+        if (index === 2) {
+          return wizardState.email ? ('Using ' + wizardState.email) : 'We will use your email.';
+        }
+        return 'A short, quiet setup.';
+      }
+
+      function syncStepUI() {
+        wizardElements.track.style.transform = 'translate3d(-' + (wizardState.current * 100) + '%, 0, 0)';
+        wizardElements.steps.forEach(function(step, index) {
+          const subtitle = step.querySelector('p');
+          step.classList.toggle('is-active', index === wizardState.current);
+          step.classList.toggle('is-adjacent', Math.abs(index - wizardState.current) === 1);
+          step.setAttribute('aria-hidden', index === wizardState.current ? 'false' : 'true');
+          if ((index === 1 || index === 2) && subtitle) {
+            subtitle.textContent = stepSubtitle(index);
+          }
+        });
+        wizardElements.dots.forEach(function(dot, index) {
+          dot.classList.toggle('is-active', index === wizardState.current);
+          dot.classList.toggle('is-complete', index < wizardState.current);
+        });
+        if (wizardState.current === 1) {
+          window.setTimeout(function () {
+            wizardElements.email.focus();
+            wizardElements.email.select();
+          }, 140);
+        }
+      }
+
+      function goToStep(index) {
+        wizardState.current = Math.max(0, Math.min(WIZARD_TOTAL_STEPS - 1, index));
+        syncStepUI();
+      }
+
+      function nextStep() {
+        if (wizardState.current === 1) {
+          syncEmail();
+          if (!isValidEmail(wizardState.email)) {
+            wizardState.emailError = true;
+            syncStepUI();
+            wizardElements.email.focus();
+            wizardElements.email.select();
+            return;
+          }
+        }
+        if (wizardState.current < WIZARD_TOTAL_STEPS - 1) {
+          goToStep(wizardState.current + 1);
+        }
+      }
+
+      function previousStep() {
+        if (wizardState.current > 0) goToStep(wizardState.current - 1);
+      }
+
+      function handleTouchStart(event) {
+        const point = event.changedTouches ? event.changedTouches[0] : event;
+        wizardState.touchStartX = point.clientX;
+      }
+
+      function handleTouchEnd(event) {
+        if (wizardState.touchStartX === null) return;
+        const point = event.changedTouches ? event.changedTouches[0] : event;
+        const deltaX = point.clientX - wizardState.touchStartX;
+        wizardState.touchStartX = null;
+        if (Math.abs(deltaX) < 64) return;
+        if (deltaX < 0) nextStep();
+        else previousStep();
+      }
+
+      function handlePointerMove(event) {
+        if (!wizardElements.atmosphere) return;
+        const bounds = document.body.getBoundingClientRect();
+        const x = ((event.clientX - bounds.left) / bounds.width) - 0.5;
+        const y = ((event.clientY - bounds.top) / bounds.height) - 0.5;
+        wizardElements.atmosphere.style.transform = 'translate3d(' + (x * 18) + 'px,' + (y * 18) + 'px,0)';
+      }
+
+      wizardElements.begin.addEventListener('click', function () {
+        goToStep(1);
+      });
+
+      wizardElements.email.addEventListener('input', syncEmail);
+      wizardElements.emailForm.addEventListener('submit', function (event) {
+        event.preventDefault();
+        nextStep();
+      });
+
+      wizardElements.continueForm.addEventListener('submit', function (event) {
+        syncEmail();
+        if (!isValidEmail(wizardState.email)) {
+          event.preventDefault();
+          wizardState.emailError = true;
+          goToStep(1);
+          syncStepUI();
+          wizardElements.email.focus();
+          wizardElements.email.select();
+        }
+      });
+
+      window.addEventListener('keydown', function (event) {
+        if (event.defaultPrevented) return;
+        if (event.key === 'ArrowRight') {
+          event.preventDefault();
+          nextStep();
+        } else if (event.key === 'ArrowLeft' || event.key === 'Escape') {
+          event.preventDefault();
+          previousStep();
+        }
+      });
+
+      wizardElements.viewport.addEventListener('touchstart', handleTouchStart, { passive: true });
+      wizardElements.viewport.addEventListener('touchend', handleTouchEnd, { passive: true });
+      wizardElements.viewport.addEventListener('pointerdown', handleTouchStart, { passive: true });
+      wizardElements.viewport.addEventListener('pointerup', handleTouchEnd, { passive: true });
+      window.addEventListener('pointermove', handlePointerMove, { passive: true });
+
+      try {
+        const rememberedEmail = normalizeEmail(window.sessionStorage.getItem(WIZARD_STORAGE_KEY) || '');
+        if (rememberedEmail) wizardElements.email.value = rememberedEmail;
+      } catch (_error) {}
+
+      syncEmail();
+      syncStepUI();
+    `
+  });
+}
+
+function renderOnboardingMessagePage({
+  title,
+  heading,
+  subtitle = '',
+  actionHref = '/miro',
+  actionLabel = 'Continue',
+  detailsHtml = '',
+  progressIndex = 0
+}) {
+  return renderExperiencePage({
+    title,
+    body: `
+      <section class="experience-stage">
+        <div class="experience-atmosphere"></div>
+        <div class="experience-surface">
+          ${renderExperienceDots(3, progressIndex)}
+          <div class="experience-step-static">
+            <div class="experience-copy">
+              <h1>${escapeHtml(heading)}</h1>
+              ${subtitle ? `<p>${escapeHtml(subtitle)}</p>` : ''}
+              <div class="experience-control">
+                <a class="experience-link-button" href="${escapeHtml(actionHref)}">${escapeHtml(actionLabel)}</a>
+              </div>
+              ${detailsHtml ? `
+                <details class="experience-details">
+                  <summary>More</summary>
+                  <div class="experience-details-body">${detailsHtml}</div>
+                </details>` : ''}
+            </div>
+          </div>
+        </div>
+      </section>`
+  });
+}
+
+function renderConfigScenePage({
+  mcpConfigJson,
+  credentialsBundle,
+  emailStateLabel = ''
+}) {
+  return renderExperiencePage({
+    title: 'Connection Ready - Miro Relay',
+    body: `
+      <section class="experience-stage">
+        <div class="experience-atmosphere"></div>
+        <div class="experience-surface">
+          ${renderExperienceDots(3, 2)}
+          <div class="experience-step-static">
+            <div class="experience-copy">
+              <h1>Your connection is ready</h1>
+              <p id="copyStatus">Tap the config to copy.</p>
+              <textarea id="mcpConfig" class="experience-output" readonly>${escapeHtml(mcpConfigJson)}</textarea>
+              <details class="experience-details">
+                <summary>Recovery</summary>
+                <div class="experience-details-body">
+                  <textarea id="bundle" class="experience-output" style="min-height:172px" readonly>${escapeHtml(credentialsBundle)}</textarea>
+                  ${emailStateLabel ? `<div class="experience-meta">${escapeHtml(emailStateLabel)}</div>` : ''}
+                </div>
+              </details>
+            </div>
+          </div>
+        </div>
+      </section>`,
+    script: `
+      async function copyValue(id, successMessage, fallbackMessage) {
+        const field = document.getElementById(id);
+        const status = document.getElementById('copyStatus');
+        const value = field.value;
+        try {
+          await navigator.clipboard.writeText(value);
+          status.textContent = successMessage;
+          return;
+        } catch (_error) {}
+        field.focus();
+        field.select();
+        status.textContent = fallbackMessage;
+      }
+
+      document.getElementById('mcpConfig').addEventListener('click', function () {
+        copyValue('mcpConfig', 'Config copied.', 'Copy is ready. Press Ctrl/Cmd+C.');
+      });
+
+      document.getElementById('bundle').addEventListener('click', function () {
+        copyValue('bundle', 'Recovery bundle copied.', 'Recovery bundle selected. Press Ctrl/Cmd+C.');
+      });
+    `
+  });
+}
+
+function renderReconnectScenePage({ emailStateLabel = '' } = {}) {
+  return renderExperiencePage({
+    title: 'Connected Again - Miro Relay',
+    body: `
+      <section class="experience-stage">
+        <div class="experience-atmosphere"></div>
+        <div class="experience-surface">
+          ${renderExperienceDots(3, 2)}
+          <div class="experience-step-static">
+            <div class="experience-copy">
+              <h1>Connected again</h1>
+              <p>${escapeHtml(emailStateLabel || 'You can close this now.')}</p>
+              <div class="experience-single-control">
+                <a class="experience-link-button" href="/miro">Finish</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>`
+  });
 }
 
 const DEFAULT_NAV_ITEMS = [
@@ -1456,6 +2265,9 @@ const pending = new Map(); // state -> { profileId, verifier }
 const tokens = readJson(TOKEN_FILE, {}); // profileId -> oauth token set
 const clients = readJson(CLIENT_FILE, {}); // profileId -> oauth client
 const profiles = readJson(PROFILE_FILE, {}); // profileId -> metadata
+const providerApps = readJson(PROVIDER_APP_FILE, {}); // appId -> provider app policy
+const serviceClients = readJson(SERVICE_CLIENT_FILE, {}); // serviceId -> broker service client
+const delegationGrants = readJson(DELEGATION_FILE, {}); // grantId -> delegated credential grant
 const breaker = { consecutiveFails: 0, openUntil: 0 };
 const adminSessions = new Map(); // sid -> {expiresAt}
 
@@ -1463,6 +2275,9 @@ function saveAll() {
   writeJson(TOKEN_FILE, tokens);
   writeJson(CLIENT_FILE, clients);
   writeJson(PROFILE_FILE, profiles);
+  writeJson(PROVIDER_APP_FILE, providerApps);
+  writeJson(SERVICE_CLIENT_FILE, serviceClients);
+  writeJson(DELEGATION_FILE, delegationGrants);
 }
 
 function audit(event, details = {}, req = null) {
@@ -1475,13 +2290,73 @@ function audit(event, details = {}, req = null) {
   }
 }
 
-function getProfile(profileId) {
-  return profiles[profileId] || null;
+function recordRelayCall(event, details = {}, req = null) {
+  try {
+    const ip = req ? (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown').toString().split(',')[0].trim() : 'system';
+    appendJsonLine(RELAY_CALL_FILE, { ts: nowIso(), event, ip, details });
+  } catch {
+    // best effort only
+  }
+}
+
+function recordTokenIssueEvent(event, details = {}, req = null) {
+  try {
+    const ip = req ? (req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown').toString().split(',')[0].trim() : 'system';
+    appendJsonLine(TOKEN_ISSUE_FILE, { ts: nowIso(), event, ip, details });
+  } catch {
+    // best effort only
+  }
+}
+
+function ensureDefaultProviderApps() {
+  const now = nowIso();
+  const existing = providerApps['miro-default'];
+  const seeded = createDefaultMiroProviderApp(OAUTH_SCOPE, now);
+  providerApps['miro-default'] = normalizeProviderApp({
+    ...seeded,
+    ...existing,
+    access_mode: existing?.access_mode || MIRO_PROVIDER_ACCESS_MODE,
+    allow_relay: typeof existing?.allow_relay === 'boolean' ? existing.allow_relay : MIRO_PROVIDER_ALLOW_RELAY,
+    allow_direct_token_return: typeof existing?.allow_direct_token_return === 'boolean'
+      ? existing.allow_direct_token_return
+      : MIRO_PROVIDER_ALLOW_DIRECT_TOKEN_RETURN,
+    created_at: existing?.created_at || seeded.created_at,
+    updated_at: now
+  });
+}
+
+function getProviderApp(appId = 'miro-default') {
+  const normalizedId = String(appId || 'miro-default').trim() || 'miro-default';
+  const appConfig = providerApps[normalizedId];
+  if (!appConfig) return null;
+  return normalizeProviderApp({ ...appConfig, id: normalizedId });
+}
+
+function getProviderAppByProfile(profileId) {
+  const profile = profiles[profileId] || {};
+  const providerAppId = profile.provider_app_id || clients[profileId]?.provider_app_id || 'miro-default';
+  return getProviderApp(providerAppId);
+}
+
+function upsertProviderApp(input) {
+  const existing = providerApps[input.id] || {};
+  providerApps[input.id] = normalizeProviderApp({
+    ...existing,
+    ...input,
+    created_at: existing.created_at || input.created_at || nowIso(),
+    updated_at: nowIso()
+  });
+  saveAll();
+  return providerApps[input.id];
 }
 
 function profilePublic(profileId, p) {
+  const providerApp = getProviderAppByProfile(profileId);
   return {
     profile_id: profileId,
+    provider_key: p.provider_key || providerApp?.provider_key || 'miro',
+    provider_app_id: p.provider_app_id || providerApp?.id || 'miro-default',
+    provider_access_mode: providerApp?.access_mode || ACCESS_MODE_RELAY,
     display_name: p.display_name,
     contact: p.contact || '',
     contact_masked: maskContact(p.contact || ''),
@@ -1501,6 +2376,13 @@ function profilePublic(profileId, p) {
     updated_at: p.updated_at || p.created_at
   };
 }
+
+function getProfile(profileId) {
+  return profiles[profileId] || null;
+}
+
+ensureDefaultProviderApps();
+saveAll();
 
 function parseCookies(req) {
   const raw = req.headers.cookie || '';
@@ -1563,6 +2445,139 @@ function requireProfileToken(req, res, next) {
   next();
 }
 
+function authenticateServiceRequest(req, { profileId, providerKey, requestedMode }) {
+  const serviceKey = req.header('x-service-key') || req.header('authorization')?.replace(/^Bearer\s+/i, '');
+  const delegatedCredential = req.header('x-delegated-credential');
+  if (!serviceKey || !delegatedCredential) {
+    return { ok: false, status: 401, error: 'missing_service_credentials' };
+  }
+
+  const serviceClient = Object.values(serviceClients).find((client) => {
+    if (!client?.service_token_hash) return false;
+    return timingSafeEqualHex(tokenHash(serviceKey), client.service_token_hash);
+  });
+
+  if (!serviceClient || serviceClient.enabled === false) {
+    return { ok: false, status: 401, error: 'invalid_service_client' };
+  }
+
+  const grant = Object.values(delegationGrants).find((item) => {
+    if (!item?.delegated_credential_hash) return false;
+    return timingSafeEqualHex(tokenHash(delegatedCredential), item.delegated_credential_hash);
+  });
+
+  if (!grant) {
+    return { ok: false, status: 401, error: 'invalid_delegated_credential' };
+  }
+
+  const providerApp = getProviderApp(grant.provider_app_id || 'miro-default');
+  if (!providerApp) {
+    return { ok: false, status: 404, error: 'provider_app_not_found' };
+  }
+
+  const profileProviderApp = getProviderAppByProfile(profileId);
+  if (!profileProviderApp || profileProviderApp.id !== providerApp.id) {
+    return { ok: false, status: 403, error: 'profile_provider_app_mismatch', serviceClient, grant, providerApp };
+  }
+
+  const decision = validateServiceAccess({
+    providerApp,
+    serviceClient,
+    grant,
+    requestedMode,
+    providerKey,
+    providerAppId: providerApp.id,
+    profileId,
+    environment: String(req.header('x-broker-environment') || '').trim()
+  });
+
+  if (!decision.ok) {
+    return { ok: false, status: 403, error: decision.reason, serviceClient, grant, providerApp };
+  }
+
+  return { ok: true, serviceClient, grant, providerApp };
+}
+
+function issueServiceClient({ service_id, display_name, allowed_provider_app_ids = [], environment = '' }) {
+  const serviceId = safeText(service_id || '', 120).toLowerCase();
+  if (!serviceId) throw Object.assign(new Error('service_id is required'), { status: 400 });
+  if (serviceClients[serviceId] && serviceClients[serviceId].enabled !== false) {
+    throw Object.assign(new Error('service client already exists'), { status: 409 });
+  }
+
+  const serviceKey = newOpaqueSecret();
+  serviceClients[serviceId] = {
+    id: serviceId,
+    display_name: safeText(display_name || serviceId, 120),
+    allowed_provider_app_ids: normalizeStringArray(allowed_provider_app_ids),
+    environment: safeText(environment || '', 40),
+    enabled: true,
+    service_token_hash: tokenHash(serviceKey),
+    created_at: nowIso(),
+    updated_at: nowIso()
+  };
+  saveAll();
+
+  return {
+    service_id: serviceId,
+    service_key: serviceKey,
+    client: serviceClients[serviceId]
+  };
+}
+
+function issueDelegationGrant({
+  profile_id,
+  service_id,
+  provider_key = 'miro',
+  provider_app_id = 'miro-default',
+  allowed_access_modes = [ACCESS_MODE_RELAY],
+  scope_ceiling = [],
+  environment = '',
+  expires_in_hours = 24
+}) {
+  const profileId = resolveProfileId(profile_id);
+  if (!profileId || !profiles[profileId] || profiles[profileId].status === 'deleted') {
+    throw Object.assign(new Error('profile not found'), { status: 404 });
+  }
+
+  if (!serviceClients[service_id] || serviceClients[service_id].enabled === false) {
+    throw Object.assign(new Error('service client not found'), { status: 404 });
+  }
+
+  const providerApp = getProviderApp(provider_app_id);
+  if (!providerApp) {
+    throw Object.assign(new Error('provider app not found'), { status: 404 });
+  }
+
+  const grantId = newRecordId('grant');
+  const delegatedCredential = newOpaqueSecret();
+  const expiresAt = new Date(Date.now() + (Math.max(1, Number(expires_in_hours) || 24) * 60 * 60 * 1000)).toISOString();
+
+  delegationGrants[grantId] = {
+    id: grantId,
+    profile_id: profileId,
+    service_id,
+    provider_key: provider_key || providerApp.provider_key,
+    provider_app_id: providerApp.id,
+    allowed_access_modes: normalizeAllowedAccessModes(allowed_access_modes, providerApp.access_mode),
+    scope_ceiling: normalizeStringArray(scope_ceiling),
+    environment: safeText(environment || '', 40),
+    enabled: true,
+    delegated_credential_hash: tokenHash(delegatedCredential),
+    expires_at: expiresAt,
+    created_at: nowIso(),
+    updated_at: nowIso(),
+    revoked_at: null
+  };
+  saveAll();
+
+  return {
+    grant_id: grantId,
+    delegated_credential: delegatedCredential,
+    grant: delegationGrants[grantId]
+  };
+}
+
 function safeRedirectPath(value, fallback) {
   const pathValue = String(value || '').trim();
   if (pathValue.startsWith('/miro')) return pathValue;
@@ -1590,7 +2605,9 @@ async function registerClient(profileId) {
   clients[profileId] = {
     client_id: data.client_id,
     client_secret: data.client_secret,
-    redirect_uri
+    redirect_uri,
+    provider_key: 'miro',
+    provider_app_id: 'miro-default'
   };
   writeJson(CLIENT_FILE, clients);
   return clients[profileId];
@@ -1639,6 +2656,126 @@ async function getAccessToken(profileId) {
   const exp = t.expires_at || 0;
   if (Date.now() > exp - 60_000) return refreshToken(profileId);
   return t.access_token;
+}
+
+function readJsonLines(file, lines = 200) {
+  const content = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
+  const arr = content.trim() ? content.trim().split('\n') : [];
+  return arr.slice(-Math.max(1, Math.min(2000, lines))).map((line) => {
+    try {
+      return JSON.parse(line);
+    } catch {
+      return { raw: line };
+    }
+  });
+}
+
+async function forwardMiroRelay({ accessToken, req }) {
+  return fetch(`${MCP_BASE}/`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': req.header('content-type') || 'application/json',
+      Accept: 'application/json, text/event-stream'
+    },
+    body: JSON.stringify(req.body)
+  });
+}
+
+const relayAdapters = {
+  miro: {
+    async forward({ accessToken, req }) {
+      return forwardMiroRelay({ accessToken, req });
+    }
+  }
+};
+
+async function relayProviderRequest({ providerKey, profileId, req, res, actor }) {
+  const providerApp = getProviderAppByProfile(profileId);
+  if (!providerApp) {
+    return res.status(404).json({ error: 'provider_app_not_found' });
+  }
+
+  if (!isProviderAppRelayEnabled(providerApp)) {
+    return res.status(403).json({ error: 'provider_app_relay_disabled', provider_app_id: providerApp.id });
+  }
+
+  const adapter = relayAdapters[providerKey];
+  if (!adapter) {
+    return res.status(501).json({ error: 'relay_protocol_not_supported', provider: providerKey });
+  }
+
+  if (breakerIsOpen()) {
+    return res.status(503).json({ error: 'upstream_temporarily_unavailable', retry_after_ms: Math.max(0, breaker.openUntil - Date.now()) });
+  }
+
+  let token;
+  try {
+    token = await getAccessToken(profileId);
+  } catch (e) {
+    return res.status(401).json({
+      error: String(e),
+      hint: `Open ${BASE_URL}/miro/auth/start?profile=${encodeURIComponent(profileId)}`
+    });
+  }
+
+  try {
+    let upstream = null;
+
+    for (let attempt = 0; attempt <= MCP_RETRY_COUNT; attempt++) {
+      upstream = await adapter.forward({ accessToken: token, req, providerApp });
+
+      if (upstream.status === 401) {
+        token = await refreshToken(profileId);
+        upstream = await adapter.forward({ accessToken: token, req, providerApp });
+      }
+
+      if (upstream.status < 500) break;
+      if (attempt < MCP_RETRY_COUNT) await sleep(200 * (attempt + 1));
+    }
+
+    if (!upstream) throw new Error('no upstream response');
+
+    if (upstream.status >= 500) {
+      breakerMarkFailure();
+    } else {
+      breakerMarkSuccess();
+    }
+
+    const relayDetails = {
+      provider_key: providerKey,
+      provider_app_id: providerApp.id,
+      profile_id: profileId,
+      actor_type: actor?.type || 'profile',
+      actor_id: actor?.id || profileId,
+      method: req.body?.method || 'unknown',
+      status: upstream.status
+    };
+
+    audit('relay_call', relayDetails, req);
+    recordRelayCall('relay_call', relayDetails, req);
+
+    res.status(upstream.status);
+    res.setHeader('content-type', upstream.headers.get('content-type') || 'application/json');
+    if (upstream.body) {
+      Readable.fromWeb(upstream.body).pipe(res);
+    } else {
+      res.end();
+    }
+  } catch (e) {
+    breakerMarkFailure();
+    const relayDetails = {
+      provider_key: providerKey,
+      provider_app_id: providerApp.id,
+      profile_id: profileId,
+      actor_type: actor?.type || 'profile',
+      actor_id: actor?.id || profileId,
+      error: String(e)
+    };
+    audit('relay_call_failed', relayDetails, req);
+    recordRelayCall('relay_call_failed', relayDetails, req);
+    res.status(502).json({ error: String(e) });
+  }
 }
 
 app.post('/miro/admin/login', rateLimit('admin-login', 20, 60_000), (req, res) => {
@@ -1940,7 +3077,7 @@ app.get('/miro/workspace', (_req, res) => {
 });
 
 app.get('/miro', (_req, res) => {
-  res.type('html').send(renderConnectWizardPage());
+  res.type('html').send(renderOnboardingExperiencePage());
 });
 
 app.get('/start', (_req, res) => {
@@ -2275,6 +3412,8 @@ async function createProfile({ profile_id, email, contact }) {
   profiles[profileId] = {
     display_name: profileId,
     contact: contactEmail,
+    provider_key: 'miro',
+    provider_app_id: 'miro-default',
     relay_token_hash: tokenHash(relayToken),
     status: 'pending',
     created_at: nowIso(),
@@ -2316,20 +3455,17 @@ app.get('/miro/start', rateLimit('start-enroll', 30, 60_000), async (req, res) =
     const adminKey = String(req.query.admin_key || req.header('x-admin-key') || '');
 
     if (START_REQUIRE_ADMIN && (!ADMIN_API_KEY || adminKey !== ADMIN_API_KEY)) {
-      return res.status(401).type('html').send(renderMessagePage({
-        title: 'Admin approval required',
-        activeNav: 'start',
-        eyebrow: 'Protected start flow',
-        heading: 'This onboarding link requires admin approval',
-        messageHtml: '<p>This relay is configured to protect the browser start flow. Open the link again with a valid <code>?admin_key=...</code> value, or ask an admin to provide an approved link.</p>',
-        actions: [
-          { href: '/miro', label: 'Back', variant: 'secondary' }
-        ]
+      return res.status(401).type('html').send(renderOnboardingMessagePage({
+        title: 'Admin Approval Required',
+        heading: 'Approval required',
+        subtitle: 'Open this link with a valid admin key.',
+        actionHref: '/miro',
+        actionLabel: 'Back'
       }));
     }
 
     if (!email) {
-      return res.type('html').send(renderConnectWizardPage({ adminKey }));
+      return res.type('html').send(renderOnboardingExperiencePage({ adminKey }));
     }
 
     const next = `/miro/auth/start?mode=enroll&email=${encodeURIComponent(email)}`;
@@ -2423,45 +3559,36 @@ app.get('/miro/auth/start', rateLimit('auth-start', 60, 60_000), async (req, res
     if (mode === 'enroll') {
       enrollmentEmail = inputEmail;
       if (!enrollmentEmail) {
-        return res.status(400).type('html').send(renderMessagePage({
-          title: 'Email required',
-          activeNav: 'start',
-          eyebrow: 'Connect',
-          heading: 'Enter an email before continuing',
-          messageHtml: '<p>Start from <code>/miro/start</code>, enter your email, and then continue to Miro OAuth.</p>',
-          actions: [
-            { href: '/miro/start', label: 'Open connect page', variant: 'primary' },
-            { href: '/miro', label: 'Back to home', variant: 'ghost' }
-          ]
+        return res.status(400).type('html').send(renderOnboardingMessagePage({
+          title: 'Email Required',
+          heading: 'Email required',
+          subtitle: 'Start again and enter the address first.',
+          actionHref: '/miro',
+          actionLabel: 'Start again',
+          progressIndex: 1
         }));
       }
       if (!isValidEmailLike(enrollmentEmail)) {
-        return res.status(400).type('html').send(renderMessagePage({
-          title: 'Invalid email',
-          activeNav: 'start',
-          eyebrow: 'Connect',
-          heading: 'Use a valid email address',
-          messageHtml: '<p>The onboarding flow expects a normal email address such as <code>user@example.com</code>.</p>',
-          actions: [
-            { href: '/miro/start', label: 'Try again', variant: 'primary' },
-            { href: '/miro/workspace', label: 'Already have credentials?', variant: 'ghost' }
-          ]
+        return res.status(400).type('html').send(renderOnboardingMessagePage({
+          title: 'Invalid Email',
+          heading: 'Use a real email',
+          subtitle: 'Try a normal address like name@company.com.',
+          actionHref: '/miro',
+          actionLabel: 'Try again',
+          progressIndex: 1
         }));
       }
       profileId = canonicalProfileId(enrollmentEmail);
     } else {
       profileId = resolveProfileId(inputProfileId || inputEmail);
       if (!profileId || !profiles[profileId] || profiles[profileId].status === 'deleted') {
-        return res.status(404).type('html').send(renderMessagePage({
-          title: 'Connection not found',
-          activeNav: 'workspace',
-          eyebrow: 'Reconnect',
-          heading: 'We could not find that profile',
-          messageHtml: '<p>This relay does not currently have an active connection for the requested profile. Start a new connection first, or double-check the profile ID.</p>',
-          actions: [
-            { href: '/miro/start', label: 'Start a new connection', variant: 'primary' },
-            { href: '/miro/workspace', label: 'Open my connection', variant: 'secondary' }
-          ]
+        return res.status(404).type('html').send(renderOnboardingMessagePage({
+          title: 'Connection Not Found',
+          heading: 'Connection not found',
+          subtitle: 'Start a new setup for this profile.',
+          actionHref: '/miro',
+          actionLabel: 'Start setup',
+          progressIndex: 1
         }));
       }
       enrollmentEmail = normalizeEmail(profiles[profileId]?.contact || profileIdToEmail(profileId));
@@ -2499,16 +3626,13 @@ app.get('/miro/auth/callback', async (req, res) => {
     const state = String(req.query.state || '');
     const p = pending.get(state);
     if (!code || !p) {
-      return res.status(400).type('html').send(renderMessagePage({
-        title: 'Invalid callback',
-        activeNav: 'start',
-        eyebrow: 'OAuth callback',
-        heading: 'This callback could not be matched to an active sign-in flow',
-        messageHtml: '<p>The most common reasons are an expired browser flow, a duplicated tab, or a callback opened long after the original authorization request.</p>',
-        actions: [
-          { href: '/miro/start', label: 'Start again', variant: 'primary' },
-          { href: '/miro/workspace', label: 'Open my connection', variant: 'secondary' }
-        ]
+      return res.status(400).type('html').send(renderOnboardingMessagePage({
+        title: 'Invalid Callback',
+        heading: 'This session expired',
+        subtitle: 'Start the setup again from the beginning.',
+        actionHref: '/miro',
+        actionLabel: 'Start again',
+        progressIndex: 2
       }));
     }
 
@@ -2538,16 +3662,13 @@ app.get('/miro/auth/callback', async (req, res) => {
     if (isEnrollMode && activeExisting) {
       pending.delete(state);
       audit('oauth_finalize_conflict', { profile_id: p.profileId }, req);
-      return res.status(409).type('html').send(renderMessagePage({
-        title: 'Connection already exists',
-        activeNav: 'workspace',
-        eyebrow: 'OAuth callback',
-        heading: 'That profile is already active in the relay',
-        messageHtml: `<p>The enrollment was stopped to avoid overwriting the existing connection for <code>${escapeHtml(p.profileId)}</code>.</p>`,
-        actions: [
-          { href: '/miro/workspace', label: 'Open my connection', variant: 'primary' },
-          { href: '/miro/start', label: 'Create a different connection', variant: 'secondary' }
-        ]
+      return res.status(409).type('html').send(renderOnboardingMessagePage({
+        title: 'Connection Exists',
+        heading: 'Already connected',
+        subtitle: `${p.profileId} is already active here.`,
+        actionHref: '/miro',
+        actionLabel: 'Start over',
+        progressIndex: 2
       }));
     }
 
@@ -2603,6 +3724,8 @@ app.get('/miro/auth/callback', async (req, res) => {
       if (!isEnrollMode) {
         profiles[p.profileId] = {
           ...(profiles[p.profileId] || {}),
+          provider_key: 'miro',
+          provider_app_id: 'miro-default',
           ...oauthMeta,
           status: 'pending',
           updated_at: nowIso()
@@ -2611,16 +3734,16 @@ app.get('/miro/auth/callback', async (req, res) => {
       }
       pending.delete(state);
 
-      return res.status(403).type('html').send(renderMessagePage({
-        title: 'Email verification blocked this connection',
-        activeNav: 'workspace',
-        eyebrow: 'OAuth callback',
-        heading: 'Miro OAuth completed, but the identity check did not pass',
-        messageHtml: `<p><strong>Expected email:</strong> <code>${escapeHtml(expectedEmail || '(missing)')}</code></p><p><strong>Detected Miro email:</strong> <code>${escapeHtml(detectedEmail || '(not available)')}</code></p><p>This relay is currently configured in strict email mode, so the connection was not activated.</p>`,
-        actions: [
-          { href: '/miro/workspace', label: 'Open my connection', variant: 'primary' },
-          { href: '/miro/admin', label: 'Contact an admin', variant: 'secondary' }
-        ]
+      return res.status(403).type('html').send(renderOnboardingMessagePage({
+        title: 'Identity Blocked',
+        heading: 'Wrong Miro account',
+        subtitle: 'The email check did not pass in strict mode.',
+        actionHref: '/miro',
+        actionLabel: 'Start again',
+        progressIndex: 2,
+        detailsHtml: `
+          <div class="experience-meta">Expected: <strong class="mono">${escapeHtml(expectedEmail || '(missing)')}</strong></div>
+          <div class="experience-meta">Detected: <strong class="mono">${escapeHtml(detectedEmail || '(not available)')}</strong></div>`
       }));
     }
 
@@ -2631,22 +3754,21 @@ app.get('/miro/auth/callback', async (req, res) => {
       profiles[p.profileId] = {
         display_name: p.profileId,
         contact: expectedEmail,
+        provider_key: 'miro',
+        provider_app_id: 'miro-default',
         relay_token_hash: tokenHash(relayToken),
         status: 'pending',
         created_at: profileCreatedAt,
         updated_at: nowIso()
       };
     } else if (!profiles[p.profileId]) {
-      return res.status(404).type('html').send(renderMessagePage({
-        title: 'Connection missing',
-        activeNav: 'workspace',
-        eyebrow: 'OAuth callback',
-        heading: 'The profile disappeared before completion',
-        messageHtml: '<p>The relay no longer has a matching profile for this OAuth callback. Start a fresh enrollment to continue.</p>',
-        actions: [
-          { href: '/miro/start', label: 'Start a new connection', variant: 'primary' },
-          { href: '/miro/workspace', label: 'Open my connection', variant: 'secondary' }
-        ]
+      return res.status(404).type('html').send(renderOnboardingMessagePage({
+        title: 'Connection Missing',
+        heading: 'That profile disappeared',
+        subtitle: 'Start a fresh setup to continue.',
+        actionHref: '/miro',
+        actionLabel: 'Start again',
+        progressIndex: 2
       }));
     }
 
@@ -2655,10 +3777,14 @@ app.get('/miro/auth/callback', async (req, res) => {
       refresh_token: data.refresh_token,
       token_type: data.token_type,
       scope: data.scope,
-      expires_at: Date.now() + ((data.expires_in || 3600) * 1000)
+      expires_at: Date.now() + ((data.expires_in || 3600) * 1000),
+      provider_key: 'miro',
+      provider_app_id: 'miro-default'
     };
     profiles[p.profileId] = {
       ...(profiles[p.profileId] || {}),
+      provider_key: 'miro',
+      provider_app_id: 'miro-default',
       ...oauthMeta,
       status: 'connected',
       connected_at: profiles[p.profileId]?.connected_at || nowIso(),
@@ -2700,163 +3826,258 @@ app.get('/miro/auth/callback', async (req, res) => {
         }
       }, null, 2);
 
-      return res.type('html').send(renderUiPage({
-        title: 'Connection ready - Miro Relay',
-        activeNav: 'workspace',
-        eyebrow: 'Connected',
-        heading: 'Copy the config',
-        subtitle: 'That is all you need right now.',
-        navItems: [],
-        pageClass: 'wizard-page',
-        body: `
-          <section class="wizard-shell">
-            <div class="wizard-panel" style="min-height:min(72vh,620px);display:flex;align-items:center;justify-content:center">
-              <div class="wizard-step-inner" style="max-width:620px">
-                <div class="wizard-input-card">
-                  <textarea id="mcpConfig" readonly style="min-height:200px">${escapeHtml(mcpConfigJson)}</textarea>
-                </div>
-                <div class="actions">
-                  <button class="button primary" type="button" onclick="copyText('mcpConfig', 'Config')">Copy</button>
-                  <a class="button ghost" href="/miro/workspace">Later</a>
-                </div>
-                <div id="copyStatus" class="wizard-swipe-hint">Config first. Details stay hidden.</div>
-                ${renderTechnicalDetails('More', `
-                  <div class="details-body stack">
-                    <textarea id="bundle" readonly>${escapeHtml(credentialsBundle)}</textarea>
-                    <div class="hint">${escapeHtml(emailState.label)}</div>
-                  </div>`)}
-              </div>
-            </div>
-          </section>
-        `,
-        script: `
-          async function copyText(id, label) {
-            var text = document.getElementById(id).value;
-            var status = document.getElementById('copyStatus');
-            try {
-              await navigator.clipboard.writeText(text);
-              if (status) status.textContent = label + ' copied.';
-              return;
-            } catch (_error) {}
-            var input = document.getElementById(id);
-            input.focus();
-            input.select();
-            if (status) status.textContent = 'Copy blocked. ' + label + ' was selected for manual copy with Ctrl/Cmd+C.';
-          }
-        `,
+      return res.type('html').send(renderConfigScenePage({
+        mcpConfigJson,
+        credentialsBundle,
+        emailStateLabel: emailState.label
       }));
     }
 
-    res.type('html').send(renderUiPage({
-      title: 'Connection refreshed - Miro Relay',
-      activeNav: 'workspace',
-      eyebrow: 'Ready',
-      heading: 'Connected again',
-      subtitle: 'You can close this now.',
-      navItems: [],
-      pageClass: 'wizard-page',
-      body: `
-        <section class="wizard-shell">
-          <div class="wizard-panel" style="min-height:min(62vh,520px);display:flex;align-items:center;justify-content:center">
-            <div class="wizard-step-inner" style="max-width:560px">
-              <div class="actions">
-                <a class="button primary" href="/miro/workspace">Open connection</a>
-                <a class="button ghost" href="/miro">Done</a>
-              </div>
-              ${renderTechnicalDetails('More', `
-                <div class="details-body">
-                  <div class="hint">${escapeHtml(emailState.label)}</div>
-                </div>`)}
-            </div>
-          </div>
-        </section>`
+    res.type('html').send(renderReconnectScenePage({
+      emailStateLabel: emailState.label
     }));
   } catch (e) {
     audit('oauth_failed', { error: String(e) }, req);
-    res.status(500).type('html').send(renderMessagePage({
-      title: 'Authentication failed',
-      activeNav: 'start',
-      eyebrow: 'OAuth callback',
-      heading: 'The relay could not finish the Miro sign-in flow',
-      messageHtml: `<p>The callback reached the relay, but the final token exchange did not complete successfully.</p><p><code>${escapeHtml(String(e))}</code></p>`,
-      actions: [
-        { href: '/miro/start', label: 'Start again', variant: 'primary' }
-      ]
+    res.status(500).type('html').send(renderOnboardingMessagePage({
+      title: 'Authentication Failed',
+      heading: 'Could not finish setup',
+      subtitle: 'The final Miro handshake failed.',
+      actionHref: '/miro',
+      actionLabel: 'Start again',
+      progressIndex: 2,
+      detailsHtml: `<div class="experience-meta"><code>${escapeHtml(String(e))}</code></div>`
     }));
   }
 });
 
-app.post('/miro/mcp/:profile', requireProfileToken, async (req, res) => {
-  const profileId = req.profileId;
+app.get('/broker/admin/provider-apps', requireAdmin, (_req, res) => {
+  const apps = Object.values(providerApps).map((providerApp) => normalizeProviderApp(providerApp));
+  res.json({ ok: true, provider_apps: apps });
+});
 
-  if (breakerIsOpen()) {
-    return res.status(503).json({ error: 'upstream_temporarily_unavailable', retry_after_ms: Math.max(0, breaker.openUntil - Date.now()) });
-  }
-
-  let token;
+app.post('/broker/admin/provider-apps', requireAdmin, (req, res) => {
   try {
-    token = await getAccessToken(profileId);
+    const id = safeText(req.body?.id || '', 120).toLowerCase();
+    const providerKey = safeText(req.body?.provider_key || '', 120).toLowerCase();
+    if (!id || !providerKey) {
+      return res.status(400).json({ error: 'id and provider_key are required' });
+    }
+
+    const providerApp = upsertProviderApp({
+      id,
+      provider_key: providerKey,
+      display_name: safeText(req.body?.display_name || id, 120),
+      enabled: req.body?.enabled !== false,
+      access_mode: normalizeAccessMode(req.body?.access_mode, ACCESS_MODE_RELAY),
+      allow_relay: typeof req.body?.allow_relay === 'boolean' ? req.body.allow_relay : undefined,
+      allow_direct_token_return: typeof req.body?.allow_direct_token_return === 'boolean'
+        ? req.body.allow_direct_token_return
+        : undefined,
+      relay_protocol: safeText(req.body?.relay_protocol || '', 120).toLowerCase(),
+      allow_streaming: typeof req.body?.allow_streaming === 'boolean' ? req.body.allow_streaming : true,
+      allowed_service_ids: normalizeStringArray(req.body?.allowed_service_ids),
+      scope_ceiling: normalizeStringArray(req.body?.scope_ceiling)
+    });
+    audit('provider_app_upserted', { provider_app_id: providerApp.id, provider_key: providerApp.provider_key }, req);
+    res.status(201).json({ ok: true, provider_app: providerApp });
   } catch (e) {
-    return res.status(401).json({
-      error: String(e),
-      hint: `Open ${BASE_URL}/miro/auth/start?profile=${encodeURIComponent(profileId)}`
-    });
+    res.status(Number(e?.status) || 500).json({ error: String(e?.message || e) });
   }
+});
 
-  async function forward(accessToken) {
-    return fetch(`${MCP_BASE}/`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': req.header('content-type') || 'application/json',
-        Accept: 'application/json, text/event-stream'
-      },
-      body: JSON.stringify(req.body)
-    });
-  }
-
+app.post('/broker/admin/service-clients', requireAdmin, (req, res) => {
   try {
-    let upstream = null;
+    const created = issueServiceClient({
+      service_id: req.body?.service_id,
+      display_name: req.body?.display_name,
+      allowed_provider_app_ids: req.body?.allowed_provider_app_ids,
+      environment: req.body?.environment
+    });
+    audit('service_client_created', { service_id: created.service_id }, req);
+    res.status(201).json({ ok: true, ...created, note: 'Store service_key now. It is not shown again.' });
+  } catch (e) {
+    res.status(Number(e?.status) || 500).json({ error: String(e?.message || e) });
+  }
+});
 
-    // initial + retry loop for transient failures
-    for (let attempt = 0; attempt <= MCP_RETRY_COUNT; attempt++) {
-      upstream = await forward(token);
+app.get('/broker/admin/service-clients', requireAdmin, (_req, res) => {
+  const clientsList = Object.values(serviceClients).map((client) => ({
+    id: client.id,
+    display_name: client.display_name,
+    allowed_provider_app_ids: client.allowed_provider_app_ids || [],
+    environment: client.environment || '',
+    enabled: client.enabled !== false,
+    created_at: client.created_at,
+    updated_at: client.updated_at
+  }));
+  res.json({ ok: true, service_clients: clientsList });
+});
 
-      if (upstream.status === 401) {
-        token = await refreshToken(profileId);
-        upstream = await forward(token);
-      }
-
-      if (upstream.status < 500) break;
-      if (attempt < MCP_RETRY_COUNT) await sleep(200 * (attempt + 1));
-    }
-
-    if (!upstream) throw new Error('no upstream response');
-
-    if (upstream.status >= 500) {
-      breakerMarkFailure();
-    } else {
-      breakerMarkSuccess();
-    }
-
-    audit('mcp_call', {
-      profile_id: profileId,
-      method: req.body?.method || 'unknown',
-      status: upstream.status
+app.post('/broker/admin/delegation-grants', requireAdmin, (req, res) => {
+  try {
+    const created = issueDelegationGrant({
+      profile_id: req.body?.profile_id,
+      service_id: req.body?.service_id,
+      provider_key: req.body?.provider_key || 'miro',
+      provider_app_id: req.body?.provider_app_id || 'miro-default',
+      allowed_access_modes: req.body?.allowed_access_modes,
+      scope_ceiling: req.body?.scope_ceiling,
+      environment: req.body?.environment,
+      expires_in_hours: req.body?.expires_in_hours
+    });
+    audit('delegation_grant_created', {
+      grant_id: created.grant_id,
+      service_id: created.grant.service_id,
+      profile_id: created.grant.profile_id,
+      provider_app_id: created.grant.provider_app_id
     }, req);
-
-    res.status(upstream.status);
-    res.setHeader('content-type', upstream.headers.get('content-type') || 'application/json');
-    if (upstream.body) {
-      Readable.fromWeb(upstream.body).pipe(res);
-    } else {
-      res.end();
-    }
+    res.status(201).json({ ok: true, ...created, note: 'Store delegated_credential now. It is not shown again.' });
   } catch (e) {
-    breakerMarkFailure();
-    audit('mcp_call_failed', { profile_id: profileId, error: String(e) }, req);
-    res.status(502).json({ error: String(e) });
+    res.status(Number(e?.status) || 500).json({ error: String(e?.message || e) });
   }
+});
+
+app.get('/broker/admin/delegation-grants', requireAdmin, (_req, res) => {
+  const grants = Object.values(delegationGrants).map((grant) => ({
+    id: grant.id,
+    profile_id: grant.profile_id,
+    service_id: grant.service_id,
+    provider_key: grant.provider_key,
+    provider_app_id: grant.provider_app_id,
+    allowed_access_modes: grant.allowed_access_modes,
+    scope_ceiling: grant.scope_ceiling || [],
+    environment: grant.environment || '',
+    enabled: grant.enabled !== false,
+    expires_at: grant.expires_at,
+    revoked_at: grant.revoked_at || null,
+    created_at: grant.created_at,
+    updated_at: grant.updated_at
+  }));
+  res.json({ ok: true, delegation_grants: grants });
+});
+
+app.post('/broker/admin/delegation-grants/:grantId/revoke', requireAdmin, (req, res) => {
+  const grantId = String(req.params.grantId || '').trim();
+  const grant = delegationGrants[grantId];
+  if (!grant) {
+    return res.status(404).json({ error: 'delegation grant not found' });
+  }
+
+  delegationGrants[grantId] = {
+    ...grant,
+    enabled: false,
+    revoked_at: nowIso(),
+    updated_at: nowIso()
+  };
+  saveAll();
+  audit('delegation_grant_revoked', { grant_id: grantId }, req);
+  res.json({ ok: true, grant: delegationGrants[grantId] });
+});
+
+app.post('/broker/provider-access/:provider/:profileId', rateLimit('provider-access', 60, 60_000), async (req, res) => {
+  const providerKey = safeText(req.params.provider || '', 120).toLowerCase();
+  const profileId = resolveProfileId(req.params.profileId);
+  const requestedMode = ACCESS_MODE_DIRECT_TOKEN;
+  if (!profileId || !profiles[profileId] || profiles[profileId].status === 'deleted') {
+    return res.status(404).json({ error: 'profile not found' });
+  }
+
+  const auth = authenticateServiceRequest(req, { profileId, providerKey, requestedMode });
+  if (!auth.ok) {
+    recordTokenIssueEvent('provider_access_token_denied', {
+      provider_key: providerKey,
+      profile_id: profileId,
+      error: auth.error,
+      provider_app_id: auth.providerApp?.id || null,
+      service_id: auth.serviceClient?.id || null
+    }, req);
+    return res.status(auth.status).json({ error: auth.error });
+  }
+
+  try {
+    const accessToken = await getAccessToken(profileId);
+    const tokenSet = tokens[profileId] || {};
+    const responseBody = {
+      ok: true,
+      provider_key: providerKey,
+      provider_app_id: auth.providerApp.id,
+      profile_id: profileId,
+      access_mode: ACCESS_MODE_DIRECT_TOKEN,
+      access_token: accessToken,
+      token_type: tokenSet.token_type || 'Bearer',
+      scope: tokenSet.scope || null,
+      expires_at: tokenSet.expires_at || null
+    };
+    const details = {
+      provider_key: providerKey,
+      provider_app_id: auth.providerApp.id,
+      profile_id: profileId,
+      service_id: auth.serviceClient.id,
+      grant_id: auth.grant.id,
+      scope: tokenSet.scope || null
+    };
+    audit('provider_access_token_issued', details, req);
+    recordTokenIssueEvent('provider_access_token_issued', details, req);
+    res.json(responseBody);
+  } catch (e) {
+    recordTokenIssueEvent('provider_access_token_failed', {
+      provider_key: providerKey,
+      profile_id: profileId,
+      provider_app_id: auth.providerApp.id,
+      service_id: auth.serviceClient.id,
+      grant_id: auth.grant.id,
+      error: String(e)
+    }, req);
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+app.post('/broker/relay/:provider/:profileId', rateLimit('broker-relay', 120, 60_000), async (req, res) => {
+  const providerKey = safeText(req.params.provider || '', 120).toLowerCase();
+  const profileId = resolveProfileId(req.params.profileId);
+  if (!profileId || !profiles[profileId] || profiles[profileId].status === 'deleted') {
+    return res.status(404).json({ error: 'profile not found' });
+  }
+
+  const auth = authenticateServiceRequest(req, { profileId, providerKey, requestedMode: ACCESS_MODE_RELAY });
+  if (!auth.ok) {
+    recordRelayCall('relay_call_denied', {
+      provider_key: providerKey,
+      profile_id: profileId,
+      error: auth.error,
+      provider_app_id: auth.providerApp?.id || null,
+      service_id: auth.serviceClient?.id || null
+    }, req);
+    return res.status(auth.status).json({ error: auth.error });
+  }
+
+  return relayProviderRequest({
+    providerKey,
+    profileId,
+    req,
+    res,
+    actor: { type: 'service', id: auth.serviceClient.id }
+  });
+});
+
+app.get('/broker/admin/token-issues', requireAdmin, (req, res) => {
+  const entries = readJsonLines(TOKEN_ISSUE_FILE, Number(req.query.lines || 200));
+  res.json({ ok: true, count: entries.length, entries });
+});
+
+app.get('/broker/admin/relay-calls', requireAdmin, (req, res) => {
+  const entries = readJsonLines(RELAY_CALL_FILE, Number(req.query.lines || 200));
+  res.json({ ok: true, count: entries.length, entries });
+});
+
+app.post('/miro/mcp/:profile', requireProfileToken, async (req, res) => {
+  return relayProviderRequest({
+    providerKey: 'miro',
+    profileId: req.profileId,
+    req,
+    res,
+    actor: { type: 'profile', id: req.profileId }
+  });
 });
 
 app.get('/healthz', (_req, res) => {
@@ -2879,12 +4100,7 @@ app.get('/readyz', async (_req, res) => {
 
 app.get('/miro/admin/audit', requireAdmin, (req, res) => {
   try {
-    const lines = Number(req.query.lines || 200);
-    const content = fs.existsSync(AUDIT_FILE) ? fs.readFileSync(AUDIT_FILE, 'utf8') : '';
-    const arr = content.trim() ? content.trim().split('\n') : [];
-    const out = arr.slice(-Math.max(1, Math.min(2000, lines))).map((l) => {
-      try { return JSON.parse(l); } catch { return { raw: l }; }
-    });
+    const out = readJsonLines(AUDIT_FILE, Number(req.query.lines || 200));
     res.json({ ok: true, count: out.length, entries: out });
   } catch (e) {
     res.status(500).json({ error: String(e) });
@@ -2899,7 +4115,10 @@ app.get('/', (_req, res) => {
       start_require_admin: START_REQUIRE_ADMIN,
       oauth_email_mode: OAUTH_EMAIL_MODE,
       oauth_scope: OAUTH_SCOPE,
-      pending_profile_ttl_minutes: PENDING_PROFILE_TTL_MINUTES
+      pending_profile_ttl_minutes: PENDING_PROFILE_TTL_MINUTES,
+      miro_provider_access_mode: getProviderApp('miro-default')?.access_mode || ACCESS_MODE_RELAY,
+      miro_allow_relay: getProviderApp('miro-default')?.allow_relay !== false,
+      miro_allow_direct_token_return: getProviderApp('miro-default')?.allow_direct_token_return === true
     },
     endpoints: {
       ui: '/miro',
@@ -2912,11 +4131,18 @@ app.get('/', (_req, res) => {
       create_profile: 'POST /miro/profiles (X-Admin-Key)',
       auth_start: '/miro/auth/start?profile=<profile_id>',
       mcp_proxy: '/miro/mcp/:profile (POST, X-Relay-Key)',
+      generic_relay: '/broker/relay/:provider/:profileId (POST, X-Service-Key + X-Delegated-Credential)',
+      provider_access_token: '/broker/provider-access/:provider/:profileId (POST, X-Service-Key + X-Delegated-Credential)',
       deregister: 'DELETE /miro/profiles/:profileId (X-Relay-Key of profile)',
       admin_deregister: 'DELETE /miro/admin/profiles/:profileId (X-Admin-Key)',
       admin_rotate_token: 'POST /miro/admin/profiles/:profileId/rotate-token (X-Admin-Key)',
       admin_revoke_oauth: 'POST /miro/admin/profiles/:profileId/revoke-oauth (X-Admin-Key)',
-      admin_audit: 'GET /miro/admin/audit?lines=200 (X-Admin-Key)'
+      admin_audit: 'GET /miro/admin/audit?lines=200 (X-Admin-Key)',
+      admin_provider_apps: 'GET/POST /broker/admin/provider-apps (X-Admin-Key)',
+      admin_service_clients: 'GET/POST /broker/admin/service-clients (X-Admin-Key)',
+      admin_delegation_grants: 'GET/POST /broker/admin/delegation-grants (X-Admin-Key)',
+      admin_token_issues: 'GET /broker/admin/token-issues?lines=200 (X-Admin-Key)',
+      admin_relay_calls: 'GET /broker/admin/relay-calls?lines=200 (X-Admin-Key)'
     }
   });
 });

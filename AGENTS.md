@@ -7,10 +7,12 @@ Follow these repo-specific conventions and commands first.
 
 - Runtime: Node.js (ESM, `"type": "module"`).
 - Main entrypoint: `src/index.js`.
+- New broker backend scaffold: FastAPI under `backend/app`.
+- New frontend scaffold: React/Vite under `frontend/`.
 - Package manager: npm (`package-lock.json` is present).
 - App style: single-process Express service with file-backed JSON state.
 - Container support: `Dockerfile` + `docker-compose.yml`.
-- Tests/lint tools: not currently configured in this repository.
+- Tests/lint tools: Node built-in tests for the relay, Python syntax checks for the new backend.
 
 ## Rule Files (Cursor / Copilot)
 
@@ -26,6 +28,8 @@ Follow these repo-specific conventions and commands first.
 - Start app locally: `npm start`
 - Start app directly with Node: `node src/index.js`
 - Start with env file prepared: `cp .env.example .env && npm start`
+- Start broker backend locally: `cd backend && pip install -r requirements.txt && uvicorn app.main:app --reload`
+- Start frontend locally: `cd frontend && npm install && npm run dev`
 
 ## Docker Commands
 
@@ -39,7 +43,8 @@ Follow these repo-specific conventions and commands first.
 
 - Build script: none configured (`package.json` has no `build`).
 - Lint script: none configured (`package.json` has no `lint`).
-- Test script: none configured (`package.json` has no `test`).
+- Test script: `npm test` runs Node's built-in test runner.
+- Backend validation currently uses `python3 -m py_compile`.
 - Do not assume Jest/Vitest/ESLint are available unless you add them intentionally.
 
 ## Practical Verification Commands (Current Repo)
@@ -52,9 +57,10 @@ Follow these repo-specific conventions and commands first.
 
 ## Testing Guidance (Especially Single Test)
 
-There is no committed test suite yet. If you add tests, prefer Node's built-in test runner unless asked otherwise.
+The repository now uses Node's built-in test runner for focused unit tests.
 
 - Run all tests (Node built-in): `node --test`
+- Run all tests via npm: `npm test`
 - Run a single test file: `node --test test/some-feature.test.js`
 - Run tests by name pattern: `node --test --test-name-pattern "auth callback"`
 - Run a single file with watch mode (Node >= 20): `node --test --watch test/some-feature.test.js`

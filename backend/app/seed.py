@@ -1,0 +1,205 @@
+from __future__ import annotations
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.core.config import get_settings
+from app.database import Base, engine
+from app.models import AccessMode, Organization, ProviderApp, ProviderDefinition, ProviderInstance, ProviderRole, User
+from app.security import dumps_json, encrypt_text, hash_secret
+
+
+def init_db() -> None:
+    Base.metadata.create_all(bind=engine)
+    settings = get_settings()
+    with Session(engine) as db:
+        org = db.scalar(select(Organization).where(Organization.slug == settings.default_org_slug))
+        if not org:
+            org = Organization(slug=settings.default_org_slug, name=settings.default_org_name)
+            db.add(org)
+            db.flush()
+
+        admin = db.scalar(select(User).where(User.organization_id == org.id, User.email == settings.bootstrap_admin_email))
+        if not admin:
+            admin = User(
+                organization_id=org.id,
+                email=settings.bootstrap_admin_email,
+                display_name=settings.bootstrap_admin_display_name,
+                password_hash=hash_secret(settings.bootstrap_admin_password),
+                is_admin=True,
+                is_active=True,
+            )
+            db.add(admin)
+
+        miro = _ensure_provider_definition(
+            db,
+            key="miro",
+            display_name="Miro",
+            protocol="oauth2",
+            supports_broker_auth=False,
+            supports_downstream_oauth=True,
+            metadata={"relay_protocols": ["mcp_streamable_http"]},
+        )
+        microsoft = _ensure_provider_definition(
+            db,
+            key="microsoft",
+            display_name="Microsoft",
+            protocol="oidc+oauth2",
+            supports_broker_auth=True,
+            supports_downstream_oauth=True,
+            metadata={"broker_auth": True, "downstream": ["graph"]},
+        )
+
+        miro_instance = _ensure_provider_instance(
+            db,
+            organization_id=org.id,
+            provider_definition_id=miro.id,
+            key="miro-downstream",
+            display_name="Miro Downstream OAuth",
+            role=ProviderRole.DOWNSTREAM_OAUTH.value,
+            authorization_endpoint=f"{settings.miro_mcp_base.rstrip('/')}/authorize",
+            token_endpoint=f"{settings.miro_mcp_base.rstrip('/')}/token",
+        )
+        _ensure_provider_app(
+            db,
+            organization_id=org.id,
+            provider_instance_id=miro_instance.id,
+            key="miro-default",
+            display_name="Miro Relay App",
+            access_mode=AccessMode.RELAY.value,
+            allow_relay=True,
+            allow_direct_token_return=False,
+            relay_protocol="mcp_streamable_http",
+            default_scopes=settings.miro_scope_list,
+            scope_ceiling=settings.miro_scope_list,
+        )
+
+        microsoft_auth = _ensure_provider_instance(
+            db,
+            organization_id=org.id,
+            provider_definition_id=microsoft.id,
+            key="microsoft-broker-auth",
+            display_name="Microsoft Broker Login",
+            role=ProviderRole.BROKER_AUTH.value,
+        )
+        _ensure_provider_app(
+            db,
+            organization_id=org.id,
+            provider_instance_id=microsoft_auth.id,
+            key="microsoft-broker-default",
+            display_name="Microsoft Broker Login App",
+            access_mode=AccessMode.RELAY.value,
+            allow_relay=False,
+            allow_direct_token_return=False,
+            default_scopes=["openid", "profile", "email"],
+            scope_ceiling=["openid", "profile", "email"],
+        )
+
+        microsoft_graph = _ensure_provider_instance(
+            db,
+            organization_id=org.id,
+            provider_definition_id=microsoft.id,
+            key="microsoft-graph-downstream",
+            display_name="Microsoft Graph Downstream OAuth",
+            role=ProviderRole.DOWNSTREAM_OAUTH.value,
+        )
+        _ensure_provider_app(
+            db,
+            organization_id=org.id,
+            provider_instance_id=microsoft_graph.id,
+            key="microsoft-graph-default",
+            display_name="Microsoft Graph App",
+            access_mode=AccessMode.HYBRID.value,
+            allow_relay=True,
+            allow_direct_token_return=True,
+            relay_protocol="rest_proxy",
+            default_scopes=["openid", "profile", "email", "offline_access", "Mail.Read"],
+            scope_ceiling=["openid", "profile", "email", "offline_access", "Mail.Read", "Calendars.Read", "Files.Read"],
+        )
+
+        db.commit()
+
+
+def _ensure_provider_definition(db: Session, *, key: str, display_name: str, protocol: str, supports_broker_auth: bool, supports_downstream_oauth: bool, metadata: dict) -> ProviderDefinition:
+    provider_definition = db.scalar(select(ProviderDefinition).where(ProviderDefinition.key == key))
+    if provider_definition:
+        return provider_definition
+    provider_definition = ProviderDefinition(
+        key=key,
+        display_name=display_name,
+        protocol=protocol,
+        supports_broker_auth=supports_broker_auth,
+        supports_downstream_oauth=supports_downstream_oauth,
+        metadata_json=dumps_json(metadata),
+    )
+    db.add(provider_definition)
+    db.flush()
+    return provider_definition
+
+
+def _ensure_provider_instance(
+    db: Session,
+    *,
+    organization_id: str,
+    provider_definition_id: str,
+    key: str,
+    display_name: str,
+    role: str,
+    issuer: str | None = None,
+    authorization_endpoint: str | None = None,
+    token_endpoint: str | None = None,
+    userinfo_endpoint: str | None = None,
+) -> ProviderInstance:
+    provider_instance = db.scalar(select(ProviderInstance).where(ProviderInstance.organization_id == organization_id, ProviderInstance.key == key))
+    if provider_instance:
+        return provider_instance
+    provider_instance = ProviderInstance(
+        organization_id=organization_id,
+        provider_definition_id=provider_definition_id,
+        key=key,
+        display_name=display_name,
+        role=role,
+        issuer=issuer,
+        authorization_endpoint=authorization_endpoint,
+        token_endpoint=token_endpoint,
+        userinfo_endpoint=userinfo_endpoint,
+    )
+    db.add(provider_instance)
+    db.flush()
+    return provider_instance
+
+
+def _ensure_provider_app(
+    db: Session,
+    *,
+    organization_id: str,
+    provider_instance_id: str,
+    key: str,
+    display_name: str,
+    access_mode: str,
+    allow_relay: bool,
+    allow_direct_token_return: bool,
+    default_scopes: list[str],
+    scope_ceiling: list[str],
+    relay_protocol: str | None = None,
+) -> ProviderApp:
+    provider_app = db.scalar(select(ProviderApp).where(ProviderApp.organization_id == organization_id, ProviderApp.key == key))
+    if provider_app:
+        return provider_app
+    provider_app = ProviderApp(
+        organization_id=organization_id,
+        provider_instance_id=provider_instance_id,
+        key=key,
+        display_name=display_name,
+        encrypted_client_secret=encrypt_text(None),
+        redirect_uris_json=dumps_json([]),
+        default_scopes_json=dumps_json(default_scopes),
+        scope_ceiling_json=dumps_json(scope_ceiling),
+        access_mode=access_mode,
+        allow_relay=allow_relay,
+        allow_direct_token_return=allow_direct_token_return,
+        relay_protocol=relay_protocol,
+    )
+    db.add(provider_app)
+    db.flush()
+    return provider_app

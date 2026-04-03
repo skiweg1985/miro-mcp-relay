@@ -1,3 +1,26 @@
+## 2026-04-03 – Cursor Agent – Workspace Connect-Buttons entfernt
+
+- Done:
+  - `WorkspacePage`: `PageIntro`-Aktionen (primäre Connect-Miro-/Graph-Buttons) entfernt; `connectTargets` und `onNavigate`-Prop entfallen.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - frontend/src/App.tsx
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build`
+  - UI path: `/workspace`
+- Changelog updated:
+  - yes ([Unreleased] Changed)
+- Follow-ups:
+  - none
+
 ## 2026-04-03 – Cursor Agent – Admin-UI Redesign OAuth
 
 - Done:

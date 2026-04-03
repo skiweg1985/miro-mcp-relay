@@ -490,7 +490,7 @@ function MiroAccessCard({
 }
 
 
-function WorkspacePage({ onNavigate }: { onNavigate: (path: string) => void }) {
+function WorkspacePage() {
   const { notify, session } = useAppContext();
   const [providerApps, setProviderApps] = useState<ProviderAppOut[]>([]);
   const [connections, setConnections] = useState<ConnectedAccountOut[]>([]);
@@ -534,10 +534,6 @@ function WorkspacePage({ onNavigate }: { onNavigate: (path: string) => void }) {
     [providerApps],
   );
   const existingMiro = findMiroConnection(connections, providerAppById);
-  const connectTargets = [
-    { route: "miro", templateKey: "miro-relay", label: "Connect Miro" },
-    { route: "microsoft-graph", templateKey: "microsoft-graph-direct", label: "Connect Microsoft Graph" },
-  ].filter((target) => findProviderAppByTemplate(providerApps, target.templateKey));
 
   const runAction = async (actionKey: string, fn: () => Promise<void>) => {
     setBusyActions((prev) => new Set(prev).add(actionKey));
@@ -620,15 +616,6 @@ function WorkspacePage({ onNavigate }: { onNavigate: (path: string) => void }) {
         eyebrow="Workspace"
         title="Manage your provider access"
         description="See your broker-held provider connections, refresh or revoke them, and run a safe connectivity probe before downstream consumers request access."
-        actions={
-          <div className="inline-actions">
-            {connectTargets.map((target) => (
-              <button key={target.route} type="button" className="primary-button" onClick={() => onNavigate(`/connect/${target.route}`)}>
-                {target.label}
-              </button>
-            ))}
-          </div>
-        }
       />
 
       <div className="metric-grid">
@@ -1580,7 +1567,7 @@ function AuthenticatedApp() {
       title="Self-service suite"
       subtitle="Connections, grants, and diagnostics"
     >
-      {route.name === "workspace" ? <WorkspacePage onNavigate={navigate} /> : null}
+      {route.name === "workspace" ? <WorkspacePage /> : null}
       {route.name === "connect" ? <ConnectProviderPage onNavigate={navigate} providerKey={route.params.providerKey} /> : null}
       {route.name === "grants" ? <GrantsPage /> : null}
       {route.name === "tokenAccess" ? <TokenAccessPage /> : null}

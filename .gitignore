@@ -5,6 +5,5 @@ __pycache__/
 frontend/node_modules/
 frontend/dist/
 backend/.venv/
-devcert/*.crt
-devcert/*.key
-devcert/*.pem
+devcert/*
+!devcert/*.sh

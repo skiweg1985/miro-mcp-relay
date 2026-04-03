@@ -9,24 +9,16 @@ import {
 } from "react";
 
 import { api } from "./api";
-import type { ApiError, CapabilityFlagSet, SessionState, Toast, UserOut } from "./types";
+import type { ApiError, SessionState, Toast, UserOut } from "./types";
 
 type AppContextValue = {
   session: SessionState;
-  capabilities: CapabilityFlagSet;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshSession: () => Promise<void>;
   notify: (toast: Omit<Toast, "id">) => void;
   dismissToast: (id: number) => void;
   toasts: Toast[];
-};
-
-const capabilities: CapabilityFlagSet = {
-  microsoftBrokerAuth: false,
-  providerOAuthConnect: false,
-  userWorkspace: false,
-  tokenAccessDiagnostics: false,
 };
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -119,7 +111,6 @@ export function AppProvider({ children }: PropsWithChildren) {
   const value = useMemo<AppContextValue>(
     () => ({
       session,
-      capabilities,
       login,
       logout,
       refreshSession,

@@ -52,6 +52,7 @@ Primary new-stack surfaces:
 
 - broker API docs: [http://localhost:8000/api/v1/docs](http://localhost:8000/api/v1/docs)
 - broker frontend shell: [http://localhost:5173](http://localhost:5173)
+- end-user workspace: [http://localhost:5173/workspace](http://localhost:5173/workspace)
 
 For local development without Docker:
 
@@ -71,6 +72,15 @@ uvicorn app.main:app --reload
 cd frontend
 npm install
 npm run dev
+```
+
+To enable Microsoft end-user login, set these values in `.env` before starting the backend:
+
+```bash
+MICROSOFT_BROKER_TENANT_ID=common
+MICROSOFT_BROKER_CLIENT_ID=...
+MICROSOFT_BROKER_CLIENT_SECRET=...
+MICROSOFT_BROKER_SCOPE="openid profile email"
 ```
 
 ## BASE_URL note (important)

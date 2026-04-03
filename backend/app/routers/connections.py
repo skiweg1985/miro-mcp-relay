@@ -8,17 +8,22 @@ from urllib.parse import quote
 
 from app.database import get_db
 from app.deps import authenticate_service, get_current_user, record_audit, require_csrf
-from app.miro import finalize_miro_callback, get_miro_provider_app, refresh_connected_account, relay_miro_request, start_miro_connection
-from app.models import AccessMode, ConnectedAccount, ProviderApp, User
-from app.schemas import ConnectedAccountOut, MiroConnectStartRequest, MiroConnectStartResponse, ProviderAppOut
-from app.security import utcnow
+from app.miro import fetch_miro_token_context, finalize_miro_callback, get_miro_provider_app, refresh_connected_account, relay_miro_request, start_miro_connection
+from app.models import AccessMode, ConnectedAccount, ProviderApp, TokenMaterial, User
+from app.schemas import ConnectedAccountOut, ConnectionProbeResponse, MiroConnectStartRequest, MiroConnectStartResponse, ProviderAppOut
+from app.security import decrypt_text, utcnow
 
 router = APIRouter(tags=["connections"])
 
 
 @router.get("/provider-apps", response_model=list[ProviderAppOut])
-def list_provider_apps(db: Session = Depends(get_db), _user: User = Depends(get_current_user)):
-    return db.scalars(select(ProviderApp).where(ProviderApp.is_enabled.is_(True)).order_by(ProviderApp.display_name.asc())).all()
+def list_provider_apps(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return db.scalars(
+        select(ProviderApp).where(
+            ProviderApp.organization_id == current_user.organization_id,
+            ProviderApp.is_enabled.is_(True),
+        ).order_by(ProviderApp.display_name.asc())
+    ).all()
 
 
 @router.get("/connections", response_model=list[ConnectedAccountOut])
@@ -37,7 +42,9 @@ async def start_miro(
     if payload.user_email:
         if not current_user.is_admin and payload.user_email.lower() != current_user.email.lower():
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required for target user selection")
-        target_user = db.scalar(select(User).where(User.email == payload.user_email))
+        target_user = db.scalar(
+            select(User).where(User.organization_id == current_user.organization_id, User.email == payload.user_email)
+        )
         if not target_user:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Target user not found")
 
@@ -69,7 +76,7 @@ async def miro_callback(code: str, state: str, db: Session = Depends(get_db)):
 
         settings = get_settings()
         return RedirectResponse(
-            url=f"{settings.frontend_base_url.rstrip('/')}/?miro_status=error&message={quote(str(exc.detail))}",
+            url=f"{settings.frontend_base_url.rstrip('/')}/workspace?miro_status=error&message={quote(str(exc.detail))}",
             status_code=302,
         )
 
@@ -113,6 +120,91 @@ def revoke_connection(connection_id: str, current_user: User = Depends(get_curre
     db.commit()
     db.refresh(connection)
     return connection
+
+
+@router.post("/connections/{connection_id}/probe", response_model=ConnectionProbeResponse)
+async def probe_connection(
+    connection_id: str,
+    current_user: User = Depends(get_current_user),
+    _csrf: str = Depends(require_csrf),
+    db: Session = Depends(get_db),
+):
+    connection = db.get(ConnectedAccount, connection_id)
+    if not connection or (connection.user_id != current_user.id and not current_user.is_admin):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Connection not found")
+
+    provider_app = db.get(ProviderApp, connection.provider_app_id)
+    if not provider_app or provider_app.key != "miro-default":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Connection probe is currently implemented for Miro connections only")
+
+    checked_at = utcnow()
+    refreshed = False
+    token_material = db.scalar(select(TokenMaterial).where(TokenMaterial.connected_account_id == connection.id))
+    if not token_material or not token_material.encrypted_access_token:
+        return ConnectionProbeResponse(
+            ok=False,
+            status="error",
+            connected_account_id=connection.id,
+            provider_app_key=provider_app.key,
+            checked_at=checked_at,
+            message="Token material not found",
+        )
+
+    access_token = decrypt_text(token_material.encrypted_access_token)
+    context = await fetch_miro_token_context(access_token or "")
+    if not context.get("ok") and token_material.encrypted_refresh_token and connection.oauth_client_id and connection.encrypted_oauth_client_secret:
+        try:
+            await refresh_connected_account(db, connection)
+            refreshed = True
+            db.refresh(connection)
+            token_material = db.scalar(select(TokenMaterial).where(TokenMaterial.connected_account_id == connection.id))
+            access_token = decrypt_text(token_material.encrypted_access_token) if token_material else None
+            context = await fetch_miro_token_context(access_token or "")
+        except HTTPException as exc:
+            context = {"ok": False, "error": str(exc.detail)}
+
+    if context.get("ok"):
+        connection.last_error = None
+        record_audit(
+            db,
+            action="user.connection.probe",
+            actor_type="user",
+            actor_id=current_user.id,
+            organization_id=current_user.organization_id,
+            metadata={"connected_account_id": connection.id, "ok": True, "refreshed": refreshed},
+        )
+        db.commit()
+        return ConnectionProbeResponse(
+            ok=True,
+            status="ok",
+            connected_account_id=connection.id,
+            provider_app_key=provider_app.key,
+            checked_at=checked_at,
+            refreshed=refreshed,
+            external_user_id=str(context.get("user_id") or "") or None,
+            external_user_name=str(context.get("user_name") or "") or None,
+        )
+
+    message = str(context.get("error") or "Probe failed")
+    connection.last_error = message
+    record_audit(
+        db,
+        action="user.connection.probe",
+        actor_type="user",
+        actor_id=current_user.id,
+        organization_id=current_user.organization_id,
+        metadata={"connected_account_id": connection.id, "ok": False, "refreshed": refreshed, "error": message},
+    )
+    db.commit()
+    return ConnectionProbeResponse(
+        ok=False,
+        status="error",
+        connected_account_id=connection.id,
+        provider_app_key=provider_app.key,
+        checked_at=checked_at,
+        refreshed=refreshed,
+        message=message,
+    )
 
 
 @router.post("/broker-proxy/miro/{connected_account_id}")

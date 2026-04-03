@@ -4,11 +4,10 @@ export type ApiError = {
   detail?: unknown;
 };
 
-export type CapabilityFlagSet = {
-  microsoftBrokerAuth: boolean;
-  providerOAuthConnect: boolean;
-  userWorkspace: boolean;
-  tokenAccessDiagnostics: boolean;
+export type AuthFlowStartResponse = {
+  ok: boolean;
+  auth_url: string;
+  state: string;
 };
 
 export type UserOut = {
@@ -106,6 +105,7 @@ export type ConnectedAccountOut = {
   external_email: string | null;
   display_name: string | null;
   status: string;
+  last_error: string | null;
   connected_at: string;
 };
 
@@ -126,6 +126,68 @@ export type DelegationGrantCreateResult = {
   ok: boolean;
   delegation_grant: DelegationGrantOut;
   delegated_credential: string;
+};
+
+export type VisibleServiceClientOut = {
+  id: string;
+  key: string;
+  display_name: string;
+  environment: string | null;
+  created_at: string;
+};
+
+export type SelfServiceDelegationGrantOut = {
+  id: string;
+  service_client_id: string;
+  service_client_key: string;
+  service_client_display_name: string;
+  provider_app_id: string;
+  provider_app_key: string;
+  provider_app_display_name: string;
+  connected_account_id: string | null;
+  connected_account_display_name: string | null;
+  allowed_access_modes: string[];
+  scope_ceiling: string[];
+  capabilities: string[];
+  environment: string | null;
+  is_enabled: boolean;
+  expires_at: string | null;
+  revoked_at: string | null;
+  created_at: string;
+};
+
+export type SelfServiceDelegationGrantCreateResult = {
+  ok: boolean;
+  delegation_grant: SelfServiceDelegationGrantOut;
+  delegated_credential: string;
+};
+
+export type TokenIssueEventOut = {
+  id: string;
+  service_client_id: string | null;
+  service_client_display_name: string | null;
+  delegation_grant_id: string | null;
+  provider_app_id: string | null;
+  provider_app_display_name: string | null;
+  connected_account_id: string | null;
+  connected_account_display_name: string | null;
+  decision: string;
+  reason: string | null;
+  scopes: string[];
+  metadata: Record<string, unknown>;
+  created_at: string;
+};
+
+export type ConnectionProbeResult = {
+  ok: boolean;
+  status: string;
+  connected_account_id: string;
+  provider_app_key: string;
+  checked_at: string;
+  refreshed: boolean;
+  message: string | null;
+  external_user_id: string | null;
+  external_user_name: string | null;
 };
 
 export type AuditEventOut = {
@@ -198,6 +260,17 @@ export type DelegationGrantFormValues = {
   capabilities_text: string;
 };
 
+export type SelfServiceDelegationGrantFormValues = {
+  service_client_key: string;
+  provider_app_key: string;
+  connected_account_id: string;
+  allowed_access_modes: string[];
+  scope_ceiling_text: string;
+  environment: string;
+  expires_in_hours: number;
+  capabilities_text: string;
+};
+
 export type RouteMatch =
   | { name: "login"; path: "/login" }
   | { name: "dashboard"; path: "/app" }
@@ -207,6 +280,7 @@ export type RouteMatch =
   | { name: "delegation"; path: "/app/delegation" }
   | { name: "audit"; path: "/app/audit" }
   | { name: "workspace"; path: "/workspace" }
+  | { name: "grants"; path: "/grants" }
   | { name: "connect"; path: `/connect/${string}`; params: { providerKey: string } }
   | { name: "tokenAccess"; path: "/token-access" }
   | { name: "notFound"; path: string };

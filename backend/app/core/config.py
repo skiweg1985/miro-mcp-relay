@@ -41,6 +41,12 @@ class Settings(BaseSettings):
     miro_breaker_fail_threshold: int = 5
     miro_breaker_open_ms: int = 30000
 
+    microsoft_broker_authority_base: str = "https://login.microsoftonline.com"
+    microsoft_broker_tenant_id: str = "common"
+    microsoft_broker_client_id: str = ""
+    microsoft_broker_client_secret: str = ""
+    microsoft_broker_scope: str = "openid profile email User.Read"
+
     @field_validator("broker_encryption_key", mode="before")
     @classmethod
     def derive_encryption_key(cls, value: str, info):
@@ -58,6 +64,10 @@ class Settings(BaseSettings):
     @property
     def miro_scope_list(self) -> list[str]:
         return [scope.strip() for scope in self.miro_oauth_scope.split() if scope.strip()]
+
+    @property
+    def microsoft_scope_list(self) -> list[str]:
+        return [scope.strip() for scope in self.microsoft_broker_scope.split() if scope.strip()]
 
 
 @lru_cache

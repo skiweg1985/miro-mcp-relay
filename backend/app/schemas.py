@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -26,6 +27,12 @@ class SessionResponse(BaseModel):
     ok: bool = True
     user: UserOut
     csrf_token: str
+
+
+class AuthFlowStartResponse(BaseModel):
+    ok: bool = True
+    auth_url: str
+    state: str
 
 
 class ProviderDefinitionOut(BaseModel):
@@ -162,6 +169,18 @@ class MiroConnectStartResponse(BaseModel):
     state: str
 
 
+class ConnectionProbeResponse(BaseModel):
+    ok: bool
+    status: str
+    connected_account_id: str
+    provider_app_key: str
+    checked_at: datetime
+    refreshed: bool = False
+    message: str | None = None
+    external_user_id: str | None = None
+    external_user_name: str | None = None
+
+
 class MiroMigrationStatus(BaseModel):
     ok: bool = True
     legacy_profiles: int
@@ -211,6 +230,53 @@ class DelegationGrantSecretResponse(BaseModel):
     delegated_credential: str
 
 
+class VisibleServiceClientOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    key: str
+    display_name: str
+    environment: str | None = None
+    created_at: datetime
+
+
+class SelfServiceDelegationGrantCreate(BaseModel):
+    service_client_key: str
+    provider_app_key: str
+    connected_account_id: str | None = None
+    allowed_access_modes: list[str] = Field(default_factory=list)
+    scope_ceiling: list[str] = Field(default_factory=list)
+    environment: str | None = None
+    expires_in_hours: int = Field(default=24, ge=1, le=24 * 365)
+    capabilities: list[str] = Field(default_factory=list)
+
+
+class SelfServiceDelegationGrantOut(BaseModel):
+    id: str
+    service_client_id: str
+    service_client_key: str
+    service_client_display_name: str
+    provider_app_id: str
+    provider_app_key: str
+    provider_app_display_name: str
+    connected_account_id: str | None = None
+    connected_account_display_name: str | None = None
+    allowed_access_modes: list[str] = Field(default_factory=list)
+    scope_ceiling: list[str] = Field(default_factory=list)
+    capabilities: list[str] = Field(default_factory=list)
+    environment: str | None = None
+    is_enabled: bool
+    expires_at: datetime | None = None
+    revoked_at: datetime | None = None
+    created_at: datetime
+
+
+class SelfServiceDelegationGrantSecretResponse(BaseModel):
+    ok: bool = True
+    delegation_grant: SelfServiceDelegationGrantOut
+    delegated_credential: str
+
+
 class ProviderAccessIssueRequest(BaseModel):
     provider_app_key: str
     connected_account_id: str | None = None
@@ -236,4 +302,20 @@ class AuditEventOut(BaseModel):
     actor_id: str | None = None
     action: str
     metadata_json: str
+    created_at: datetime
+
+
+class TokenIssueEventOut(BaseModel):
+    id: str
+    service_client_id: str | None = None
+    service_client_display_name: str | None = None
+    delegation_grant_id: str | None = None
+    provider_app_id: str | None = None
+    provider_app_display_name: str | None = None
+    connected_account_id: str | None = None
+    connected_account_display_name: str | None = None
+    decision: str
+    reason: str | None = None
+    scopes: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime

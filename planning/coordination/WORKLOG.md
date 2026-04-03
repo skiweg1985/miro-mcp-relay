@@ -1,3 +1,26 @@
+## 2026-04-03 – Cursor Agent – Frontend-Build-Artefakte committen und Branch pushen
+
+- Done:
+  - `frontend/dist/index.html` und `frontend/tsconfig.tsbuildinfo` nach Build eingecheckt; `git push` für `codex/oauth-broker-redesign` (inkl. zuvor lokaler Commits).
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - frontend/dist/index.html
+  - frontend/tsconfig.tsbuildinfo
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build` (Voraussetzung für konsistente Asset-Namen)
+- Changelog updated:
+  - yes ([Unreleased] Changed)
+- Follow-ups:
+  - keine
+
 ## 2026-04-03 – Cursor Agent – Theme toggle UI
 
 - Done:

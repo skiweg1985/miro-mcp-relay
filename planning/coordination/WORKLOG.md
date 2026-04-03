@@ -1,3 +1,29 @@
+## 2026-04-03 – Cursor Agent – Landing /login minimal
+
+- Done:
+  - `LoginPage`: einspaltiges, zentriertes Layout; primärer „Log in“-Button (Microsoft OAuth); „Administrator sign-in“ öffnet Modal mit Username/Password, Cancel/Sign in; Styles in `index.css` (`.landing*`).
+  - Beschädigte Duplikat-CSS am Ende von `index.css` entfernt (Build-Warnung behoben).
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - frontend/src/App.tsx
+  - frontend/src/index.css
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build`
+  - endpoints: unverändert (`/auth/login`, Microsoft-Start)
+  - UI path: `/login` (anonym)
+- Changelog updated:
+  - yes ([Unreleased] Changed)
+- Follow-ups:
+  - keine
+
 ## 2026-04-03 – Cursor Agent – Workspace Connect-Buttons entfernt
 
 - Done:

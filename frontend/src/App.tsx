@@ -1,4 +1,12 @@
-import { startTransition, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import {
+  startTransition,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 
 import { AppProvider, useAppContext } from "./app-context";
 import { AccessPage } from "./admin/AccessPage";
@@ -205,30 +213,55 @@ function NavLink({
 
 function LoginPage({ onSuccess }: { onSuccess: (path: string) => void }) {
   const { login, notify } = useAppContext();
+  const adminUsernameRef = useRef<HTMLInputElement | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [pending, setPending] = useState(false);
   const [microsoftPending, setMicrosoftPending] = useState(false);
   const [microsoftEnabled, setMicrosoftEnabled] = useState(false);
-  const [microsoftDisplayName, setMicrosoftDisplayName] = useState("Microsoft");
+  const [adminModalOpen, setAdminModalOpen] = useState(false);
 
   useEffect(() => {
     void api
       .loginOptions()
       .then((result) => {
         setMicrosoftEnabled(result.microsoft_enabled);
-        setMicrosoftDisplayName(result.microsoft_display_name ?? "Microsoft");
       })
       .catch(() => {
         setMicrosoftEnabled(false);
       });
   }, []);
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  useEffect(() => {
+    if (!adminModalOpen) return;
+    const id = window.setTimeout(() => {
+      adminUsernameRef.current?.focus();
+    }, 0);
+    return () => window.clearTimeout(id);
+  }, [adminModalOpen]);
+
+  useEffect(() => {
+    if (!adminModalOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setAdminModalOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [adminModalOpen]);
+
+  const closeAdminModal = () => {
+    setPassword("");
+    setAdminModalOpen(false);
+  };
+
+  const handleAdminSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setPending(true);
     try {
       await login(email, password);
+      closeAdminModal();
       onSuccess("/app");
     } catch (error) {
       notify({
@@ -257,71 +290,73 @@ function LoginPage({ onSuccess }: { onSuccess: (path: string) => void }) {
   };
 
   return (
-    <main className="login-layout">
-      <section className="hero-card login-hero">
-        <p className="eyebrow">OAuth Broker</p>
-        <h1>End-user workspace for brokered connections, grants, and access diagnostics.</h1>
-        <p className="lede">
-          Users sign in with Microsoft, connect Miro, create their own delegated credentials for approved service
-          clients, and inspect token access without ever seeing raw secrets.
-        </p>
-        <div className="hero-chip-row">
-          <StatusBadge tone="success">Microsoft user login</StatusBadge>
-          <StatusBadge tone="success">Miro self-service connect</StatusBadge>
-          <StatusBadge tone="success">Grant and probe workflows</StatusBadge>
+    <>
+      <main className="landing">
+        <div className="landing-inner">
+          <h1 className="landing-title">Sign in to continue</h1>
+          <p className="landing-sub">Access your integrations</p>
+          <div className="landing-cta-wrap">
+            <button
+              type="button"
+              className="primary-button landing-cta"
+              disabled={microsoftPending || !microsoftEnabled}
+              aria-busy={microsoftPending}
+              onClick={() => void handleMicrosoftLogin()}
+            >
+              {microsoftPending ? "Redirecting…" : "Log in"}
+            </button>
+          </div>
+          {!microsoftEnabled ? <p className="landing-hint">Sign-in is not configured.</p> : null}
+          <button type="button" className="landing-admin" onClick={() => setAdminModalOpen(true)}>
+            Administrator sign-in
+          </button>
         </div>
-      </section>
+      </main>
 
-      <section className="login-panel">
-        <div className="auth-card-list">
-          <Card
-            title="User sign-in"
-            description="Primary end-user entry point. The backend creates or links your broker account on the Microsoft callback."
-          >
-            <div className="stack-form">
-              <p className="lede">
-                Use your Microsoft identity to enter the workspace, manage your own provider connections, and create
-                grants for approved broker consumers.
-              </p>
-              <div className="inline-actions">
-                <button
-                  type="button"
-                  className="primary-button"
-                  disabled={microsoftPending || !microsoftEnabled}
-                  onClick={() => void handleMicrosoftLogin()}
-                >
-                  {microsoftPending ? "Redirecting..." : `Continue with ${microsoftDisplayName}`}
-                </button>
-              </div>
-              {!microsoftEnabled ? (
-                <p className="muted-copy">
-                  Microsoft login ist noch nicht konfiguriert. Ein Admin kann die Broker-Login-App in den Provider-Einstellungen anlegen und vervollständigen.
-                </p>
-              ) : null}
+      {adminModalOpen ? (
+        <div className="modal-root" role="dialog" aria-modal="true" aria-labelledby="landing-admin-login-title">
+          <button type="button" className="modal-backdrop" aria-label="Dismiss" onClick={closeAdminModal} />
+          <div className="modal-panel landing-admin-modal">
+            <div className="modal-panel-header">
+              <h2 id="landing-admin-login-title">Administrator sign-in</h2>
             </div>
-          </Card>
-
-          <Card title="Admin local login" description="Operator-only path for the control deck and platform governance.">
-            <form className="stack-form" onSubmit={handleSubmit}>
-              <div className="form-grid">
-                <Field label="Email">
-                  <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" required />
+            <div className="modal-panel-body">
+              <form className="landing-modal-form" onSubmit={handleAdminSubmit}>
+                <Field label="Username">
+                  <input
+                    ref={adminUsernameRef}
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    type="email"
+                    name="username"
+                    autoComplete="username"
+                    required
+                  />
                 </Field>
                 <Field label="Password">
                   <input
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
                     type="password"
+                    name="password"
+                    autoComplete="current-password"
                     required
                   />
                 </Field>
-              </div>
-              <FormActions pending={pending} submitLabel="Sign in as admin" />
-            </form>
-          </Card>
+                <div className="landing-modal-actions">
+                  <button type="button" className="ghost-button" onClick={closeAdminModal}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="primary-button" disabled={pending}>
+                    {pending ? "Signing in…" : "Sign in"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
         </div>
-      </section>
-    </main>
+      ) : null}
+    </>
   );
 }
 

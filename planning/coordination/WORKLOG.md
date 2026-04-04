@@ -1,3 +1,32 @@
+## 2026-04-04 – Cursor Agent – `data/` aus Repo und Git-Historie entfernt
+
+- Done:
+  - `python3 -m git_filter_repo --path data/ --invert-paths --force` (Historie bereinigt, `origin` entfernt und wieder gesetzt).
+  - `.gitignore`: `data/` ergänzt.
+  - `docs/CHANGELOG.md`, `planning/coordination/WORKLOG.md` aktualisiert.
+- Next:
+  - `git push origin --force --all` und `git push origin --force --tags` (Klone mit altem Stand: Rebase/Fetch mit Vorsicht oder neu klonen).
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign (alle lokalen Branches neu geschrieben)
+  - PR: none
+- Files touched:
+  - .gitignore
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+  - (Historie: `data/*` aus allen Commits entfernt)
+- Test notes:
+  - commands: `python3 -m git_filter_repo ...`; danach Commit mit Ignore/Changelog/Worklog
+- endpoints:
+  - n/a
+- UI path:
+  - n/a
+- Changelog updated:
+  - yes ([Unreleased] Removed)
+- Follow-ups:
+  - Mitbearbeiter: nach Force-Push lokale Repos mit `git fetch origin` + Reset oder frisch klonen.
+
 ## 2026-04-03 – Cursor Agent – Frontend-Build-Artefakte committen und Branch pushen
 
 - Done:

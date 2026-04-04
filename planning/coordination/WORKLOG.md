@@ -1,3 +1,33 @@
+## 2026-04-04 – Cursor Agent – Grants: Hilfe und Entwicklerhinweise
+
+- Done:
+  - `frontend/src/components.tsx`: `Card` mit optionalem `headerActions`.
+  - `frontend/src/App.tsx`: Grants-Karte mit Hilfe-Modal „App access overview“; `GrantDetailPanel` mit Abschnitt „Use in your application“, `GrantCodeCopy`, HTTP-Beispiele für Token-Ausgabe und Miro-Relay; Hinweis Legacy MCP Profil-URL.
+  - `frontend/src/index.css`: Styles für Hilfe-Button, Code-Blöcke, Inset-Panel.
+  - `docs/CHANGELOG.md` [Unreleased] Added; `frontend/dist` neu gebaut.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - frontend/src/App.tsx
+  - frontend/src/components.tsx
+  - frontend/src/index.css
+  - frontend/dist/
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build`
+- UI path:
+  - `/grants` (Karte „Your app access“, Modal „Access details“)
+- Changelog updated:
+  - yes ([Unreleased] Added)
+- Follow-ups:
+  - keine
+
 ## 2026-04-04 – Cursor Agent – Self-Service: Nutzer-Texte vereinfacht
 
 - Done:

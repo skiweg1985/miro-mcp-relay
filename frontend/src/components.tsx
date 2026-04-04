@@ -137,20 +137,23 @@ export function Card({
   description,
   children,
   className,
+  headerActions,
 }: {
   title?: string;
   description?: string;
   children: ReactNode;
   className?: string;
+  headerActions?: ReactNode;
 }) {
   return (
     <section className={classNames("card", className)}>
       {title ? (
-        <header className="card-header">
+        <header className={classNames("card-header", headerActions ? "card-header--with-actions" : null)}>
           <div>
             <h2>{title}</h2>
             {description ? <p>{description}</p> : null}
           </div>
+          {headerActions}
         </header>
       ) : null}
       {children}

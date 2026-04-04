@@ -52,6 +52,7 @@ import type {
 import { UserIntegrationsPage } from "./UserIntegrationsPage";
 import { isApiError } from "./errors";
 import {
+  copyToClipboard,
   formatDateTime,
   formatJson,
   matchesRoute,
@@ -220,7 +221,77 @@ function GrantPolicyCell({
   );
 }
 
+function brokerPublicOrigin(): string {
+  if (typeof window === "undefined") return "";
+  return window.location.origin;
+}
+
+function isMiroProviderKey(key: string): boolean {
+  return key.toLowerCase().includes("miro");
+}
+
+function GrantCodeCopy({
+  label,
+  text,
+}: {
+  label: string;
+  text: string;
+}) {
+  const { notify } = useAppContext();
+  return (
+    <div className="grant-code-block">
+      <div className="grant-code-block-head">
+        <span className="grant-code-block-label">{label}</span>
+        <button
+          type="button"
+          className="ghost-button grants-inline-btn"
+          onClick={async () => {
+            const ok = await copyToClipboard(text);
+            notify({
+              tone: ok ? "success" : "error",
+              title: ok ? "Copied" : "Copy failed",
+            });
+          }}
+        >
+          Copy
+        </button>
+      </div>
+      <pre className="grant-code-pre">{text}</pre>
+    </div>
+  );
+}
+
 function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
+  const origin = brokerPublicOrigin();
+  const connSegment = grant.connected_account_id ?? "<connection_id>";
+  const directAllowed = grant.allowed_access_modes.includes("direct_token");
+  const relayAllowed = grant.allowed_access_modes.includes("relay");
+  const miroRelay = relayAllowed && isMiroProviderKey(grant.provider_app_key);
+
+  const directExample = [
+    `POST ${origin}/api/v1/token-issues/provider-access`,
+    `X-Delegated-Credential: <delegated_credential>`,
+    `Content-Type: application/json`,
+    ``,
+    JSON.stringify(
+      {
+        provider_app_key: grant.provider_app_key,
+        connected_account_id: grant.connected_account_id ?? null,
+        requested_scopes: [] as string[],
+      },
+      null,
+      2,
+    ),
+  ].join("\n");
+
+  const miroRelayExample = [
+    `POST ${origin}/api/v1/broker-proxy/miro/${connSegment}`,
+    `X-Delegated-Credential: <delegated_credential>`,
+    `Content-Type: application/json`,
+    ``,
+    `{ ... MCP JSON-RPC body ... }`,
+  ].join("\n");
+
   return (
     <div className="grant-detail-panel stack-list">
       <div className="stack-cell">
@@ -265,6 +336,70 @@ function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
           <span>{grant.environment}</span>
         </div>
       ) : null}
+
+      <div className="grant-detail-dev panel-inset">
+        <h3 className="grant-detail-dev-title">Use in your application</h3>
+        <p className="grant-detail-dev-lede muted">
+          The delegated credential is shown only once when access is created. Store it in a secret manager; it cannot be displayed again here.
+        </p>
+        <p className="grant-detail-dev-lede muted">
+          Send it on every call as header <code className="grant-inline-code">X-Delegated-Credential</code>. Replace{" "}
+          <code className="grant-inline-code">&lt;delegated_credential&gt;</code> with that value. Use this page&apos;s broker origin (
+          <code className="grant-inline-code">{origin || "—"}</code>
+          ) or the public origin your deployment exposes to clients.
+        </p>
+        {grant.service_client_key ? (
+          <p className="grant-detail-dev-lede muted">
+            This access is tied to a named app. Some setups also require <code className="grant-inline-code">X-Service-Secret</code> with that
+            app&apos;s client secret.
+          </p>
+        ) : null}
+        {!grant.connected_account_id ? (
+          <p className="grant-detail-dev-lede muted">
+            No fixed connection is set: resolve the right <code className="grant-inline-code">connected_account_id</code> for this integration in
+            your service before calling the API.
+          </p>
+        ) : null}
+
+        {directAllowed ? (
+          <div className="grant-detail-dev-section">
+            <h4 className="grant-detail-dev-subtitle">Direct connection (access token)</h4>
+            <p className="muted grant-detail-dev-p">
+              Request a provider access token (no refresh token in the response).
+            </p>
+            <GrantCodeCopy label="HTTP" text={directExample} />
+          </div>
+        ) : null}
+
+        {miroRelay ? (
+          <div className="grant-detail-dev-section">
+            <h4 className="grant-detail-dev-subtitle">Relay (Miro MCP)</h4>
+            <p className="muted grant-detail-dev-p">
+              Forward MCP requests through the broker. The path uses the connection id for this grant.
+            </p>
+            <GrantCodeCopy label="HTTP" text={miroRelayExample} />
+          </div>
+        ) : null}
+
+        {relayAllowed && !miroRelay ? (
+          <p className="muted grant-detail-dev-p">
+            Relay is enabled for this grant. Use the provider-specific relay or proxy entrypoint documented for{" "}
+            <strong>{grant.provider_app_display_name}</strong>.
+          </p>
+        ) : null}
+
+        {isMiroProviderKey(grant.provider_app_key) ? (
+          <div className="grant-detail-dev-section">
+            <h4 className="grant-detail-dev-subtitle">Profile URL and relay key (MCP clients)</h4>
+            <p className="muted grant-detail-dev-p">
+              Some MCP stacks expect <code className="grant-inline-code">POST /miro/mcp/&lt;profile_id&gt;</code> with{" "}
+              <code className="grant-inline-code">X-Relay-Key</code>. That key is issued from{" "}
+              <strong>Workspace → Integrations</strong> when you copy the MCP handoff for a connection. It is not the same value as the delegated
+              credential.
+            </p>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -609,6 +744,7 @@ function GrantsPage() {
   const [grantRevokeConfirmId, setGrantRevokeConfirmId] = useState<string | null>(null);
   const [grantRevokePending, setGrantRevokePending] = useState(false);
   const [grantDetailId, setGrantDetailId] = useState<string | null>(null);
+  const [grantListHelpOpen, setGrantListHelpOpen] = useState(false);
   const [createdResult, setCreatedResult] = useState<SelfServiceDelegationGrantCreateResult | null>(null);
   const [form, setForm] = useState<SelfServiceDelegationGrantFormValues>({
     service_client_key: "",
@@ -772,7 +908,20 @@ function GrantsPage() {
         />
       ) : null}
 
-      <Card title="Your app access" description="Only your entries appear here. Remove access when an app should no longer reach your account.">
+      <Card
+        title="Your app access"
+        description="Only your entries appear here. Remove access when an app should no longer reach your account."
+        headerActions={
+          <button
+            type="button"
+            className="grant-help-trigger"
+            aria-label="Help for app access"
+            onClick={() => setGrantListHelpOpen(true)}
+          >
+            ?
+          </button>
+        }
+      >
         <DataTable
           tableClassName="grants-table"
           wrapClassName="grants-table-wrap"
@@ -818,6 +967,24 @@ function GrantsPage() {
           emptyBody="Connect an integration first, then add access for an app that should use your account."
         />
       </Card>
+
+      {grantListHelpOpen ? (
+        <Modal title="App access overview" onClose={() => setGrantListHelpOpen(false)}>
+          <div className="stack-list grant-help-modal">
+            <p className="lede">
+              App access ties a <strong>delegated credential</strong> to an integration (and optionally one connection and one named app). Your
+              service sends that credential on API calls so the broker can apply your limits.
+            </p>
+            <p className="lede">
+              The credential is shown <strong>once</strong> when you create access. Save it immediately; it is not stored in this screen.
+            </p>
+            <p className="lede">
+              Open <strong>View</strong> on a row for concrete HTTP examples: requesting a provider token, relaying Miro MCP through the broker,
+              and how that differs from the profile URL plus relay key from Integrations.
+            </p>
+          </div>
+        </Modal>
+      ) : null}
 
       {grantDetailId && grantDetailGrant ? (
         <Modal title="Access details" wide onClose={() => setGrantDetailId(null)}>

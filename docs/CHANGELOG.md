@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Frontend: Self-Service **App access** (`/grants`): Hilfe-Button (**?**) an der Karte „Your app access“ mit Erklärung zu Delegated Credential; im Modal **Access details** Abschnitt **Use in your application** mit kopierbaren HTTP-Beispielen (Direct connection, Miro-Relay, Hinweis Profil-URL/`X-Relay-Key` vs. Credential); `Card` unterstützt `headerActions`.
+
 ### Fixed
 
 - Frontend: Zeitstempel aus der API (naive ISO-UTC ohne `Z`) werden beim Anzeigen und bei Ablaufprüfungen korrekt als UTC gelesen; vermeidet Verschiebung um die lokale UTC-Offset-Stunden (z. B. 2 h in Mitteleuropa).

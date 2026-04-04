@@ -864,3 +864,30 @@
   - yes ([Unreleased] Changed)
 - Follow-ups:
   - keine
+
+## 2026-04-04 – Cursor Agent – Grants: ein Toggle statt Status-Chips
+
+- Done:
+  - `frontend/src/App.tsx`: `showInactiveGrants`; Standard nur aktive Einträge; ein Button **Show expired and paused** / **Active only**; vollständige Liste bei eingeschaltetem Toggle.
+  - `frontend/src/index.css`: `.grants-filter-toggle` statt Chips.
+  - `docs/CHANGELOG.md` [Unreleased] angepasst.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - frontend/src/App.tsx
+  - frontend/src/index.css
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build`
+- UI path:
+  - `/grants`
+- Changelog updated:
+  - yes
+- Follow-ups:
+  - keine

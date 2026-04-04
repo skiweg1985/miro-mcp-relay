@@ -72,13 +72,6 @@ function connectionTone(connection: ConnectedAccountOut): "neutral" | "success" 
 
 type GrantUiState = "active" | "expired" | "paused" | "ended";
 
-const GRANT_STATUS_FILTERS: { id: GrantUiState; label: string }[] = [
-  { id: "active", label: "Active" },
-  { id: "expired", label: "Expired" },
-  { id: "paused", label: "Paused" },
-  { id: "ended", label: "Removed" },
-];
-
 function grantUiState(grant: SelfServiceDelegationGrantOut | DelegationGrantOut): GrantUiState {
   if (grant.revoked_at) return "ended";
   if (!grant.is_enabled) return "paused";
@@ -721,7 +714,7 @@ function GrantsPage() {
   const [grantRevokePending, setGrantRevokePending] = useState(false);
   const [grantDetailId, setGrantDetailId] = useState<string | null>(null);
   const [grantListHelpOpen, setGrantListHelpOpen] = useState(false);
-  const [grantStatusFilter, setGrantStatusFilter] = useState<Set<GrantUiState>>(() => new Set(["active"]));
+  const [showInactiveGrants, setShowInactiveGrants] = useState(false);
   const [createdResult, setCreatedResult] = useState<SelfServiceDelegationGrantCreateResult | null>(null);
   const [form, setForm] = useState<SelfServiceDelegationGrantFormValues>({
     service_client_key: "",
@@ -791,45 +784,22 @@ function GrantsPage() {
     return grants.find((grant) => grant.id === grantDetailId) ?? null;
   }, [grantDetailId, grants]);
 
-  const grantStatusFilterKey = useMemo(() => [...grantStatusFilter].sort().join("|"), [grantStatusFilter]);
+  const inactiveGrantsFilterKey = showInactiveGrants ? "with-inactive" : "active-only";
 
-  const visibleGrants = useMemo(
-    () => grants.filter((grant) => grantStatusFilter.has(grantUiState(grant))),
-    [grants, grantStatusFilter],
-  );
-
-  const onlyActiveFilter = grantStatusFilter.size === 1 && grantStatusFilter.has("active");
+  const visibleGrants = useMemo(() => {
+    if (showInactiveGrants) return grants;
+    return grants.filter((grant) => grantUiState(grant) === "active");
+  }, [grants, showInactiveGrants]);
 
   const grantsEmptyTitle =
-    grants.length === 0
-      ? "Nothing here yet"
-      : visibleGrants.length === 0 && onlyActiveFilter
-        ? "No active app access yet"
-        : visibleGrants.length === 0
-          ? "No entries match"
-          : "Nothing here yet";
+    grants.length === 0 ? "Nothing here yet" : visibleGrants.length === 0 ? "No active app access yet" : "";
 
   const grantsEmptyBody =
     grants.length === 0
       ? "Connect an integration, then add access for an app."
-      : visibleGrants.length === 0 && onlyActiveFilter
-        ? "Connect an integration or add access. Adjust the status filters to see expired or removed entries."
-        : visibleGrants.length === 0
-          ? "Try different status filters."
-          : "";
-
-  const toggleGrantStatusFilter = (id: GrantUiState) => {
-    setGrantStatusFilter((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        if (next.size <= 1) return prev;
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  };
+      : visibleGrants.length === 0
+        ? "Connect an integration or add access. Use the button below to show expired or paused entries."
+        : "";
 
   const toggleMode = (mode: string) => {
     setForm((current) => ({
@@ -926,7 +896,7 @@ function GrantsPage() {
 
       <Card
         title="Your entries"
-        description="Open a row for limits and usage details. Status filters control which entries appear."
+        description="Open a row for limits and usage details. Expired, paused, and removed rows stay hidden until you use the toggle below."
         headerActions={
           <button
             type="button"
@@ -938,26 +908,20 @@ function GrantsPage() {
           </button>
         }
       >
-        <div className="grants-filter-bar" role="group" aria-label="Filter by status">
-          <span className="grants-filter-label">Status</span>
-          <div className="grants-filter-chips">
-            {GRANT_STATUS_FILTERS.map(({ id, label }) => (
-              <button
-                key={id}
-                type="button"
-                className={grantStatusFilter.has(id) ? "grants-filter-chip grants-filter-chip--on" : "grants-filter-chip"}
-                aria-pressed={grantStatusFilter.has(id)}
-                onClick={() => toggleGrantStatusFilter(id)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+        <div className="grants-filter-bar">
+          <button
+            type="button"
+            className={showInactiveGrants ? "grants-filter-toggle grants-filter-toggle--on" : "grants-filter-toggle"}
+            aria-pressed={showInactiveGrants}
+            onClick={() => setShowInactiveGrants((v) => !v)}
+          >
+            {showInactiveGrants ? "Active only" : "Show expired and paused"}
+          </button>
         </div>
         <DataTable
           tableClassName="grants-table"
           wrapClassName="grants-table-wrap grants-table-wrap--animate"
-          wrapKey={grantStatusFilterKey}
+          wrapKey={inactiveGrantsFilterKey}
           columnClasses={[
             "grants-col--client",
             "grants-col--provider",

@@ -4,7 +4,7 @@
 
 ### Changed
 
-- Frontend: Self-Service **Access** (`/grants`): Tabellenliste standardmäßig nur **aktive** Einträge; Status-Filter (Active / Expired / Paused / Removed) oberhalb der Tabelle, Standard nur Active; inaktive Zeilen optisch abgeschwächt (`data-table-row--grant-muted`); leere Liste mit Hinweis „No active app access yet“ wenn nur Nicht-Aktives existiert; `DataTable` mit `rowClassName` und optionalem `wrapKey` für Filterwechsel.
+- Frontend: Self-Service **Access** (`/grants`): Tabellenliste standardmäßig nur **aktive** Einträge; ein Umschalter **Show expired and paused** / **Active only** blendet alle weiteren Status ein bzw. aus; inaktive Zeilen optisch abgeschwächt (`data-table-row--grant-muted`); `DataTable` mit `rowClassName` und `wrapKey` beim Wechsel.
 
 - Frontend: durchgängiges Layout (Spacing-Skala, Typografie, weniger Rahmen, Milchglas-Modals mit kurzer Einblendanimation, vereinheitlichte Buttons und Tabellenzeilen); Navigation und Seitenkopf gestrafft (Workspace/Admin); Aktivität und Admin-Übersicht/Logs: Tabellen ohne JSON in Zellen, Details in Modals; Grants-Tabelle auf sechs Spalten (Limits nur im Detailmodal); `Modal` mit optionalem Kurztext (`description`), `PageIntro` mit optionalem Eyebrow; Login- und Integrations-Texte sachlich vereinfacht.
 

@@ -175,6 +175,8 @@ export function DataTable({
   wrapClassName,
   columnClasses,
   rowKey,
+  rowClassName,
+  wrapKey,
   onRowClick,
   getRowAriaLabel,
 }: {
@@ -186,6 +188,8 @@ export function DataTable({
   wrapClassName?: string;
   columnClasses?: string[];
   rowKey?: (rowIndex: number) => Key;
+  rowClassName?: (rowIndex: number) => string | undefined;
+  wrapKey?: string;
   onRowClick?: (rowIndex: number) => void;
   getRowAriaLabel?: (rowIndex: number) => string;
 }) {
@@ -194,7 +198,7 @@ export function DataTable({
   }
 
   return (
-    <div className={classNames("table-wrap", wrapClassName)}>
+    <div key={wrapKey} className={classNames("table-wrap", wrapClassName)}>
       <table className={classNames("data-table", tableClassName)}>
         <thead>
           <tr>
@@ -209,7 +213,10 @@ export function DataTable({
           {rows.map((row, rowIndex) => (
             <tr
               key={rowKey?.(rowIndex) ?? rowIndex}
-              className={onRowClick ? "data-table-row--clickable" : undefined}
+              className={classNames(
+                onRowClick && "data-table-row--clickable",
+                rowClassName?.(rowIndex),
+              )}
               tabIndex={onRowClick ? 0 : undefined}
               aria-label={onRowClick ? getRowAriaLabel?.(rowIndex) ?? "Open details" : undefined}
               onClick={onRowClick ? () => onRowClick(rowIndex) : undefined}

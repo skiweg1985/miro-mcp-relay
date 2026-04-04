@@ -835,3 +835,32 @@
   - yes ([Unreleased] Changed)
 - Follow-ups:
   - keine
+
+## 2026-04-04 – Cursor Agent – Grants: Status-Filter (nur aktiv)
+
+- Done:
+  - `frontend/src/App.tsx`: `grantUiState` / `grantStateLabel`; `visibleGrants` (Default nur Active); Status-Chips; leere Zustände; gedämpfte Zeilen für nicht-aktive Einträge.
+  - `frontend/src/components.tsx`: `DataTable` mit `rowClassName`, `wrapKey`.
+  - `frontend/src/index.css`: Filterleiste, kurze Tabellen-Animation, `.data-table-row--grant-muted`.
+  - `docs/CHANGELOG.md` [Unreleased] Changed.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - frontend/src/App.tsx
+  - frontend/src/components.tsx
+  - frontend/src/index.css
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build`
+- UI path:
+  - `/grants`
+- Changelog updated:
+  - yes ([Unreleased] Changed)
+- Follow-ups:
+  - keine

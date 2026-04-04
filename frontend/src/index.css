@@ -946,6 +946,84 @@ h3 {
   table-layout: fixed;
 }
 
+@keyframes grants-table-wrap-in {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.grants-table-wrap--animate {
+  animation: grants-table-wrap-in 0.22s ease-out;
+}
+
+.grants-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.grants-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.grants-filter-label {
+  font-size: var(--font-label);
+  font-weight: 600;
+  color: var(--ink-secondary);
+  margin-right: var(--space-1);
+}
+
+.grants-filter-chip {
+  border: 0;
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-3);
+  min-height: 32px;
+  font-size: var(--font-caption);
+  font-weight: 600;
+  color: var(--ink-secondary);
+  background: var(--bg-subtle);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+
+.grants-filter-chip--on {
+  background: var(--ink);
+  color: var(--on-accent);
+}
+
+.grants-filter-chip:hover:not(.grants-filter-chip--on) {
+  background: var(--surface-muted);
+}
+
+.data-table tbody tr.data-table-row--grant-muted td {
+  color: var(--muted);
+}
+
+.data-table tbody tr.data-table-row--grant-muted:hover td {
+  background: var(--surface-muted);
+}
+
+.data-table tbody tr.data-table-row--grant-muted .table-cell-primary {
+  color: var(--ink-secondary);
+}
+
+.data-table tbody tr.data-table-row--grant-muted .grants-expires-primary,
+.data-table tbody tr.data-table-row--grant-muted .grants-expires-secondary {
+  color: var(--muted);
+}
+
+.data-table tbody tr.data-table-row--grant-muted .status-badge {
+  opacity: 0.88;
+}
+
 .grants-table th,
 .grants-table td {
   vertical-align: middle;

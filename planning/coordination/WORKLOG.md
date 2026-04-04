@@ -1,3 +1,28 @@
+## 2026-04-04 – Cursor Agent – UI: Rahmen für Ghost/Theme/Nav, Integrations-Padding
+
+- Done:
+  - `frontend/src/index.css`: `.ghost-button`, `.theme-toggle-trigger`, `.nav-link`, `.tab`, `.landing-admin`, `.drawer-close` mit `var(--line)`-Rahmen; `.user-integration-actions` / `.drawer-footer-actions` mit Innenabstand gegen Abschneiden am Scrollrand.
+  - `docs/CHANGELOG.md` [Unreleased] Changed ergänzt.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - frontend/src/index.css
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build`
+- UI path:
+  - Sidebar (Nav, Theme, Sign out), Integrations-Karten, Drawer-Footer
+- Changelog updated:
+  - yes ([Unreleased] Changed)
+- Follow-ups:
+  - keine
+
 ## 2026-04-04 – Cursor Agent – Integrations: Aktionszeile, Bestätigung bei Trennen/Widerruf
 
 - Done:

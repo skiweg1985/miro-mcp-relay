@@ -29,6 +29,8 @@
 
 ### Fixed
 
+- Frontend: `matchesRoute` erkennt `/app/integrations/:appId`; Admin-Integrations-Detail öffnet nicht mehr die Not-Found-Seite.
+
 - Frontend: Zeitstempel aus der API (naive ISO-UTC ohne `Z`) werden beim Anzeigen und bei Ablaufprüfungen korrekt als UTC gelesen; vermeidet Verschiebung um die lokale UTC-Offset-Stunden (z. B. 2 h in Mitteleuropa).
 
 ### Removed

@@ -1,3 +1,28 @@
+## 2026-04-04 – Cursor Agent – Integrations-Detailroute matchesRoute
+
+- Done:
+  - `frontend/src/utils.ts`: `matchesRoute` ergänzt für `/app/integrations/:appId` (zuvor fiel der Pfad auf `notFound`).
+  - `docs/CHANGELOG.md` [Unreleased] Fixed.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - frontend/src/utils.ts
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build`
+- UI path:
+  - Admin → Integrations → **Open** → Übersicht (kein Not Found mehr)
+- Changelog updated:
+  - yes ([Unreleased] Fixed)
+- Follow-ups:
+  - keine
+
 ## 2026-04-04 – Cursor Agent – Admin Integrations Übersicht
 
 - Done:

@@ -125,6 +125,13 @@ export function matchesRoute(pathname: string): RouteMatch {
   if (path === "/miro/admin") return { name: "dashboard", path: "/app" };
   if (path === "/app") return { name: "dashboard", path: "/app" };
   if (path === "/app/integrations") return { name: "integrations", path: "/app/integrations" };
+  if (path.startsWith("/app/integrations/")) {
+    const rest = path.slice("/app/integrations/".length).replace(/^\/+/, "");
+    const appId = rest.split("/")[0]?.trim();
+    if (appId) {
+      return { name: "integrationDetail", path: `/app/integrations/${appId}`, params: { appId } };
+    }
+  }
   if (path === "/app/users") return { name: "users", path: "/app/users" };
   if (path === "/app/services") return { name: "services", path: "/app/services" };
   if (path === "/app/access") return { name: "access", path: "/app/access" };

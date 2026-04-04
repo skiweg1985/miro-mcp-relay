@@ -1205,7 +1205,7 @@ select option {
 }
 
 .user-integration-grid {
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
 }
 
 .user-integration-card {
@@ -1242,10 +1242,16 @@ select option {
   margin-top: var(--space-3);
   flex-wrap: nowrap;
   align-items: center;
-  overflow-x: auto;
+  justify-content: flex-start;
   box-sizing: border-box;
-  padding: var(--space-1) var(--space-2);
-  scroll-padding-inline: var(--space-2);
+  min-width: 0;
+  padding: var(--space-1) 0;
+}
+
+@media (max-width: 420px) {
+  .user-integration-actions {
+    flex-wrap: wrap;
+  }
 }
 
 .workspace-metric-grid {

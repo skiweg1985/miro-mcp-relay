@@ -1,3 +1,24 @@
+## 2026-04-04 – Cursor Agent – Integrations: Disconnect-Rand nicht mehr beschnitten
+
+- Done:
+  - `frontend/src/index.css`: `.user-integration-actions` ohne `overflow-x: auto` (Scrollport hatte rechten Button-Rand abgeschnitten); Grid `minmax(min(100%, 340px), 1fr)`; bei ≤420px `flex-wrap: wrap`.
+  - `docs/CHANGELOG.md` [Unreleased] angepasst.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - frontend/src/index.css
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Changelog updated:
+  - yes
+- Follow-ups:
+  - keine
+
 ## 2026-04-04 – Cursor Agent – Sidebar-Nav: Rahmen zurückgenommen
 
 - Done:

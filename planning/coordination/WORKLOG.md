@@ -1393,6 +1393,23 @@
 - Follow-ups:
   - keine
 
+## 2026-04-04 – Cursor Agent – Replace access key als Icon
+
+- Done:
+  - `App.tsx`: `IconRefresh`, `AccessKeyIconActions` mit optionalem Replace (Refresh-Icon), Spinner bei `replaceBusy`; Grant **Access key** und Connection **stored**-Key: Replace neben Show/Copy statt darunter; Missing-Zeile mit Icon statt Text-Button.
+  - `index.css`: `.access-modal-missing-key-row`, `.access-key-icon-spinner`, `.access-modal-key-inline-hint`.
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - frontend/src/App.tsx, frontend/src/index.css, planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build`
+- Changelog updated:
+  - no
+- Follow-ups:
+  - keine
+
 ## 2026-04-04 – Cursor Agent – Access-Modal Breite
 
 - Done:

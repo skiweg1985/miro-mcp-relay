@@ -113,18 +113,7 @@ def _find_delegation_grant_by_credential(
     if service_client_id is not None:
         q = q.where(DelegationGrant.service_client_id == service_client_id)
     exact_grants = db.scalars(q).all()
-    grant = next((g for g in exact_grants if verify_secret(delegated_credential, g.credential_hash)), None)
-    if grant:
-        return grant
-    q_legacy = select(DelegationGrant).where(
-        DelegationGrant.is_enabled.is_(True),
-        DelegationGrant.revoked_at.is_(None),
-        DelegationGrant.credential_lookup_hash.is_(None),
-    )
-    if service_client_id is not None:
-        q_legacy = q_legacy.where(DelegationGrant.service_client_id == service_client_id)
-    legacy_grants = db.scalars(q_legacy).all()
-    return next((g for g in legacy_grants if verify_secret(delegated_credential, g.credential_hash)), None)
+    return next((g for g in exact_grants if verify_secret(delegated_credential, g.credential_hash)), None)
 
 
 def diagnose_service_access(
@@ -157,14 +146,6 @@ def diagnose_service_access(
             (client for client in exact_clients if verify_secret(service_secret_value, client.secret_hash)),
             None,
         )
-        if not resolved_client:
-            legacy_clients = db.scalars(
-                select(ServiceClient).where(ServiceClient.is_enabled.is_(True), ServiceClient.secret_lookup_hash.is_(None))
-            ).all()
-            resolved_client = next(
-                (client for client in legacy_clients if verify_secret(service_secret_value, client.secret_hash)),
-                None,
-            )
         if not resolved_client:
             return auth_context, HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid service client")
         if auth_context.grant.service_client_id is not None and auth_context.grant.service_client_id != resolved_client.id:

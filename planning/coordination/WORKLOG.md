@@ -1,3 +1,27 @@
+## 2026-04-04 – Cursor Agent – Keine Lookup-Fallbacks ohne secret_lookup_hash
+
+- Done:
+  - `backend/app/deps.py`: `_find_delegation_grant_by_credential` ohne Scan nach Grants mit `credential_lookup_hash IS NULL`; Service-Client-Auth ohne Fallback für `secret_lookup_hash IS NULL`.
+  - `docs/CHANGELOG.md`, `docs/technische-referenz.md`: Formulierungen ohne „Legacy-Bestand“-Rahmen bei Relay/Delegated-Credential.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - backend/app/deps.py
+  - docs/CHANGELOG.md
+  - docs/technische-referenz.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - `cd backend && python3 -m unittest test_welle1_smoke -v`
+- Changelog updated:
+  - yes (Changed / technische Referenz)
+- Follow-ups:
+  - Datenbankzeilen ohne `credential_lookup_hash` / ohne `secret_lookup_hash` authentifizieren nicht mehr; bei Bedarf einmalig per Migration befüllen.
+
 ## 2026-04-04 – Cursor Agent – Miro Relay-Key verschlüsselt speichern
 
 - Done:

@@ -323,7 +323,7 @@ Endpunkt:
 
 `X-Delegated-Credential` ist Pflicht; `X-Service-Secret` optional (siehe Direct Token). Der Broker validiert die Berechtigung und leitet den Request danach gegen Miro weiter.
 
-Pro Miro-Verbindung liegt der Relay-Key als `legacy_relay_token_hash` (Lookup) und zusätzlich als `encrypted_legacy_relay_token` (Fernet, `BROKER_ENCRYPTION_KEY`) vor. Auslieferung des Klartexts an den Kontoinhaber über `GET /api/v1/connections/{id}/miro-access` und `GET /api/v1/connections/{id}/access-details` setzt gespeicherten Ciphertext voraus; Zeilen mit Hash aber ohne Ciphertext (ältere Bestände) können den Key nicht rekonstruieren, bis eine Rotation den Ciphertext setzt.
+Pro Miro-Verbindung liegt der Relay-Key als `legacy_relay_token_hash` (Lookup bei der Verifizierung) und als `encrypted_legacy_relay_token` (Fernet, `BROKER_ENCRYPTION_KEY`) vor. Klartext an den Kontoinhaber: `GET /api/v1/connections/{id}/miro-access` und `GET /api/v1/connections/{id}/access-details` nach Session-Authentifizierung, sofern der Ciphertext gespeichert ist.
 
 ## API-Struktur
 

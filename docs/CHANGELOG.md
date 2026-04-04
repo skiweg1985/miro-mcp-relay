@@ -20,6 +20,7 @@
 
 ### Changed
 
+- Frontend: **Access**-Detailmodal: zwei Abschnitte **Access** (Delegated **Access key** mit Kurzhinweis) und **Connection** (Name, Endpoint, **Connection key** mit Kurzhinweis); Verbindungs- und Grant-Schlüssel nicht mehr doppelt als „Access key“; technische Blöcke unter einem einklappbaren **Developer details** (inkl. Usage example); Platzhalter in Header-Referenz `<connection key>`. `AccessCredentialSummary` / Mapper: Verbindungsschlüssel einheitlich **Connection key**.
 - HTTP: Kanonischer Header `X-Access-Key` für Service-APIs (`/api/v1/token-issues/provider-access`, `/api/v1/broker-proxy/miro/…`) und Legacy-MCP (`POST /miro/mcp/…`); Abwärtskompatibilität `X-Delegated-Credential` bzw. `X-Relay-Key` (Priorität jeweils `X-Access-Key`). JSON: `access_credential`; Endpoint `GET /api/v1/delegation-grants/{id}/access-credential` (Legacy-Pfad `…/delegated-credential`); Fehlercode `access_credential_not_stored`. Typ `AccessCredential` / `AccessCredentialRotateOut` im Backend; MCP-Config-JSON nutzt `X-Access-Key`.
 - UI/Doku: einheitliche Bezeichnung **Access key**; README, technische Referenz, Funktionsübersicht, Legacy-`src/index.js` angepasst.
 

@@ -858,6 +858,36 @@ h3 {
   max-width: min(440px, 100%);
 }
 
+.access-modal-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.access-modal-section + .access-modal-section {
+  margin-top: var(--space-1);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.access-modal-section-heading {
+  margin: 0;
+  font-size: var(--font-body);
+  font-weight: 650;
+  color: var(--ink-primary);
+  letter-spacing: -0.01em;
+}
+
+.access-modal-section-hint {
+  margin: 0;
+  font-size: var(--font-caption);
+  line-height: 1.45;
+}
+
+.access-modal-section--access .access-modal-row--key .access-modal-label {
+  margin-bottom: 0;
+}
+
 .access-modal-tool {
   display: flex;
   flex-direction: column;

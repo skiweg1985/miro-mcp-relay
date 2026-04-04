@@ -1338,6 +1338,36 @@
 - Follow-ups:
   - keine
 
+## 2026-04-04 – Cursor Agent – Access-Modal: Access key vs. Connection key
+
+- Done:
+  - `GrantDetailPanel` / `AccessConnectionTool` (`App.tsx`): Abschnitte **Access** und **Connection** mit klarer Benennung; Hilfetexte; **Developer details** mit eingebettetem Usage example; ARIA für Schlüssel-Aktionen (`access` vs. `connection`); Toasts/Replace-Labels für Verbindungsschlüssel angepasst.
+  - `index.css`: `.access-modal-section*`, Trennlinie zwischen Abschnitten.
+  - `AccessCredentialSummary.tsx`, `accessCredentialMappers.ts`: **Connection key** für Verbindungsdaten.
+  - `docs/CHANGELOG.md` [Unreleased] Changed.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - frontend/src/App.tsx
+  - frontend/src/index.css
+  - frontend/src/AccessCredentialSummary.tsx
+  - frontend/src/accessCredentialMappers.ts
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build`
+- UI path:
+  - Self-Service **Access** → Zeile → Modal **Access**
+- Changelog updated:
+  - yes ([Unreleased] Changed)
+- Follow-ups:
+  - keine
+
 ## 2026-04-04 – Cursor Agent – App access key oben im Access-Detailmodal
 
 - Done:

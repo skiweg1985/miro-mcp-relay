@@ -260,12 +260,15 @@ function AccessKeyIconActions({
   onToggleReveal,
   onCopy,
   copyDisabled,
+  keyVariant = "access",
 }: {
   reveal: boolean;
   onToggleReveal: () => void;
   onCopy: () => void;
   copyDisabled?: boolean;
+  keyVariant?: "access" | "connection";
 }) {
+  const keyNoun = keyVariant === "connection" ? "connection key" : "access key";
   return (
     <div className="access-key-icon-group">
       <button
@@ -273,7 +276,7 @@ function AccessKeyIconActions({
         className="access-key-icon-btn"
         onClick={onToggleReveal}
         aria-pressed={reveal}
-        aria-label={reveal ? "Hide access key" : "Show access key"}
+        aria-label={reveal ? `Hide ${keyNoun}` : `Show ${keyNoun}`}
       >
         {reveal ? <IconEyeOff /> : <IconEye />}
       </button>
@@ -282,7 +285,7 @@ function AccessKeyIconActions({
         className="access-key-icon-btn"
         onClick={() => void onCopy()}
         disabled={copyDisabled}
-        aria-label="Copy access key"
+        aria-label={`Copy ${keyNoun}`}
       >
         <IconCopy />
       </button>
@@ -325,7 +328,7 @@ function miroSetupExchangeSections(m: MiroRelayAccess): { title: string; body: s
   if (!m.relay_token) return [];
   const sections: { title: string; body: string; value: string }[] = [
     {
-      title: "Access key",
+      title: "Connection key",
       body: "This value is shown only once. Save it in your app before you leave the page.",
       value: m.relay_token,
     },
@@ -429,46 +432,52 @@ function GrantAppAccessKeySection({ grantId, canUse }: { grantId: string; canUse
 
   return (
     <>
-      <div className="access-modal-dev-block">
-        <h4 className="access-modal-dev-heading">Access key</h4>
-        <p className="access-modal-dev-lede muted">For API requests to this workspace.</p>
-        {loadState === "loading" ? <p className="muted access-modal-dev-lede">Loading…</p> : null}
-        {loadState === "error" ? <p className="muted access-modal-dev-lede">Could not load. Try again later.</p> : null}
-        {loadState === "ready" && credential ? (
-          <div className="grant-access-credential-block">
-            <div className="access-modal-secret-line">
-              <div className="grant-access-credential-value access-modal-key-box access-modal-key-box--grow">
-                {reveal ? (
-                  <code className="grant-credential-code">{credential}</code>
-                ) : (
-                  <span className="grant-credential-masked" aria-hidden>
-                    ••••••••••••••••
-                  </span>
-                )}
+      <section className="access-modal-section access-modal-section--access" aria-labelledby="access-modal-access-heading">
+        <h3 id="access-modal-access-heading" className="access-modal-section-heading">
+          Access
+        </h3>
+        <div className="access-modal-row access-modal-row--key">
+          <span className="access-modal-label">Access key</span>
+          <p className="access-modal-section-hint muted">Use this key to access this app access.</p>
+          {loadState === "loading" ? <p className="muted access-modal-section-hint">Loading…</p> : null}
+          {loadState === "error" ? <p className="muted access-modal-section-hint">Could not load. Try again later.</p> : null}
+          {loadState === "ready" && credential ? (
+            <div className="grant-access-credential-block">
+              <div className="access-modal-secret-line">
+                <div className="grant-access-credential-value access-modal-key-box access-modal-key-box--grow">
+                  {reveal ? (
+                    <code className="grant-credential-code">{credential}</code>
+                  ) : (
+                    <span className="grant-credential-masked" aria-hidden>
+                      ••••••••••••••••
+                    </span>
+                  )}
+                </div>
+                <AccessKeyIconActions
+                  reveal={reveal}
+                  onToggleReveal={() => setReveal((v) => !v)}
+                  onCopy={() => void handleCopy()}
+                  copyDisabled={!credential}
+                  keyVariant="access"
+                />
               </div>
-              <AccessKeyIconActions
-                reveal={reveal}
-                onToggleReveal={() => setReveal((v) => !v)}
-                onCopy={() => void handleCopy()}
-                copyDisabled={!credential}
-              />
+              <div className="access-modal-replace-key">
+                <button type="button" className="ghost-button" onClick={() => setRotateConfirm(true)}>
+                  Replace access key
+                </button>
+              </div>
             </div>
-            <div className="access-modal-replace-key">
-              <button type="button" className="ghost-button" onClick={() => setRotateConfirm(true)}>
+          ) : null}
+          {loadState === "missing" ? (
+            <div className="grant-access-credential-block grant-access-credential-block--empty">
+              <p className="muted access-modal-section-hint">Not stored for this entry. Replace once to enable Show and Copy.</p>
+              <button type="button" className="secondary-button" onClick={() => setRotateConfirm(true)}>
                 Replace access key
               </button>
             </div>
-          </div>
-        ) : null}
-        {loadState === "missing" ? (
-          <div className="grant-access-credential-block grant-access-credential-block--empty">
-            <p className="muted access-modal-dev-lede">Not stored for this entry. Replace once to enable Show and Copy.</p>
-            <button type="button" className="secondary-button" onClick={() => setRotateConfirm(true)}>
-              Replace access key
-            </button>
-          </div>
-        ) : null}
-      </div>
+          ) : null}
+        </div>
+      </section>
 
       {rotateConfirm ? (
         <ConfirmModal
@@ -528,66 +537,73 @@ function AccessConnectionTool({
   const keyStored = key?.status === "stored";
 
   return (
-    <div className="access-modal-tool">
-      <div className="access-modal-row">
-        <span className="access-modal-label">Connection</span>
-        <span className="access-modal-value">{connectionName || "—"}</span>
-      </div>
-      <div className="access-modal-row access-modal-row--endpoint">
-        <span className="access-modal-label">Endpoint</span>
-        <div className="access-modal-value-wrap">
-          {endpointUrl ? (
-            <>
-              <code className="access-modal-code">{endpointUrl}</code>
-              <button type="button" className="ghost-button access-modal-inline-btn" onClick={() => void copyEndpoint()}>
-                Copy
-              </button>
-            </>
-          ) : (
-            <span className="access-modal-value">—</span>
-          )}
+    <section className="access-modal-section access-modal-section--connection" aria-labelledby="access-modal-connection-heading">
+      <h3 id="access-modal-connection-heading" className="access-modal-section-heading">
+        Connection
+      </h3>
+      <div className="access-modal-tool">
+        <div className="access-modal-row">
+          <span className="access-modal-label">Connection name</span>
+          <span className="access-modal-value">{connectionName || "—"}</span>
         </div>
-      </div>
-      <div className="access-modal-row access-modal-row--key">
-        <span className="access-modal-label">Access key</span>
-        <div className="access-modal-value-wrap access-modal-value-wrap--key">
-          {keyReady && keyPlaintext ? (
-            <div className="access-modal-secret-line">
-              <div className="grant-access-credential-value access-modal-key-box access-modal-key-box--grow">
-                {keyReveal ? (
-                  <code className="grant-credential-code">{keyPlaintext}</code>
-                ) : (
-                  <span className="grant-credential-masked" aria-hidden>
-                    ••••••••••••••••
-                  </span>
-                )}
-              </div>
-              <AccessKeyIconActions
-                reveal={keyReveal}
-                onToggleReveal={() => setKeyReveal((v) => !v)}
-                onCopy={() => void copyKey(keyPlaintext)}
-                copyDisabled={!keyPlaintext}
-              />
-            </div>
-          ) : keyStored ? (
-            <>
-              <span className="grant-credential-masked" aria-hidden>
-                ••••••••••••••••
-              </span>
-              {canRotateConnection ? (
-                <button type="button" className="ghost-button" disabled={replaceConnectionKeyPending} onClick={onReplaceConnectionKey}>
-                  {replaceConnectionKeyPending ? "Working…" : "Replace access key"}
+        <div className="access-modal-row access-modal-row--endpoint">
+          <span className="access-modal-label">Endpoint</span>
+          <div className="access-modal-value-wrap">
+            {endpointUrl ? (
+              <>
+                <code className="access-modal-code">{endpointUrl}</code>
+                <button type="button" className="ghost-button access-modal-inline-btn" onClick={() => void copyEndpoint()}>
+                  Copy
                 </button>
-              ) : (
-                <span className="muted access-modal-muted-inline">Not shown here</span>
-              )}
-            </>
-          ) : (
-            <span className="muted">—</span>
-          )}
+              </>
+            ) : (
+              <span className="access-modal-value">—</span>
+            )}
+          </div>
         </div>
+        <div className="access-modal-row access-modal-row--key">
+          <span className="access-modal-label">Connection key</span>
+          <div className="access-modal-value-wrap access-modal-value-wrap--key">
+            {keyReady && keyPlaintext ? (
+              <div className="access-modal-secret-line">
+                <div className="grant-access-credential-value access-modal-key-box access-modal-key-box--grow">
+                  {keyReveal ? (
+                    <code className="grant-credential-code">{keyPlaintext}</code>
+                  ) : (
+                    <span className="grant-credential-masked" aria-hidden>
+                      ••••••••••••••••
+                    </span>
+                  )}
+                </div>
+                <AccessKeyIconActions
+                  reveal={keyReveal}
+                  onToggleReveal={() => setKeyReveal((v) => !v)}
+                  onCopy={() => void copyKey(keyPlaintext)}
+                  copyDisabled={!keyPlaintext}
+                  keyVariant="connection"
+                />
+              </div>
+            ) : keyStored ? (
+              <>
+                <span className="grant-credential-masked" aria-hidden>
+                  ••••••••••••••••
+                </span>
+                {canRotateConnection ? (
+                  <button type="button" className="ghost-button" disabled={replaceConnectionKeyPending} onClick={onReplaceConnectionKey}>
+                    {replaceConnectionKeyPending ? "Working…" : "Replace connection key"}
+                  </button>
+                ) : (
+                  <span className="muted access-modal-muted-inline">Not shown here</span>
+                )}
+              </>
+            ) : (
+              <span className="muted">—</span>
+            )}
+          </div>
+        </div>
+        <p className="access-modal-section-hint muted">Use this key with the connection endpoint below.</p>
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -685,7 +701,7 @@ function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
       `POST ${ep}`,
       `Content-Type: application/json`,
       ``,
-      `X-Access-Key: <access key>`,
+      `X-Access-Key: <connection key>`,
     ];
     if (relayAllowed && accessDetails?.supported) {
       const profile = accessDetails.rows.find((r) => r.label === "Workspace")?.value ?? "<profile_id>";
@@ -696,7 +712,7 @@ function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
         `POST ${mcpUrl}`,
         `Content-Type: application/json`,
         ``,
-        `X-Access-Key: <access key>`,
+        `X-Access-Key: <connection key>`,
       );
     }
     return lines.join("\n");
@@ -710,13 +726,13 @@ function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
       setAccessDetails(result);
       notify({
         tone: "success",
-        title: "Access key ready",
+        title: "Connection key ready",
         description: "Copy it now. The previous key no longer works.",
       });
     } catch (error) {
       notify({
         tone: "error",
-        title: "Could not create a new access key",
+        title: "Could not create a new connection key",
         description: isApiError(error) ? error.message : "Unexpected error.",
       });
     } finally {
@@ -765,15 +781,13 @@ function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
       ) : null}
 
       <details className="grant-disclosure grant-disclosure--after-tool">
-        <summary className="grant-disclosure-summary">Usage example</summary>
-        <div className="grant-detail-disclosure-body">
-          <GrantCodeCopy label="Copy" text={usageExampleText} />
-        </div>
-      </details>
-
-      <details className="grant-disclosure">
         <summary className="grant-disclosure-summary">Developer details</summary>
         <div className="grant-detail-disclosure-body access-modal-dev">
+          <div className="access-modal-dev-block">
+            <h4 className="access-modal-dev-heading">Usage example</h4>
+            <GrantCodeCopy label="Copy" text={usageExampleText} />
+          </div>
+
           {grant.service_client_key ? (
             <p className="muted access-modal-dev-lede">
               Named apps may require <code className="grant-inline-code">X-Service-Secret</code> from the service settings.

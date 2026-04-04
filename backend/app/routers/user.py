@@ -173,7 +173,7 @@ def create_my_delegation_grant(
         allowed_access_modes_json=dumps_json(allowed_access_modes),
         scope_ceiling_json=dumps_json(payload.scope_ceiling),
         environment=payload.environment,
-        expires_at=utcnow() + timedelta(hours=payload.expires_in_hours),
+        expires_at=utcnow() + timedelta(days=payload.expires_in_days),
     )
     db.add(grant)
     db.flush()

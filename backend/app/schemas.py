@@ -300,7 +300,7 @@ class DelegationGrantCreate(BaseModel):
     allowed_access_modes: list[str] = Field(default_factory=list)
     scope_ceiling: list[str] = Field(default_factory=list)
     environment: str | None = None
-    expires_in_hours: int = Field(default=24, ge=1, le=24 * 365)
+    expires_in_days: int = Field(default=1, ge=1, le=365)
     capabilities: list[str] = Field(default_factory=list)
 
 
@@ -342,7 +342,7 @@ class SelfServiceDelegationGrantCreate(BaseModel):
     allowed_access_modes: list[str] = Field(default_factory=list)
     scope_ceiling: list[str] = Field(default_factory=list)
     environment: str | None = None
-    expires_in_hours: int = Field(default=24, ge=1, le=24 * 365)
+    expires_in_days: int = Field(default=1, ge=1, le=365)
     capabilities: list[str] = Field(default_factory=list)
 
 

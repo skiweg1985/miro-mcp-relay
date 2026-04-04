@@ -2533,7 +2533,8 @@ function issueDelegationGrant({
   allowed_access_modes = [ACCESS_MODE_RELAY],
   scope_ceiling = [],
   environment = '',
-  expires_in_hours = 24
+  expires_in_hours = 24,
+  expires_in_days
 }) {
   const profileId = resolveProfileId(profile_id);
   if (!profileId || !profiles[profileId] || profiles[profileId].status === 'deleted') {
@@ -2551,7 +2552,15 @@ function issueDelegationGrant({
 
   const grantId = newRecordId('grant');
   const delegatedCredential = newOpaqueSecret();
-  const expiresAt = new Date(Date.now() + (Math.max(1, Number(expires_in_hours) || 24) * 60 * 60 * 1000)).toISOString();
+  let ttlMs;
+  if (expires_in_days != null && expires_in_days !== '') {
+    const days = Math.max(1, Math.min(365, Number(expires_in_days) || 1));
+    ttlMs = days * 24 * 60 * 60 * 1000;
+  } else {
+    const hours = Math.max(1, Math.min(24 * 365, Number(expires_in_hours) || 24));
+    ttlMs = hours * 60 * 60 * 1000;
+  }
+  const expiresAt = new Date(Date.now() + ttlMs).toISOString();
 
   delegationGrants[grantId] = {
     id: grantId,
@@ -3923,6 +3932,7 @@ app.post('/broker/admin/delegation-grants', requireAdmin, (req, res) => {
       allowed_access_modes: req.body?.allowed_access_modes,
       scope_ceiling: req.body?.scope_ceiling,
       environment: req.body?.environment,
+      expires_in_days: req.body?.expires_in_days,
       expires_in_hours: req.body?.expires_in_hours
     });
     audit('delegation_grant_created', {

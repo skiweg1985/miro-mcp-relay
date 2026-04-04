@@ -58,7 +58,7 @@ export function AccessPage() {
     allowed_access_modes: ["direct_token"],
     scope_ceiling_text: "",
     environment: "",
-    expires_in_hours: 24,
+    expires_in_days: 1,
     capabilities_text: "",
   });
 
@@ -116,7 +116,7 @@ export function AccessPage() {
         allowed_access_modes: form.allowed_access_modes,
         scope_ceiling: parseLines(form.scope_ceiling_text),
         environment: form.environment || null,
-        expires_in_hours: form.expires_in_hours,
+        expires_in_days: form.expires_in_days,
         capabilities: parseLines(form.capabilities_text),
       });
       setCreatedResult(result);
@@ -126,7 +126,7 @@ export function AccessPage() {
         connected_account_id: "",
         scope_ceiling_text: "",
         environment: "",
-        expires_in_hours: 24,
+        expires_in_days: 1,
         capabilities_text: "",
       }));
       setGrantModalOpen(false);
@@ -296,14 +296,14 @@ export function AccessPage() {
                   ))}
                 </div>
               </Field>
-              <Field label="Expiry (hours)">
+              <Field label="Expiry (days)">
                 <input
-                  value={form.expires_in_hours}
+                  value={form.expires_in_days}
                   onChange={(event) =>
-                    setForm((current) => ({ ...current, expires_in_hours: Number(event.target.value) || 24 }))
+                    setForm((current) => ({ ...current, expires_in_days: Number(event.target.value) || 1 }))
                   }
                   min={1}
-                  max={24 * 365}
+                  max={365}
                   type="number"
                 />
               </Field>

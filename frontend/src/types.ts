@@ -339,7 +339,7 @@ export type DelegationGrantFormValues = {
   allowed_access_modes: string[];
   scope_ceiling_text: string;
   environment: string;
-  expires_in_hours: number;
+  expires_in_days: number;
   capabilities_text: string;
 };
 
@@ -350,7 +350,7 @@ export type SelfServiceDelegationGrantFormValues = {
   allowed_access_modes: string[];
   scope_ceiling_text: string;
   environment: string;
-  expires_in_hours: number;
+  expires_in_days: number;
   capabilities_text: string;
 };
 

@@ -617,7 +617,7 @@ function GrantsPage() {
     allowed_access_modes: ["direct_token"],
     scope_ceiling_text: "",
     environment: "",
-    expires_in_hours: 24,
+    expires_in_days: 1,
     capabilities_text: "",
   });
 
@@ -700,7 +700,7 @@ function GrantsPage() {
         allowed_access_modes: form.allowed_access_modes,
         scope_ceiling: parseLines(form.scope_ceiling_text),
         environment: form.environment || null,
-        expires_in_hours: form.expires_in_hours,
+        expires_in_days: form.expires_in_days,
         capabilities: parseLines(form.capabilities_text),
       });
       setCreatedResult(result);
@@ -711,7 +711,7 @@ function GrantsPage() {
         connected_account_id: "",
         scope_ceiling_text: "",
         environment: "",
-        expires_in_hours: 24,
+        expires_in_days: 1,
         capabilities_text: "",
       }));
       await load();
@@ -901,14 +901,14 @@ function GrantsPage() {
                   placeholder="production"
                 />
               </Field>
-              <Field label="Expiry (hours)">
+              <Field label="Expiry (days)">
                 <input
                   type="number"
                   min={1}
-                  max={24 * 365}
-                  value={form.expires_in_hours}
+                  max={365}
+                  value={form.expires_in_days}
                   onChange={(event) =>
-                    setForm((current) => ({ ...current, expires_in_hours: Number(event.target.value) || 24 }))
+                    setForm((current) => ({ ...current, expires_in_days: Number(event.target.value) || 1 }))
                   }
                 />
               </Field>

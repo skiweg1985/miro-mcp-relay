@@ -651,3 +651,36 @@
   - yes ([Unreleased] Fixed)
 - Follow-ups:
   - Backend könnte JSON künftig immer mit explizitem `Z` serialisieren (Pydantic); Frontend bleibt robust.
+
+## 2026-04-04 – Cursor Agent – Delegation: Ablauf in Tagen
+
+- Done:
+  - API: `expires_in_days` (1–365, Standard 1) statt `expires_in_hours` in `DelegationGrantCreate` und `SelfServiceDelegationGrantCreate`; `expires_at` via `timedelta(days=…)` in `admin.py` und `user.py`.
+  - Frontend: Formulare Access + Self-Service App access; `types.ts`; Legacy `src/index.js`: `expires_in_days` mit Fallback `expires_in_hours`.
+  - `docs/CHANGELOG.md` [Unreleased] Changed; `npm run build`; gebündeltes Asset und `index.html` bei Bedarf per `git add -f`.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - backend/app/schemas.py
+  - backend/app/routers/admin.py
+  - backend/app/routers/user.py
+  - frontend/src/types.ts
+  - frontend/src/App.tsx
+  - frontend/src/admin/AccessPage.tsx
+  - frontend/dist/ (falls eingecheckt)
+  - src/index.js
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `python3 -m py_compile …`, `cd frontend && npm run build`
+- UI path:
+  - `/app/access`, `/grants` (Create access)
+- Changelog updated:
+  - yes ([Unreleased] Changed)
+- Follow-ups:
+  - Clients, die noch `expires_in_hours` an die FastAPI senden, müssen auf `expires_in_days` umstellen

@@ -27,18 +27,6 @@ def coalesce_service_access_headers(
     return (x_delegated_credential or "").strip() or None
 
 
-def coalesce_legacy_mcp_access_headers(
-    x_access_key: str | None,
-    x_relay_key: str | None,
-    bearer_token: str | None,
-) -> str | None:
-    for candidate in (x_access_key, x_relay_key, bearer_token):
-        v = (candidate or "").strip()
-        if v:
-            return v
-    return None
-
-
 @dataclass
 class ServiceAuthContext:
     service_client: ServiceClient | None = None

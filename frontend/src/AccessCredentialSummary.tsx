@@ -9,16 +9,17 @@ function keyStatusDisplay(
   section: NonNullable<ConnectionAccessDetails["key_section"]>,
   canRotate: boolean,
 ): string {
+  const label = section.label?.trim() || "Key";
   switch (section.status) {
     case "ready":
-      return "New connection key ready — use Copy in the dialog";
+      return `New ${label.toLowerCase()} ready — use Copy in the dialog`;
     case "stored":
       if (!canRotate) {
         return "Not shown in the browser";
       }
-      return "Hidden — create a new connection key to copy";
+      return `Hidden — create a new ${label.toLowerCase()} to copy`;
     case "none":
-      return "No connection key yet";
+      return `No ${label.toLowerCase()} yet`;
     default:
       return "—";
   }
@@ -84,7 +85,7 @@ export function AccessCredentialSummary({
     const key = details.key_section;
     const sections: { title: string; body: string; value: string }[] = [
       {
-        title: key?.label || "Connection key",
+        title: key?.label || "Access key",
         body: "This value is shown only once. Save it in your app before you leave the page.",
         value: plaintext,
       },
@@ -97,7 +98,7 @@ export function AccessCredentialSummary({
 
   if (loading) {
     return (
-      <Card title={cardTitle ?? "Connection details"} description={cardDescription ?? "Endpoint and connection key for tools that use this connection."}>
+      <Card title={cardTitle ?? "Connection details"} description={cardDescription ?? "Endpoint and access details for tools that use this connection."}>
         <p className="muted">Loading…</p>
       </Card>
     );
@@ -109,7 +110,7 @@ export function AccessCredentialSummary({
 
   const title = cardTitle ?? details.section_title ?? "Connection details";
   const metaLine = [details.connection_type_label, details.provider_display_name].filter(Boolean).join(" · ");
-  const description = cardDescription ?? (metaLine || "Endpoint and connection key for tools that use this connection.");
+  const description = cardDescription ?? (metaLine || "Endpoint and access details for tools that use this connection.");
 
   const key = details.key_section;
   const showRotate = Boolean(onRotate && details.can_rotate);
@@ -133,7 +134,7 @@ export function AccessCredentialSummary({
         ))}
         {key ? (
           <div className="stack-cell access-credential-row">
-            <strong>{key.label || "Connection key"}</strong>
+            <strong>{key.label || "Access key"}</strong>
             <span className="access-credential-row-value">
               <span>{keyStatusDisplay(key, details.can_rotate)}</span>
             </span>
@@ -148,7 +149,7 @@ export function AccessCredentialSummary({
       {showRotate ? (
         <div className="inline-actions">
           <button type="button" className="primary-button" disabled={rotatePending} onClick={onRotate}>
-            {rotatePending ? "Working…" : "Create new connection key"}
+            {rotatePending ? "Working…" : "Create new access key"}
           </button>
           {details.manage_path ? (
             <a className="ghost-button" href={details.manage_path}>
@@ -165,7 +166,7 @@ export function AccessCredentialSummary({
       ) : null}
 
       {showStoredHint && showRotate ? (
-        <p className="lede">The current connection key still works elsewhere. Create a new connection key when you need to copy it again.</p>
+        <p className="lede">The current key still works elsewhere. Create a new key when you need to copy it again.</p>
       ) : null}
 
       {revealSections ? <CredentialRevealModal sections={revealSections} /> : null}
@@ -176,6 +177,6 @@ export function AccessCredentialSummary({
 /** Renders a neutral hint when no connection is selected yet (Add access flow). */
 export function AccessCredentialConnectionHint() {
   return (
-    <p className="muted form-hint access-credential-hint">Choose a connection to preview endpoint and connection key status when this integration supports it.</p>
+    <p className="muted form-hint access-credential-hint">Choose a connection to preview endpoint details when this integration supports it.</p>
   );
 }

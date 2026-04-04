@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Removed
+
+- Root-Router `legacy_miro` (`POST /miro/mcp/{profile_id}`, Redirects unter `/miro/*`, `/start`, `/healthz`, `/readyz`).
+- Tabellenspalten `connected_accounts.legacy_profile_id`, `legacy_relay_token_hash`, `encrypted_legacy_relay_token`.
+- API: `GET /api/v1/connections/{id}/miro-access`, `POST .../miro-access/reset`, `POST /api/v1/connections/miro/setup/exchange`, `POST /api/v1/connections/{id}/access-details/rotate`.
+
+### Changed
+
+- Miro-Relay: nur noch `POST /api/v1/broker-proxy/miro/{connected_account_id}` mit Delegation-Grant (`X-Access-Key`); `GET .../access-details` liefert Relay-URL und Authentifizierungshinweis (Grant-Access-Key), ohne separaten Verbindungs-Key.
+- HAProxy: Backend nur noch für `/api` (kein Routing mehr von `/miro`, `/start`, `/healthz`, `/readyz` zum API-Backend).
+
 ### Added
 
 - Datenmodell: `connected_accounts.encrypted_legacy_relay_token` (Fernet) für den Miro-Relay-Key neben `legacy_relay_token_hash`; bei Erstausstellung und Rotation befüllt; `reconcile_schema` ergänzt die Spalte.

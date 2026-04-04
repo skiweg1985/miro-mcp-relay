@@ -3,9 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { SetupDrawer, SummaryRow, type WizardStep } from "./admin/SetupDrawer";
 import { useAppContext } from "./app-context";
 import { api } from "./api";
-import { connectionAccessDetailsFromMiroLegacy } from "./accessCredentialMappers";
 import { TEMPLATE_MS_LOGIN } from "./admin/constants";
-import { AccessCredentialSummary } from "./AccessCredentialSummary";
 import {
   Card,
   ConfirmModal,
@@ -15,13 +13,7 @@ import {
   StatusBadge,
 } from "./components";
 import { isApiError } from "./errors";
-import type {
-  ConnectedAccountOut,
-  ConnectionAccessDetails,
-  ConnectionProbeResult,
-  ProviderAppOut,
-  ProviderDefinitionOut,
-} from "./types";
+import type { ConnectedAccountOut, ConnectionProbeResult, ProviderAppOut, ProviderDefinitionOut } from "./types";
 import { formatDateTime, relativeTime } from "./utils";
 
 const CONNECT_WIZARD_STEPS: WizardStep[] = [
@@ -75,30 +67,13 @@ function templateDescription(definitions: ProviderDefinitionOut[], templateKey: 
   return "";
 }
 
-function replaceCurrentSearchParams(removals: string[]) {
-  const url = new URL(window.location.href);
-  let changed = false;
-  removals.forEach((key) => {
-    if (url.searchParams.has(key)) {
-      url.searchParams.delete(key);
-      changed = true;
-    }
-  });
-  if (!changed) return;
-  const search = url.searchParams.toString();
-  window.history.replaceState({}, "", `${url.pathname}${search ? `?${search}` : ""}`);
-}
-
 export function UserIntegrationsPage() {
   const { notify, session } = useAppContext();
   const [providerApps, setProviderApps] = useState<ProviderAppOut[]>([]);
   const [definitions, setDefinitions] = useState<ProviderDefinitionOut[]>([]);
   const [connections, setConnections] = useState<ConnectedAccountOut[]>([]);
-  const [accessDetailsByConnectionId, setAccessDetailsByConnectionId] = useState<Record<string, ConnectionAccessDetails>>({});
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<Set<string>>(() => new Set());
-  const [rotatePendingConnectionId, setRotatePendingConnectionId] = useState<string | null>(null);
-  const [setupPending, setSetupPending] = useState(false);
   const [probeById, setProbeById] = useState<Record<string, ConnectionProbeResult>>({});
 
   const [connectWizardAppId, setConnectWizardAppId] = useState<string | null>(null);
@@ -118,20 +93,6 @@ export function UserIntegrationsPage() {
       setProviderApps(appData);
       setDefinitions(defData);
       setConnections(connectionData);
-      const next: Record<string, ConnectionAccessDetails> = {};
-      await Promise.all(
-        connectionData
-          .filter((c) => c.status === "connected")
-          .map(async (c) => {
-            try {
-              const d = await api.connectionAccessDetails(c.id);
-              if (d.supported) next[c.id] = d;
-            } catch {
-              void 0;
-            }
-          }),
-      );
-      setAccessDetailsByConnectionId(next);
     } catch (error) {
       notify({
         tone: "error",
@@ -177,39 +138,6 @@ export function UserIntegrationsPage() {
     const app = row ? providerAppById[row.provider_app_id] : undefined;
     return app?.display_name ?? "";
   }, [revokeConfirmId, connections, providerAppById]);
-
-  useEffect(() => {
-    if (session.status !== "authenticated") return;
-    const setupToken = new URLSearchParams(window.location.search).get("miro_setup");
-    if (!setupToken) return;
-
-    setSetupPending(true);
-    void api
-      .exchangeMiroSetup(session.csrfToken, setupToken)
-      .then((result) => {
-        setAccessDetailsByConnectionId((prev) => ({
-          ...prev,
-          [result.connected_account_id]: connectionAccessDetailsFromMiroLegacy(result),
-        }));
-        notify({
-          tone: "success",
-          title: "Connection details ready",
-          description: "Copy the details before you leave this page.",
-        });
-      })
-      .catch((error) => {
-        notify({
-          tone: "error",
-          title: "Could not load the one-time Miro setup",
-          description: isApiError(error) ? friendlyBrokerMessage(error.message) : "Unexpected setup exchange error.",
-        });
-      })
-      .finally(() => {
-        setSetupPending(false);
-        replaceCurrentSearchParams(["miro_setup", "miro_status", "connected_account_id", "message"]);
-        void load();
-      });
-  }, [notify, session]);
 
   const runBusy = async (key: string, fn: () => Promise<void>) => {
     setBusy((prev) => new Set(prev).add(key));
@@ -296,28 +224,6 @@ export function UserIntegrationsPage() {
     });
   };
 
-  const handleRotateAccessKey = async (connectionId: string) => {
-    if (session.status !== "authenticated") return;
-    setRotatePendingConnectionId(connectionId);
-    try {
-      const result = await api.rotateConnectionAccess(session.csrfToken, connectionId);
-      setAccessDetailsByConnectionId((prev) => ({ ...prev, [connectionId]: result }));
-      notify({
-        tone: "success",
-        title: "New access key ready",
-        description: "Copy the details now. The previous key no longer works.",
-      });
-    } catch (error) {
-      notify({
-        tone: "error",
-        title: "Could not create a new access key",
-        description: isApiError(error) ? friendlyBrokerMessage(error.message) : "Unexpected error.",
-      });
-    } finally {
-      setRotatePendingConnectionId(null);
-    }
-  };
-
   if (loading) return <LoadingScreen label="Loading integrations…" />;
 
   const lastConnectStep = connectWizardStep >= CONNECT_WIZARD_STEPS.length - 1;
@@ -330,7 +236,6 @@ export function UserIntegrationsPage() {
         description="Connect the apps you use. We only act on your behalf after you sign in."
       />
 
-      {setupPending ? <LoadingScreen label="Preparing your one-time Miro setup…" /> : null}
 
       {connectableApps.length === 0 ? (
         <Card title="Nothing to connect" description="Your organization has not added any apps yet.">
@@ -392,17 +297,6 @@ export function UserIntegrationsPage() {
           })}
         </div>
       )}
-
-      {Object.entries(accessDetailsByConnectionId).map(([connectionId, details]) => (
-        <AccessCredentialSummary
-          key={connectionId}
-          details={details}
-          rotatePending={rotatePendingConnectionId === connectionId}
-          onRotate={details.can_rotate ? () => void handleRotateAccessKey(connectionId) : undefined}
-          cardTitle="Connection details"
-          cardDescription="Endpoint and key for tools that use this connection."
-        />
-      ))}
 
       {connectWizardApp ? (
         <SetupDrawer

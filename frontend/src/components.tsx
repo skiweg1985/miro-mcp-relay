@@ -294,9 +294,20 @@ export function SecretPanel({
 
 export type SecretModalSection = { title: string; body: string; value: string };
 
-export function CredentialRevealModal({ sections }: { sections: SecretModalSection[] }) {
+export function CredentialRevealModal({
+  sections,
+  onDismissed,
+}: {
+  sections: SecretModalSection[];
+  onDismissed?: () => void;
+}) {
   const [open, setOpen] = useState(true);
   const { notify } = useAppContext();
+
+  const close = () => {
+    setOpen(false);
+    onDismissed?.();
+  };
 
   const copySection = async (value: string) => {
     const ok = await copyToClipboard(value);
@@ -316,7 +327,7 @@ export function CredentialRevealModal({ sections }: { sections: SecretModalSecti
       title="Connection details"
       description="Copy these values now. They will not be shown again."
       wide
-      onClose={() => setOpen(false)}
+      onClose={close}
     >
       {sections.map((section, index) => (
         <div key={`${section.title}-${index}`} className="secret-modal-section">
@@ -331,7 +342,7 @@ export function CredentialRevealModal({ sections }: { sections: SecretModalSecti
         </div>
       ))}
       <div className="modal-form-actions">
-        <button type="button" className="primary-button" onClick={() => setOpen(false)}>
+        <button type="button" className="primary-button" onClick={close}>
           Done
         </button>
       </div>

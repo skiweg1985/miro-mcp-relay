@@ -1453,3 +1453,27 @@
   - no
 - Follow-ups:
   - keine
+
+## 2026-04-04 – Cursor Agent – Unified Key: Legacy Relay entfernt
+
+- Done:
+  - `legacy_miro.py` entfernt; `ConnectedAccount` ohne Legacy-Spalten; `miro.py` ohne Relay-Token/Setup-Token; `connection_access_details` mit Miro-Broker-URL; Routen `miro-access`, `setup/exchange`, `access-details/rotate` entfernt; Schemas bereinigt.
+  - Frontend: ein Access-Key-Flow; `ConnectionEndpointGridCells`; API ohne Miro-Relay-Endpoints; `UserIntegrationsPage` ohne `miro_setup`-Exchange; `AccessCredentialSummary` angepasst.
+  - `haproxy.cfg`: API-Backend nur `/api`; `broker.db` gelöscht; `docs/CHANGELOG.md`, `AGENTS.md`; `test_welle1_smoke.py` angepasst.
+- Next:
+  - README/technische-referenz bei Bedarf nachziehen.
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - backend/app/main.py, models.py, miro.py, connection_access_details.py, routers/connections.py, schemas.py, deps.py, seed.py, test_welle1_smoke.py
+  - frontend/src/App.tsx, api.ts, types.ts, AccessCredentialSummary.tsx, UserIntegrationsPage.tsx; removed accessCredentialMappers.ts
+  - haproxy/haproxy.cfg, docs/CHANGELOG.md, AGENTS.md, broker.db (deleted)
+- Test notes:
+  - commands: `python3 -m unittest backend/test_welle1_smoke.py`, `cd frontend && npm run build`
+- Changelog updated:
+  - yes ([Unreleased] Removed/Changed)
+- Follow-ups:
+  - README.md und docs/technische-referenz.md noch auf Legacy-Pfade prüfen

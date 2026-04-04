@@ -45,7 +45,6 @@ import type {
   RouteMatch,
   SelfServiceDelegationGrantCreateResult,
   SelfServiceDelegationGrantFormValues,
-  MiroRelayAccess,
   SelfServiceDelegationGrantOut,
   ServiceClientCreateResult,
   ServiceClientFormValues,
@@ -369,32 +368,6 @@ function GrantCodeCopy({
   );
 }
 
-function miroSetupExchangeSections(m: MiroRelayAccess): { title: string; body: string; value: string }[] {
-  if (!m.relay_token) return [];
-  const sections: { title: string; body: string; value: string }[] = [
-    {
-      title: "Connection key",
-      body: "This value is shown only once. Save it in your app before you leave the page.",
-      value: m.relay_token,
-    },
-  ];
-  if (m.mcp_config_json?.trim()) {
-    sections.push({
-      title: "App configuration (JSON)",
-      body: "Paste this into your app settings to use this connection from your tool.",
-      value: m.mcp_config_json,
-    });
-  }
-  if (m.credentials_bundle_json?.trim()) {
-    sections.push({
-      title: "Combined setup (JSON)",
-      body: "Workspace ID, endpoint, and key in one block for apps that accept a single paste.",
-      value: m.credentials_bundle_json,
-    });
-  }
-  return sections;
-}
-
 type AppAccessKeyLoadState = "loading" | "ready" | "missing" | "error";
 
 function GrantAppAccessKeySection({ grantId, canUse }: { grantId: string; canUse: boolean }) {
@@ -552,23 +525,17 @@ function GrantAppAccessKeySection({ grantId, canUse }: { grantId: string; canUse
   );
 }
 
-function ConnectionCredentialGridCells({
+function ConnectionEndpointGridCells({
   accessDetails,
   connectionName,
-  onReplaceConnectionKey,
-  replaceConnectionKeyPending,
 }: {
   accessDetails: ConnectionAccessDetails;
   connectionName: string;
-  onReplaceConnectionKey?: () => void;
-  replaceConnectionKeyPending?: boolean;
 }) {
   const { notify } = useAppContext();
-  const [keyReveal, setKeyReveal] = useState(false);
 
-  const endpointUrl = accessDetails.rows.find((r) => r.label === "Endpoint")?.value ?? null;
-  const key = accessDetails.key_section;
-  const canRotateConnection = Boolean(accessDetails.can_rotate && onReplaceConnectionKey);
+  const endpointUrl =
+    accessDetails.rows.find((r) => r.label === "Relay endpoint" || r.label === "Endpoint")?.value ?? null;
 
   const copyEndpoint = async () => {
     if (!endpointUrl) return;
@@ -579,67 +546,6 @@ function ConnectionCredentialGridCells({
       description: ok ? "Paste it into your tool where the URL is required." : "Your browser did not allow the copy action.",
     });
   };
-
-  const copyKey = async (value: string) => {
-    const ok = await copyToClipboard(value);
-    notify({
-      tone: ok ? "success" : "error",
-      title: ok ? "Copied to clipboard" : "Clipboard unavailable",
-      description: ok ? "Store this value somewhere safe before you navigate away." : "Your browser did not allow the copy action.",
-    });
-  };
-
-  const keyPlaintext = key?.plaintext?.trim() ? key.plaintext : null;
-  const keyReady = key?.status === "ready" && keyPlaintext;
-  const keyStored = key?.status === "stored";
-
-  const connectionKeyMain = (
-    <>
-      {keyReady && keyPlaintext ? (
-        <div className="access-modal-secret-line">
-          <div className="grant-access-credential-value access-modal-key-box access-modal-key-box--grow">
-            {keyReveal ? (
-              <code className="grant-credential-code">{keyPlaintext}</code>
-            ) : (
-              <span className="grant-credential-masked" aria-hidden>
-                ••••••••••••••••
-              </span>
-            )}
-          </div>
-          <AccessKeyIconActions
-            reveal={keyReveal}
-            onToggleReveal={() => setKeyReveal((v) => !v)}
-            onCopy={() => void copyKey(keyPlaintext)}
-            copyDisabled={!keyPlaintext}
-            keyVariant="connection"
-          />
-        </div>
-      ) : keyStored ? (
-        <div className="access-modal-secret-line">
-          <div className="grant-access-credential-value access-modal-key-box access-modal-key-box--grow">
-            <span className="grant-credential-masked" aria-hidden>
-              ••••••••••••••••
-            </span>
-          </div>
-          {canRotateConnection && onReplaceConnectionKey ? (
-            <AccessKeyIconActions
-              showRevealCopy={false}
-              reveal={false}
-              onToggleReveal={() => {}}
-              onCopy={() => {}}
-              keyVariant="connection"
-              onReplace={onReplaceConnectionKey}
-              replaceBusy={replaceConnectionKeyPending}
-            />
-          ) : (
-            <span className="muted access-modal-muted-inline access-modal-key-inline-hint">Not shown here</span>
-          )}
-        </div>
-      ) : (
-        <span className="muted">—</span>
-      )}
-    </>
-  );
 
   return (
     <>
@@ -668,14 +574,6 @@ function ConnectionCredentialGridCells({
           </div>
         </div>
       </div>
-      <div className="access-modal-grid-cell access-modal-grid-cell--connection-key">
-        <div className="access-modal-field-row">
-          <span className="access-modal-label" title="Use with the endpoint URL and required headers.">
-            Connection key
-          </span>
-          <div className="access-modal-field-main">{connectionKeyMain}</div>
-        </div>
-      </div>
     </>
   );
 }
@@ -684,7 +582,6 @@ function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
   const { notify, session } = useAppContext();
   const [accessDetails, setAccessDetails] = useState<ConnectionAccessDetails | null>(null);
   const [accessLoading, setAccessLoading] = useState(false);
-  const [rotatePending, setRotatePending] = useState(false);
   const [connections, setConnections] = useState<ConnectedAccountOut[] | null>(null);
 
   const directAllowed = grant.allowed_access_modes.includes("direct_token");
@@ -746,7 +643,7 @@ function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
   }, [grant.connected_account_display_name, accessDetails]);
 
   const usageExampleText = useMemo(() => {
-    const endpointFromRows = accessDetails?.rows.find((r) => r.label === "Endpoint")?.value;
+    const endpointFromRows = accessDetails?.rows.find((r) => r.label === "Relay endpoint" || r.label === "Endpoint")?.value;
     if (directAllowed) {
       return [
         `POST ${origin}/api/v1/token-issues/provider-access`,
@@ -768,50 +665,16 @@ function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
   }, [accessDetails, directAllowed, grant.connected_account_id, grant.provider_app_key, origin, resolvedConnectionId]);
 
   const developerHeadersExample = useMemo(() => {
-    const ep = accessDetails?.rows.find((r) => r.label === "Endpoint")?.value ?? "<endpoint>";
-    const lines = [
-      `# Broker proxy`,
+    const ep =
+      accessDetails?.rows.find((r) => r.label === "Relay endpoint" || r.label === "Endpoint")?.value ?? "<endpoint>";
+    return [
+      `# Broker relay`,
       `POST ${ep}`,
       `Content-Type: application/json`,
       ``,
-      `X-Access-Key: <connection key>`,
-    ];
-    if (relayAllowed && accessDetails?.supported) {
-      const profile = accessDetails.rows.find((r) => r.label === "Workspace")?.value ?? "<profile_id>";
-      const mcpUrl = `${brokerPublicOrigin()}/miro/mcp/${profile}`;
-      lines.push(
-        ``,
-        `# MCP profile endpoint`,
-        `POST ${mcpUrl}`,
-        `Content-Type: application/json`,
-        ``,
-        `X-Access-Key: <connection key>`,
-      );
-    }
-    return lines.join("\n");
-  }, [accessDetails, relayAllowed]);
-
-  const handleRotateConnectionKey = async () => {
-    if (session.status !== "authenticated" || !resolvedConnectionId) return;
-    setRotatePending(true);
-    try {
-      const result = await api.rotateConnectionAccess(session.csrfToken, resolvedConnectionId);
-      setAccessDetails(result);
-      notify({
-        tone: "success",
-        title: "Connection key ready",
-        description: "Copy it now. The previous key no longer works.",
-      });
-    } catch (error) {
-      notify({
-        tone: "error",
-        title: "Could not create a new connection key",
-        description: isApiError(error) ? error.message : "Unexpected error.",
-      });
-    } finally {
-      setRotatePending(false);
-    }
-  };
+      `X-Access-Key: <access key>`,
+    ].join("\n");
+  }, [accessDetails]);
 
   const summaryLoading = accessLoading || (needsConnectionForTools && resolvingConnections && !grant.connected_account_id);
   const grantCanUseCredential = grantUiState(grant) !== "ended";
@@ -825,6 +688,7 @@ function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
         (r) =>
           r.label !== "Account" &&
           r.label !== "Endpoint" &&
+          r.label !== "Relay endpoint" &&
           r.value != null &&
           String(r.value).trim() !== "",
       )
@@ -847,12 +711,7 @@ function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
           >
             {grantCanUseCredential ? <GrantAppAccessKeySection grantId={grant.id} canUse={grantCanUseCredential} /> : null}
             {showConnectionBlock && accessDetails ? (
-              <ConnectionCredentialGridCells
-                accessDetails={accessDetails}
-                connectionName={connectionName}
-                onReplaceConnectionKey={accessDetails.can_rotate ? () => void handleRotateConnectionKey() : undefined}
-                replaceConnectionKeyPending={rotatePending}
-              />
+              <ConnectionEndpointGridCells accessDetails={accessDetails} connectionName={connectionName} />
             ) : null}
           </div>
         </section>
@@ -1330,8 +1189,6 @@ function GrantsPage() {
   });
   const [grantPreviewAccess, setGrantPreviewAccess] = useState<ConnectionAccessDetails | null>(null);
   const [grantPreviewLoading, setGrantPreviewLoading] = useState(false);
-  const [miroSetupExchange, setMiroSetupExchange] = useState<MiroRelayAccess | null>(null);
-
   const load = async () => {
     setLoading(true);
     try {
@@ -1367,21 +1224,6 @@ function GrantsPage() {
     if (session.status !== "authenticated") return;
     void load();
   }, [notify, session]);
-
-  useEffect(() => {
-    if (session.status !== "authenticated") return;
-    const raw = sessionStorage.getItem("broker_miro_setup_exchange");
-    if (!raw) return;
-    sessionStorage.removeItem("broker_miro_setup_exchange");
-    try {
-      const parsed = JSON.parse(raw) as MiroRelayAccess;
-      if (parsed.relay_token) {
-        setMiroSetupExchange(parsed);
-      }
-    } catch {
-      void 0;
-    }
-  }, [session.status]);
 
   useEffect(() => {
     if (!grantModalOpen || session.status !== "authenticated") {
@@ -1748,12 +1590,6 @@ function GrantsPage() {
         </ConfirmModal>
       ) : null}
 
-      {miroSetupExchange?.relay_token ? (
-        <CredentialRevealModal
-          sections={miroSetupExchangeSections(miroSetupExchange)}
-          onDismissed={() => setMiroSetupExchange(null)}
-        />
-      ) : null}
     </>
   );
 }
@@ -2100,7 +1936,6 @@ function AuthenticatedApp() {
     const loginStatus = params.get("login_status");
     const miroStatus = params.get("miro_status");
     const providerStatus = params.get("provider_status");
-    const miroSetup = params.get("miro_setup");
     const message = params.get("message");
     const connectedAccountId = params.get("connected_account_id");
     const friendlyMessage = friendlyBrokerMessage(message);
@@ -2162,9 +1997,7 @@ function AuthenticatedApp() {
       });
     }
 
-    if (!miroSetup) {
-      window.history.replaceState({}, "", window.location.pathname);
-    }
+    window.history.replaceState({}, "", window.location.pathname);
   }, [notify, route.path, route.name, session.status]);
 
   useEffect(() => {

@@ -11,7 +11,7 @@ Follow these repo-specific conventions and commands first.
 - Broker backend: FastAPI under `backend/app`.
 - Frontend: React/Vite under `frontend/`.
 - Package manager: npm (`package-lock.json` is present).
-- App style: broker backend with DB-backed state plus a browser workspace; FastAPI also owns the legacy-compatible `/miro/mcp/*` relay endpoint.
+- App style: broker backend with DB-backed state plus a browser workspace; Miro relay uses `/api/v1/broker-proxy/miro/{connected_account_id}` with delegation credentials.
 - Container support: `backend/Dockerfile`, `frontend/Dockerfile`, `haproxy/`, and `docker-compose.yml`.
 - Tests/lint tools: Node built-in platform tests, backend Python syntax checks, and backend smoke tests.
 
@@ -56,10 +56,8 @@ Follow these repo-specific conventions and commands first.
 - Frontend build check: `cd frontend && npm run build`
 - Run service smoke test after start:
   - `curl -sS http://localhost/api/v1/health`
-  - `curl -sS http://localhost/healthz`
-  - `curl -sS http://localhost/readyz`
 - Root endpoint check: `curl -sS http://localhost/`
-- MCP relay smoke check: `curl -sS -X POST http://localhost/miro/mcp/<profile_id> -H "X-Access-Key: <access_key>" -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'`
+- Broker relay smoke check: `curl -sS -X POST http://localhost/api/v1/broker-proxy/miro/<connected_account_id> -H "X-Access-Key: <delegation_grant_credential>" -d '{}'`
 - HTTPS dev smoke test: `curl -k -sS https://localhost/api/v1/health`
 
 ## Testing Guidance (Especially Single Test)

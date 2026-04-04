@@ -29,7 +29,6 @@ get_settings.cache_clear()
 
 from app.database import Base, SessionLocal, engine
 from app.main import create_app
-from app.miro import issue_miro_setup_token
 from app.models import ConnectedAccount, DelegationGrant, ProviderApp, ServiceClient, TokenMaterial, User
 from app.security import dumps_json, encrypt_text, hash_secret, lookup_secret_hash
 from app.seed import init_db
@@ -283,7 +282,7 @@ class Welle1SmokeTest(unittest.TestCase):
             f"/api/v1/connections/{fixture['graph_connection_id']}/access-details/rotate",
             headers={"X-CSRF-Token": csrf_token},
         )
-        self.assertEqual(bad.status_code, 400)
+        self.assertEqual(bad.status_code, 404)
 
     def test_connected_accounts_filters_support_operator_views(self) -> None:
         fixture = self._seed_service_access_fixture()
@@ -298,19 +297,9 @@ class Welle1SmokeTest(unittest.TestCase):
         self.assertEqual(len(body), 1)
         self.assertEqual(body[0]["id"], fixture["miro_connection_id"])
 
-    def test_miro_access_bundle_and_legacy_proxy_run_on_fastapi_stack(self) -> None:
+    def test_miro_access_details_and_broker_proxy_relay(self) -> None:
         fixture = self._seed_service_access_fixture()
         client, csrf_token = self._login_admin()
-
-        details = client.get(
-            f"/api/v1/connections/{fixture['miro_connection_id']}/miro-access",
-            headers={"X-CSRF-Token": csrf_token},
-        )
-        self.assertEqual(details.status_code, 200)
-        details_body = details.json()
-        self.assertEqual(details_body["profile_id"], "person_example.com")
-        self.assertTrue(details_body["has_relay_token"])
-        self.assertTrue(details_body["relay_token"])
 
         access_generic = client.get(
             f"/api/v1/connections/{fixture['miro_connection_id']}/access-details",
@@ -319,60 +308,33 @@ class Welle1SmokeTest(unittest.TestCase):
         self.assertEqual(access_generic.status_code, 200)
         ag = access_generic.json()
         self.assertTrue(ag["supported"])
-        self.assertEqual(ag["key_section"]["status"], "ready")
-        self.assertTrue(ag["key_section"]["plaintext"])
+        self.assertIsNone(ag["key_section"])
+        self.assertFalse(ag["can_rotate"])
+        relay_row = next(r for r in ag["rows"] if r["label"] == "Relay endpoint")
+        self.assertIn(f"/broker-proxy/miro/{fixture['miro_connection_id']}", relay_row["value"])
 
-        rotated = client.post(
-            f"/api/v1/connections/{fixture['miro_connection_id']}/miro-access/reset",
-            headers={"X-CSRF-Token": csrf_token},
-        )
-        self.assertEqual(rotated.status_code, 200)
-        rotated_body = rotated.json()
-        self.assertTrue(rotated_body["relay_token"])
-        self.assertIn("/miro/mcp/person_example.com", rotated_body["mcp_url"])
-        self.assertIn("X-Access-Key", rotated_body["mcp_config_json"])
+        missing = client.get(f"/api/v1/connections/{fixture['miro_connection_id']}/miro-access")
+        self.assertEqual(missing.status_code, 404)
 
-        with SessionLocal() as db:
-            setup_token = issue_miro_setup_token(
-                db=db,
-                connected_account_id=fixture["miro_connection_id"],
-                relay_token="setup-relay-token",
-            )
-            db.commit()
-        exchanged = client.post(
-            "/api/v1/connections/miro/setup/exchange",
-            json={"setup_token": setup_token},
-            headers={"X-CSRF-Token": csrf_token},
-        )
-        self.assertEqual(exchanged.status_code, 200)
-        self.assertEqual(exchanged.json()["relay_token"], "setup-relay-token")
-
-        expired = client.post(
-            "/api/v1/connections/miro/setup/exchange",
-            json={"setup_token": setup_token},
-            headers={"X-CSRF-Token": csrf_token},
-        )
-        self.assertEqual(expired.status_code, 404)
-
-        with patch("app.routers.legacy_miro.execute_relay_request") as relay_mock:
-            relay_mock.return_value = JSONResponse({"ok": True, "channel": "fastapi-legacy"})
+        with patch("app.routers.connections.execute_relay_request") as relay_mock:
+            relay_mock.return_value = JSONResponse({"ok": True, "channel": "broker-proxy"})
             relayed = client.post(
-                "/miro/mcp/person_example.com",
-                json={"method": "tools/list"},
-                headers={"X-Access-Key": rotated_body["relay_token"]},
+                f"/api/v1/broker-proxy/miro/{fixture['miro_connection_id']}",
+                json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
+                headers={
+                    "X-Access-Key": fixture["miro_credential"],
+                    "X-Service-Secret": fixture["service_secret"],
+                },
             )
 
         self.assertEqual(relayed.status_code, 200)
-        self.assertEqual(relayed.json(), {"ok": True, "channel": "fastapi-legacy"})
+        self.assertEqual(relayed.json(), {"ok": True, "channel": "broker-proxy"})
 
-        generic_rotate = client.post(
+        rotate_gone = client.post(
             f"/api/v1/connections/{fixture['miro_connection_id']}/access-details/rotate",
             headers={"X-CSRF-Token": csrf_token},
         )
-        self.assertEqual(generic_rotate.status_code, 200)
-        gr = generic_rotate.json()
-        self.assertEqual(gr["key_section"]["status"], "ready")
-        self.assertTrue(gr["key_section"]["plaintext"])
+        self.assertEqual(rotate_gone.status_code, 404)
 
 
 if __name__ == "__main__":

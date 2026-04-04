@@ -9,8 +9,6 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
-from urllib.parse import quote
-
 import httpx
 from fastapi import HTTPException, status
 from sqlalchemy import select
@@ -19,10 +17,10 @@ from starlette.responses import RedirectResponse
 
 from app.core.config import get_settings
 from app.oauth_pending_store import pop_oauth_pending_payload, put_oauth_pending
-from app.models import AccessMode, ConnectedAccount, Organization, ProviderApp, ProviderInstance, TokenMaterial, User
+from app.models import ConnectedAccount, Organization, ProviderApp, ProviderInstance, TokenMaterial, User
 from app.provider_templates import MIRO_RELAY_TEMPLATE, get_provider_app_by_template
 from app.oauth_connection_tokens import ensure_access_token, refresh_oauth_tokens
-from app.security import decrypt_text, dumps_json, encrypt_text, ensure_utc, loads_json, lookup_secret_hash, utcnow, verify_lookup_secret
+from app.security import decrypt_text, dumps_json, encrypt_text, loads_json, utcnow
 
 
 @dataclass
@@ -76,20 +74,11 @@ def callback_url() -> str:
     return f"{settings.broker_public_base_url.rstrip('/')}{settings.api_v1_prefix}/connections/miro/callback"
 
 
-def public_miro_mcp_url(profile_id: str) -> str:
-    settings = get_settings()
-    return f"{settings.broker_public_base_url.rstrip('/')}/miro/mcp/{quote(profile_id, safe='')}"
-
-
 def parse_email_like(value: str | None) -> str | None:
     raw = str(value or "").strip().lower()
     if raw and "@" in raw and "." in raw.rsplit("@", 1)[-1]:
         return raw
     return None
-
-
-def canonical_profile_id(value: str | None) -> str:
-    return str(value or "").strip().lower().replace("@", "_")
 
 
 def decode_jwt_payload(token: str | None) -> dict[str, Any] | None:
@@ -250,114 +239,6 @@ def email_check_status(expected_email: str | None, detected_email: str | None) -
     return "unavailable", None
 
 
-def issue_relay_token() -> str:
-    return secrets.token_urlsafe(24)
-
-
-def reserve_legacy_profile_id(db: Session, user: User, connected_account_id: str | None = None) -> str:
-    base_email = parse_email_like(user.email) or parse_email_like(user.display_name) or user.id
-    base = canonical_profile_id(base_email)
-    candidate = base
-    suffix = 1
-    while True:
-        existing = db.scalar(
-            select(ConnectedAccount).where(
-                ConnectedAccount.organization_id == user.organization_id,
-                ConnectedAccount.legacy_profile_id == candidate,
-            )
-        )
-        if not existing or existing.id == connected_account_id:
-            return candidate
-        suffix += 1
-        candidate = f"{base}-{suffix}"
-
-
-def ensure_legacy_miro_identity(db: Session, *, user: User, connected_account: ConnectedAccount) -> str | None:
-    relay_token: str | None = None
-    if not connected_account.legacy_profile_id:
-        connected_account.legacy_profile_id = reserve_legacy_profile_id(db, user, connected_account.id)
-    if not connected_account.legacy_relay_token_hash:
-        relay_token = issue_relay_token()
-        connected_account.legacy_relay_token_hash = lookup_secret_hash(relay_token)
-        connected_account.encrypted_legacy_relay_token = encrypt_text(relay_token)
-    return relay_token
-
-
-def build_miro_access_payload(connected_account: ConnectedAccount, relay_token: str | None = None) -> dict[str, Any]:
-    if relay_token is None and connected_account.encrypted_legacy_relay_token:
-        decrypted = decrypt_text(connected_account.encrypted_legacy_relay_token)
-        relay_token = (decrypted or "").strip() or None
-
-    profile_id = connected_account.legacy_profile_id or ""
-    mcp_url = public_miro_mcp_url(profile_id)
-    mcp_config_json = None
-    credentials_bundle_json = None
-    if relay_token:
-        mcp_config_json = json.dumps(
-            {
-                "mcpServers": {
-                    "miro_personal": {
-                        "type": "streamable-http",
-                        "url": mcp_url,
-                        "headers": {
-                            "X-Access-Key": relay_token,
-                        },
-                    }
-                }
-            },
-            indent=2,
-        )
-        credentials_bundle_json = json.dumps(
-            {
-                "profile_id": profile_id,
-                "relay_token": relay_token,
-                "mcp_url": mcp_url,
-            },
-            indent=2,
-        )
-    return {
-        "connected_account_id": connected_account.id,
-        "profile_id": profile_id,
-        "mcp_url": mcp_url,
-        "has_relay_token": bool(connected_account.legacy_relay_token_hash),
-        "relay_token": relay_token,
-        "mcp_config_json": mcp_config_json,
-        "credentials_bundle_json": credentials_bundle_json,
-        "connection_status": connected_account.status,
-        "display_name": connected_account.display_name,
-        "external_email": connected_account.external_email,
-    }
-
-
-def issue_miro_setup_token(*, db: Session, connected_account_id: str, relay_token: str) -> str:
-    setup_token = b64url(secrets.token_bytes(24))
-    put_oauth_pending(
-        db,
-        setup_token,
-        "miro_setup",
-        {"connected_account_id": connected_account_id, "relay_token": relay_token},
-    )
-    return setup_token
-
-
-def consume_miro_setup_token(db: Session, setup_token: str) -> dict[str, Any] | None:
-    result = pop_oauth_pending_payload(db, setup_token)
-    if result is not None:
-        db.commit()
-    return result
-
-
-def resolve_legacy_miro_connection(db: Session, profile_id: str) -> ConnectedAccount | None:
-    return db.scalar(select(ConnectedAccount).where(ConnectedAccount.legacy_profile_id == profile_id))
-
-
-def validate_relay_token(connected_account: ConnectedAccount, supplied_token: str | None) -> bool:
-    raw = str(supplied_token or "").strip()
-    if not raw:
-        return False
-    return verify_lookup_secret(raw, connected_account.legacy_relay_token_hash)
-
-
 async def finalize_miro_callback(db: Session, state: str, code: str) -> RedirectResponse:
     raw = pop_oauth_pending_payload(db, state)
     if not raw:
@@ -411,8 +292,6 @@ async def finalize_miro_callback(db: Session, state: str, code: str) -> Redirect
         connected_account.last_error = None
         connected_account.revoked_at = None
 
-    relay_token = ensure_legacy_miro_identity(db, user=user, connected_account=connected_account)
-
     token_material = db.scalar(select(TokenMaterial).where(TokenMaterial.connected_account_id == connected_account.id))
     expires_in = int(token_data.get("expires_in") or 3600)
     if token_material is None:
@@ -449,9 +328,6 @@ async def finalize_miro_callback(db: Session, state: str, code: str) -> Redirect
     )
     db.commit()
     redirect_url = f"{settings.frontend_base_url.rstrip('/')}/workspace/integrations?miro_status=connected&connected_account_id={connected_account.id}"
-    if relay_token:
-        setup_token = issue_miro_setup_token(db=db, connected_account_id=connected_account.id, relay_token=relay_token)
-        redirect_url = f"{redirect_url}&miro_setup={quote(setup_token, safe='')}"
     return RedirectResponse(url=redirect_url, status_code=302)
 
 
@@ -510,7 +386,7 @@ def migration_status(db: Session) -> dict[str, Any]:
         "legacy_profiles": len(profiles),
         "imported_users": len({connection.user_id for connection in imported_connections}),
         "imported_miro_connections": len(imported_connections),
-        "migrated_profile_ids": [connection.legacy_profile_id for connection in imported_connections if connection.legacy_profile_id],
+        "migrated_profile_ids": [],
     }
 
 
@@ -564,8 +440,6 @@ def import_legacy_miro_data(db: Session) -> dict[str, Any]:
                 organization_id=provider_app.organization_id,
                 user_id=user.id,
                 provider_app_id=provider_app.id,
-                legacy_profile_id=profile_id,
-                legacy_relay_token_hash=profile.get("relay_token_hash"),
                 external_account_ref=profile_id,
                 external_email=email,
                 display_name=str(profile.get("oauth_user_name") or profile.get("display_name") or email),
@@ -580,8 +454,6 @@ def import_legacy_miro_data(db: Session) -> dict[str, Any]:
             db.flush()
             imported_connections += 1
         else:
-            connected_account.legacy_profile_id = profile_id
-            connected_account.legacy_relay_token_hash = profile.get("relay_token_hash") or connected_account.legacy_relay_token_hash
             connected_account.external_email = email
             connected_account.display_name = str(profile.get("oauth_user_name") or profile.get("display_name") or email)
             connected_account.oauth_client_id = oauth_client.get("client_id") or connected_account.oauth_client_id

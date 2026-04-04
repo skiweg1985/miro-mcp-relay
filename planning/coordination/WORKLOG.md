@@ -1,3 +1,38 @@
+## 2026-04-04 – Cursor Agent – Admin Integrations Übersicht
+
+- Done:
+  - `frontend/src/types.ts`: Route `integrationDetail` für `/app/integrations/:appId`.
+  - `frontend/src/utils.ts`: `matchesRoute` für Integrations-Detailpfad.
+  - `frontend/src/App.tsx`: `IntegrationsPage` mit `navigate` und `detailAppId`; Sidebar **Integrations** aktiv bei Detail-URL; Nicht-Admin-Redirect um `integrationDetail`.
+  - `frontend/src/admin/IntegrationOverview.tsx`: Übersicht (Header, Overview, Configuration, Usage, Health, Advanced).
+  - `frontend/src/admin/IntegrationsPage.tsx`: Daten `connectedAccounts` + `adminTokenIssues`; Detail vs. Liste; Enable/Disable; Custom-Integration bearbeiten (PATCH); Karten **Open**/**Set up**; Custom-Apps im Raster.
+  - `frontend/src/index.css`: Layout/Typo für Integrations-Detail.
+  - `docs/CHANGELOG.md` [Unreleased] Changed.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - frontend/src/types.ts
+  - frontend/src/utils.ts
+  - frontend/src/App.tsx
+  - frontend/src/admin/IntegrationOverview.tsx
+  - frontend/src/admin/IntegrationsPage.tsx
+  - frontend/src/index.css
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build`
+- UI path:
+  - Admin → Integrations → **Open** auf Karte → Übersicht; **Edit** öffnet Drawer
+- Changelog updated:
+  - yes ([Unreleased] Changed)
+- Follow-ups:
+  - keine
+
 ## 2026-04-04 – Cursor Agent – Admin Services löschen
 
 - Done:

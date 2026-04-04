@@ -4,7 +4,13 @@ import { api } from "../api";
 import { Card, EmptyState, Field, LoadingScreen, PageIntro, StatusBadge } from "../components";
 import { useAppContext } from "../app-context";
 import { isApiError } from "../errors";
-import type { BrokerCallbackUrls, ProviderAppOut, ProviderInstanceOut } from "../types";
+import type { BrokerCallbackUrls, ConnectedAccountOut, ProviderAppOut, ProviderInstanceOut, TokenIssueEventOut } from "../types";
+import {
+  IntegrationOverview,
+  buildOverviewHealth,
+  buildOverviewStats,
+  integrationLastUpdated,
+} from "./IntegrationOverview";
 import { ReadOnlyCopyField, SetupDrawer, SummaryRow, type WizardStep } from "./SetupDrawer";
 import {
   GRAPH_CLAIM_OPTIONS,
@@ -113,15 +119,32 @@ function cardMeta(app: ProviderAppOut | undefined, instance: ProviderInstanceOut
   return st.label;
 }
 
-export function IntegrationsPage() {
+function appToTemplateEditorKey(app: ProviderAppOut): EditorId | null {
+  if (app.template_key === TEMPLATE_MS_LOGIN) return "ms-login";
+  if (app.template_key === TEMPLATE_MS_GRAPH) return "ms-graph";
+  if (app.template_key === TEMPLATE_MIRO) return "miro";
+  return null;
+}
+
+export function IntegrationsPage({
+  navigate,
+  detailAppId,
+}: {
+  navigate: (path: string) => void;
+  detailAppId: string | null;
+}) {
   const { notify, session } = useAppContext();
   const [loading, setLoading] = useState(true);
   const [urls, setUrls] = useState<BrokerCallbackUrls | null>(null);
   const [instances, setInstances] = useState<ProviderInstanceOut[]>([]);
   const [apps, setApps] = useState<ProviderAppOut[]>([]);
+  const [connections, setConnections] = useState<ConnectedAccountOut[]>([]);
+  const [tokenIssues, setTokenIssues] = useState<TokenIssueEventOut[]>([]);
   const [modal, setModal] = useState<ModalId>(null);
   const [wizardStep, setWizardStep] = useState(0);
   const [testing, setTesting] = useState<string | null>(null);
+  const [toggling, setToggling] = useState(false);
+  const [customEditAppId, setCustomEditAppId] = useState<string | null>(null);
 
   const [tenant, setTenant] = useState("");
   const [clientId, setClientId] = useState("");
@@ -144,14 +167,18 @@ export function IntegrationsPage() {
 
   const load = useCallback(async () => {
     if (session.status !== "authenticated") return;
-    const [urlData, instData, appData] = await Promise.all([
+    const [urlData, instData, appData, connData, issuesData] = await Promise.all([
       api.brokerCallbackUrls(),
       api.providerInstances(session.csrfToken),
       api.providerApps(session.csrfToken),
+      api.connectedAccounts(session.csrfToken),
+      api.adminTokenIssues(session.csrfToken, { limit: 400 }),
     ]);
     setUrls(urlData);
     setInstances(instData);
     setApps(appData);
+    setConnections(connData);
+    setTokenIssues(issuesData);
   }, [session]);
 
   useEffect(() => {
@@ -172,15 +199,35 @@ export function IntegrationsPage() {
   const closeDrawer = () => {
     setModal(null);
     setWizardStep(0);
+    setCustomEditAppId(null);
   };
 
   const toggleConnectionType = (mode: string) => {
     setConnectionTypes((prev) => (prev.includes(mode) ? prev.filter((m) => m !== mode) : [...prev, mode]));
   };
 
+  const openCustomEdit = (app: ProviderAppOut) => {
+    const instance = instanceById[app.provider_instance_id];
+    if (!instance) return;
+    setWizardStep(0);
+    setCustomEditAppId(app.id);
+    setCustomName(app.display_name);
+    setCustomProvider(instance.display_name);
+    setCustomAuthUrl(instance.authorization_endpoint ?? "");
+    setCustomTokenUrl(instance.token_endpoint ?? "");
+    setCustomScopes((app.default_scopes ?? []).join(" "));
+    setCustomUserinfo(instance.userinfo_endpoint ?? "");
+    setCustomPkce(Boolean((instance.settings as { use_pkce?: boolean }).use_pkce));
+    setCustomClientId(app.client_id ?? "");
+    setCustomSecret("");
+    setAdvancedOpen(Boolean((instance.userinfo_endpoint ?? "").trim()));
+    setModal("custom");
+  };
+
   const openEditor = (id: EditorId) => {
     setWizardStep(0);
     if (id === "custom") {
+      setCustomEditAppId(null);
       setCustomName("");
       setCustomProvider("");
       setCustomAuthUrl("");
@@ -330,6 +377,54 @@ export function IntegrationsPage() {
     }
   };
 
+  const toggleIntegrationEnabled = async (app: ProviderAppOut, instance: ProviderInstanceOut) => {
+    if (session.status !== "authenticated") return;
+    const next = !(app.is_enabled && instance.is_enabled);
+    setToggling(true);
+    try {
+      await api.updateProviderInstance(session.csrfToken, instance.id, {
+        display_name: instance.display_name,
+        role: instance.role,
+        issuer: instance.issuer,
+        authorization_endpoint: instance.authorization_endpoint,
+        token_endpoint: instance.token_endpoint,
+        userinfo_endpoint: instance.userinfo_endpoint,
+        settings: instance.settings,
+        is_enabled: next,
+      });
+      await api.updateProviderApp(session.csrfToken, app.id, {
+        display_name: app.display_name,
+        template_key: app.template_key,
+        client_id: app.client_id,
+        client_secret: null,
+        redirect_uris: app.redirect_uris,
+        default_scopes: app.default_scopes,
+        scope_ceiling: app.scope_ceiling,
+        access_mode: app.access_mode,
+        allow_relay: app.allow_relay,
+        allow_direct_token_return: app.allow_direct_token_return,
+        relay_protocol: app.relay_protocol,
+        allowed_connection_types: app.allowed_connection_types,
+        relay_config: app.relay_config,
+        is_enabled: next,
+      });
+      notify({
+        tone: "success",
+        title: next ? "Integration enabled" : "Integration disabled",
+        description: next ? "Users can connect using this integration." : "New connections are blocked for this integration.",
+      });
+      await load();
+    } catch (error) {
+      notify({
+        tone: "error",
+        title: "Update failed",
+        description: isApiError(error) ? error.message : "Unexpected error.",
+      });
+    } finally {
+      setToggling(false);
+    }
+  };
+
   const saveCustom = async () => {
     if (session.status !== "authenticated" || !urls) return;
     const name = customName.trim();
@@ -339,8 +434,62 @@ export function IntegrationsPage() {
       notify({ tone: "error", title: "Missing fields", description: "Name, authorize URL, and token URL are required." });
       return;
     }
-    if (!customPkce && !customSecret.trim()) {
+    const editingId = customEditAppId;
+    const existingApp = editingId ? apps.find((a) => a.id === editingId) : undefined;
+    if (!customPkce && !customSecret.trim() && !(editingId && existingApp?.has_client_secret)) {
       notify({ tone: "error", title: "Client secret required", description: "Enter a client secret or enable PKCE." });
+      return;
+    }
+    if (editingId && existingApp) {
+      const inst = instanceById[existingApp.provider_instance_id];
+      if (!inst) return;
+      setPending(true);
+      try {
+        const scopes = customScopes.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
+        let issuer = "";
+        try {
+          issuer = new URL(authUrl).origin;
+        } catch {
+          issuer = inst.issuer ?? "";
+        }
+        await api.updateProviderInstance(session.csrfToken, inst.id, {
+          display_name: customProvider.trim() || name,
+          role: inst.role,
+          issuer: issuer || null,
+          authorization_endpoint: authUrl,
+          token_endpoint: tokenUrl,
+          userinfo_endpoint: customUserinfo.trim() || null,
+          settings: customPkce ? { use_pkce: true } : {},
+          is_enabled: inst.is_enabled,
+        });
+        await api.updateProviderApp(session.csrfToken, existingApp.id, {
+          display_name: name,
+          template_key: null,
+          client_id: customClientId.trim() || null,
+          client_secret: customPkce ? null : customSecret.trim() || null,
+          redirect_uris: existingApp.redirect_uris,
+          default_scopes: scopes,
+          scope_ceiling: scopes,
+          access_mode: existingApp.access_mode,
+          allow_relay: existingApp.allow_relay,
+          allow_direct_token_return: existingApp.allow_direct_token_return,
+          relay_protocol: existingApp.relay_protocol,
+          allowed_connection_types: existingApp.allowed_connection_types,
+          relay_config: existingApp.relay_config,
+          is_enabled: existingApp.is_enabled,
+        });
+        notify({ tone: "success", title: "Integration updated", description: "Changes were saved." });
+        closeDrawer();
+        await load();
+      } catch (error) {
+        notify({
+          tone: "error",
+          title: "Could not save integration",
+          description: isApiError(error) ? error.message : "Unexpected error.",
+        });
+      } finally {
+        setPending(false);
+      }
       return;
     }
     setPending(true);
@@ -464,87 +613,153 @@ export function IntegrationsPage() {
   const lastMiro = wizardStep === STEPS_MIRO.length - 1;
   const lastCustom = wizardStep === STEPS_CUSTOM.length - 1;
 
+  const customApps = useMemo(() => apps.filter((a) => a.template_key === null), [apps]);
+
+  const detailApp = detailAppId ? apps.find((a) => a.id === detailAppId) : undefined;
+  const detailInstance = detailApp ? instanceById[detailApp.provider_instance_id] : undefined;
+
   if (loading || !urls) {
     return <LoadingScreen label="Loading integrations…" />;
   }
 
+  const detailTestKey =
+    detailApp?.template_key === TEMPLATE_MS_LOGIN ||
+    detailApp?.template_key === TEMPLATE_MS_GRAPH ||
+    detailApp?.template_key === TEMPLATE_MIRO
+      ? detailApp.template_key
+      : null;
+
   return (
     <>
-      <PageIntro title="Integrations" description="Sign-in and third-party services for this deployment." />
-
-      <div className="integration-grid">
-        {CARDS.map((card) => {
-          if (card.id === "add") {
-            return (
-              <button
-                key={card.id}
-                type="button"
-                className="integration-card integration-card-add"
-                onClick={() => openEditor("custom")}
-              >
-                <span className="integration-card-head">
-                  <span className="integration-card-title">{card.title}</span>
-                </span>
-                <span className="integration-card-body">
-                  <span className="integration-card-desc">{card.description}</span>
-                </span>
-                <div className="integration-card-actions">
-                  <span className="secondary-button">Add</span>
-                </div>
-              </button>
-            );
-          }
-          const app = findAppByTemplate(apps, card.templateKey);
-          const instance = app ? instanceById[app.provider_instance_id] : undefined;
-          const needsTenant = card.templateKey !== TEMPLATE_MIRO;
-          const st = statusLabel(app, instance, needsTenant);
-          return (
-            <article key={card.id} className="integration-card">
-              <div className="integration-card-head">
-                <span className="integration-card-title">{card.title}</span>
-                <StatusBadge tone={st.tone === "success" ? "success" : st.tone === "danger" ? "danger" : "neutral"}>
-                  {st.label}
-                </StatusBadge>
-              </div>
-              <div className="integration-card-body">
-                <p className="integration-card-desc">{card.description}</p>
-                <p className="integration-card-meta">{cardMeta(app, instance, needsTenant)}</p>
-              </div>
-              <div className="integration-card-actions">
-                <button
-                  type="button"
-                  className="primary-button"
-                  onClick={() => openEditor(card.id as "ms-login" | "ms-graph" | "miro")}
-                >
-                  Configure
-                </button>
-                <button
-                  type="button"
-                  className="secondary-button"
-                  disabled={testing === card.templateKey}
-                  onClick={() => void runTest(card.templateKey)}
-                >
-                  {testing === card.templateKey ? "Testing…" : "Test connection"}
-                </button>
-              </div>
-            </article>
-          );
-        })}
-      </div>
-
-      <Card title="Apps">
-        {apps.length ? (
-          <ul className="integration-inline-list">
-            {apps.map((a) => (
-              <li key={a.id} title={a.key}>
-                <strong>{a.display_name}</strong>
-              </li>
-            ))}
-          </ul>
+      {detailAppId ? (
+        detailApp && detailInstance ? (
+          <IntegrationOverview
+            app={detailApp}
+            instance={detailInstance}
+            urls={urls}
+            statusLabel={statusLabel(detailApp, detailInstance, detailApp.template_key !== TEMPLATE_MIRO).label}
+            needsTenant={detailApp.template_key !== TEMPLATE_MIRO}
+            stats={buildOverviewStats(detailApp.id, connections, tokenIssues)}
+            health={buildOverviewHealth(connections.filter((c) => c.provider_app_id === detailApp.id))}
+            lastUpdated={integrationLastUpdated(detailApp, connections, tokenIssues)}
+            onBack={() => navigate("/app/integrations")}
+            onEdit={() => {
+              const ed = appToTemplateEditorKey(detailApp);
+              if (ed) openEditor(ed);
+              else openCustomEdit(detailApp);
+            }}
+            onTest={() => {
+              if (detailTestKey) void runTest(detailTestKey);
+            }}
+            onToggleEnabled={() => void toggleIntegrationEnabled(detailApp, detailInstance)}
+            testing={Boolean(detailTestKey && testing === detailTestKey)}
+            toggling={toggling}
+            testAvailable={Boolean(detailTestKey)}
+          />
         ) : (
-          <EmptyState title="No integrations" body="Add a provider from the cards above." />
-        )}
-      </Card>
+          <>
+            <PageIntro title="Integrations" description="Sign-in and third-party services for this deployment." />
+            <Card title="Integration">
+              <EmptyState title="Not found" body="This integration does not exist or was removed." />
+              <div className="integration-detail-toolbar integration-detail-toolbar--after-empty">
+                <button type="button" className="primary-button" onClick={() => navigate("/app/integrations")}>
+                  Back to list
+                </button>
+              </div>
+            </Card>
+          </>
+        )
+      ) : (
+        <>
+          <PageIntro title="Integrations" description="Sign-in and third-party services for this deployment." />
+
+          <div className="integration-grid">
+            {CARDS.map((card) => {
+              if (card.id === "add") {
+                return (
+                  <button
+                    key={card.id}
+                    type="button"
+                    className="integration-card integration-card-add"
+                    onClick={() => openEditor("custom")}
+                  >
+                    <span className="integration-card-head">
+                      <span className="integration-card-title">{card.title}</span>
+                    </span>
+                    <span className="integration-card-body">
+                      <span className="integration-card-desc">{card.description}</span>
+                    </span>
+                    <div className="integration-card-actions">
+                      <span className="secondary-button">Add</span>
+                    </div>
+                  </button>
+                );
+              }
+              const app = findAppByTemplate(apps, card.templateKey);
+              const instance = app ? instanceById[app.provider_instance_id] : undefined;
+              const needsTenant = card.templateKey !== TEMPLATE_MIRO;
+              const st = statusLabel(app, instance, needsTenant);
+              const hasRecord = Boolean(app);
+              return (
+                <article key={card.id} className="integration-card">
+                  <div className="integration-card-head">
+                    <span className="integration-card-title">{card.title}</span>
+                    <StatusBadge tone={st.tone === "success" ? "success" : st.tone === "danger" ? "danger" : "neutral"}>
+                      {st.label}
+                    </StatusBadge>
+                  </div>
+                  <div className="integration-card-body">
+                    <p className="integration-card-desc">{card.description}</p>
+                    <p className="integration-card-meta">{cardMeta(app, instance, needsTenant)}</p>
+                  </div>
+                  <div className="integration-card-actions">
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={() =>
+                        hasRecord && app ? navigate(`/app/integrations/${app.id}`) : openEditor(card.id as "ms-login" | "ms-graph" | "miro")
+                      }
+                    >
+                      {hasRecord ? "Open" : "Set up"}
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      disabled={testing === card.templateKey}
+                      onClick={() => void runTest(card.templateKey)}
+                    >
+                      {testing === card.templateKey ? "Testing…" : "Test connection"}
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+            {customApps.map((app) => {
+              const instance = instanceById[app.provider_instance_id];
+              const st = statusLabel(app, instance, false);
+              return (
+                <article key={app.id} className="integration-card">
+                  <div className="integration-card-head">
+                    <span className="integration-card-title">{app.display_name}</span>
+                    <StatusBadge tone={st.tone === "success" ? "success" : st.tone === "danger" ? "danger" : "neutral"}>
+                      {st.label}
+                    </StatusBadge>
+                  </div>
+                  <div className="integration-card-body">
+                    <p className="integration-card-desc">Custom OAuth integration.</p>
+                    <p className="integration-card-meta">{instance ? "OAuth endpoints configured." : "Instance missing."}</p>
+                  </div>
+                  <div className="integration-card-actions">
+                    <button type="button" className="primary-button" onClick={() => navigate(`/app/integrations/${app.id}`)}>
+                      Open
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </>
+      )}
 
       {modal === "ms-login" && urls ? (
         <SetupDrawer
@@ -879,8 +1094,12 @@ export function IntegrationsPage() {
 
       {modal === "custom" && urls ? (
         <SetupDrawer
-          title="Custom OAuth app"
-          subtitle="Register a generic OAuth 2.0 provider for relayed access."
+          title={customEditAppId ? "Edit custom integration" : "Custom OAuth app"}
+          subtitle={
+            customEditAppId
+              ? "Update OAuth endpoints and client settings."
+              : "Register a generic OAuth 2.0 provider for relayed access."
+          }
           steps={STEPS_CUSTOM}
           activeStepIndex={wizardStep}
           onClose={closeDrawer}
@@ -901,7 +1120,13 @@ export function IntegrationsPage() {
                   </button>
                 ) : (
                   <button type="button" className="primary-button" disabled={pending} onClick={() => void saveCustom()}>
-                    {pending ? "Creating…" : "Create integration"}
+                    {pending
+                      ? customEditAppId
+                        ? "Saving…"
+                        : "Creating…"
+                      : customEditAppId
+                        ? "Save changes"
+                        : "Create integration"}
                   </button>
                 )}
               </div>

@@ -13,6 +13,7 @@
 
 ### Changed
 
+- Frontend: Admin **Integrations** – Klick öffnet zuerst eine **Übersichtsseite** (`/app/integrations/{id}`) mit Status, Konfigurationskurzinfo, Nutzung (Verbundkonten, Token-Ereignisse), Health und ausklappbaren technischen Details; **Edit** / **Test connection** / **Enable**/**Disable** dort; Bearbeitung weiter im bestehenden Wizard-Drawer; benutzerdefinierte OAuth-Apps als Karten und mit **Open**; Liste: **Open** statt direktem Editor, **Set up** wenn noch kein Datensatz existiert.
 - Relay-Pfade (`/miro/mcp/…`, `/api/v1/broker-proxy/miro/…`) nutzen die generische Engine; Miro-spezifische Upstream-Hardcodes in den Handlern entfernt.
 - Service-Zugriff (`diagnose_service_access`): Erlaubnis „relay“ / „direct_token“ aus `effective_allowed_connection_types` statt nur Legacy-Spalten.
 - Delegation-Grants (Self-Service und Admin): `allowed_access_modes` im Grant werden aus der Integrationskonfiguration abgeleitet, nicht mehr aus Formular-Modi.

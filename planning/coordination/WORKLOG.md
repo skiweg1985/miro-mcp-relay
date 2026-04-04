@@ -1313,3 +1313,28 @@
   - yes ([Unreleased] Changed)
 - Follow-ups:
   - keine
+
+## 2026-04-04 – Cursor Agent – App access key oben im Access-Detailmodal
+
+- Done:
+  - `GrantDetailPanel` (`App.tsx`): `GrantAppAccessKeySection` (Reveal, Copy, Replace für Delegated Credential) aus **Developer details** nach oben verschoben (nach Verbindungs-Hinweisen, vor Connection/Endpoint-Block).
+  - `docs/CHANGELOG.md` [Unreleased] Changed (Bullet zum Access-Detailmodal angepasst).
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - frontend/src/App.tsx
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build`
+- UI path:
+  - Self-Service **Access** → Zeile → **Access details** → Delegated App-Zugangsschlüssel oben
+- Changelog updated:
+  - yes ([Unreleased] Changed)
+- Follow-ups:
+  - keine

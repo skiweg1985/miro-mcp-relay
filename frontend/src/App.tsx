@@ -732,6 +732,8 @@ function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
         <p className="muted access-modal-hint">Add a connection under Integrations to use this access.</p>
       ) : null}
 
+      <GrantAppAccessKeySection grantId={grant.id} canUse={grantCanUseCredential} />
+
       {summaryLoading && showConnectionAccess ? <p className="muted access-modal-hint">Loading…</p> : null}
 
       {!summaryLoading && showConnectionAccess && accessDetails?.supported ? (
@@ -757,8 +759,6 @@ function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
       <details className="grant-disclosure">
         <summary className="grant-disclosure-summary">Developer details</summary>
         <div className="grant-detail-disclosure-body access-modal-dev">
-          <GrantAppAccessKeySection grantId={grant.id} canUse={grantCanUseCredential} />
-
           {grant.service_client_key ? (
             <p className="muted access-modal-dev-lede">
               Named apps may require <code className="grant-inline-code">X-Service-Secret</code> from the service settings.

@@ -726,8 +726,8 @@ function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
         <p className="muted access-modal-hint">Connection details are not available for this integration.</p>
       ) : null}
 
-      <details className="grant-disclosure grant-disclosure--after-tool grant-disclosure--compact">
-        <summary className="grant-disclosure-summary grant-disclosure-summary--compact">cURL</summary>
+      <details className="grant-disclosure grant-disclosure--compact">
+        <summary className="grant-disclosure-summary grant-disclosure-summary--compact">Usage example</summary>
         <div className="grant-detail-disclosure-body access-modal-dev-nested">
           <GrantCodeCopy label="Copy" text={usageExampleText} />
         </div>

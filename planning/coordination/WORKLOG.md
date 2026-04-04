@@ -1,3 +1,30 @@
+## 2026-04-04 – Cursor Agent – Access-Modal Layout (SaaS)
+
+- Done:
+  - `frontend/src/App.tsx`: Access-Modal einspaltig (Access key → Endpoint → Connection); `AccessModalEndpoint` / `AccessModalConnection`; Schlüssel in `.access-modal-key-scroll` mit `access-modal-key-text`; **Usage example** und **Developer details** als getrennte `<details>`.
+  - `frontend/src/index.css`: Credentials-Card, Bundle/Context-Trenner, `secret-line`/`key-scroll`-Styles; `access-modal-root` Abstand; entferntes 2-Spalten-Grid.
+  - `docs/CHANGELOG.md`: [Unreleased] / Changed.
+  - `planning/coordination/WORKLOG.md`: dieser Eintrag.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - frontend/src/App.tsx
+  - frontend/src/index.css
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build`
+  - UI path: Self-Service App access → Zeile → Modal **Access**
+- Changelog updated:
+  - yes (Changed)
+- Follow-ups:
+  - keine
+
 ## 2026-04-04 – Cursor Agent – Access-Modal cURL-Beispiel
 
 - Done:

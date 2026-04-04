@@ -897,8 +897,12 @@ h3 {
 .access-modal-root {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: var(--space-2);
   max-width: 100%;
+}
+
+.access-modal-root > .grant-disclosure {
+  margin-top: 0;
 }
 
 .access-modal-section {
@@ -923,80 +927,71 @@ h3 {
   border-top: none;
 }
 
-.access-modal-credentials-grid {
-  display: grid;
-  gap: var(--space-2) var(--space-4);
-  align-items: start;
+.access-modal-credentials-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
   width: 100%;
+  min-width: 0;
+  padding: var(--space-3);
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-muted);
 }
 
-.access-modal-credentials-grid--paired {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.access-modal-credentials-bundle {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
 }
 
-.access-modal-credentials-grid--paired .access-modal-grid-cell--access-key {
-  grid-column: 1;
-  grid-row: 1;
+.access-modal-credentials-context {
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border-subtle);
 }
 
-.access-modal-credentials-grid--paired .access-modal-grid-cell--connection-name {
-  grid-column: 2;
-  grid-row: 1;
+.access-modal-field-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-1);
+  width: 100%;
+  min-width: 0;
 }
 
-.access-modal-credentials-grid--paired .access-modal-grid-cell--endpoint {
-  grid-column: 1;
-  grid-row: 2;
+.access-modal-field-stack > .access-modal-label {
+  flex: none;
 }
 
-.access-modal-credentials-grid--paired .access-modal-grid-cell--connection-key {
-  grid-column: 2;
-  grid-row: 2;
+.access-modal-field-stack--primary .access-modal-label {
+  color: var(--ink-primary);
+  font-weight: 750;
 }
 
-.access-modal-credentials-grid--accessOnly {
-  grid-template-columns: minmax(0, 1fr);
+.access-modal-field-stack--secondary .access-modal-label {
+  color: var(--ink-secondary);
+  font-weight: 650;
 }
 
-.access-modal-credentials-grid--accessOnly .access-modal-grid-cell--access-key {
-  grid-column: 1 / -1;
+.access-modal-field-stack--context .access-modal-label {
+  color: var(--ink-secondary);
+  font-weight: 600;
+  opacity: 0.92;
 }
 
-.access-modal-credentials-grid--connectionOnly {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.access-modal-field-main--flush {
+  width: 100%;
+  min-width: 0;
 }
 
-.access-modal-credentials-grid--connectionOnly .access-modal-grid-cell--connection-name {
-  grid-column: 1 / -1;
-  grid-row: 1;
-}
-
-.access-modal-credentials-grid--connectionOnly .access-modal-grid-cell--endpoint {
-  grid-column: 1;
-  grid-row: 2;
-}
-
-.access-modal-credentials-grid--connectionOnly .access-modal-grid-cell--connection-key {
-  grid-column: 2;
-  grid-row: 2;
-}
-
-@media (max-width: 560px) {
-  .access-modal-credentials-grid--paired,
-  .access-modal-credentials-grid--connectionOnly {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .access-modal-credentials-grid--paired .access-modal-grid-cell--access-key,
-  .access-modal-credentials-grid--paired .access-modal-grid-cell--connection-name,
-  .access-modal-credentials-grid--paired .access-modal-grid-cell--endpoint,
-  .access-modal-credentials-grid--paired .access-modal-grid-cell--connection-key,
-  .access-modal-credentials-grid--connectionOnly .access-modal-grid-cell--connection-name,
-  .access-modal-credentials-grid--connectionOnly .access-modal-grid-cell--endpoint,
-  .access-modal-credentials-grid--connectionOnly .access-modal-grid-cell--connection-key {
-    grid-column: 1 / -1;
-    grid-row: auto;
-  }
+.access-modal-connection-value {
+  margin: 0;
+  font-size: var(--font-body);
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--ink-primary);
 }
 
 .access-modal-field-row {
@@ -1036,14 +1031,23 @@ h3 {
 }
 
 .access-modal-endpoint-line {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  width: 100%;
+}
+
+.access-modal-endpoint-scroll {
+  flex: 1 1 0;
   min-width: 0;
 }
 
 .access-modal-code--endpoint {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: inline;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
 .access-modal-section-heading {
@@ -1106,10 +1110,6 @@ h3 {
   font-size: var(--font-caption);
   word-break: break-all;
   line-height: 1.45;
-}
-
-.access-modal-key-box {
-  width: 100%;
 }
 
 .access-modal-hint {
@@ -1186,21 +1186,53 @@ h3 {
   margin-top: var(--space-1);
 }
 
-.grant-disclosure--after-tool {
-  margin-top: var(--space-2);
-}
-
 .access-modal-secret-line {
   display: flex;
   flex-direction: row;
+  flex-wrap: nowrap;
   align-items: center;
   gap: var(--space-2);
   width: 100%;
+  min-width: 0;
 }
 
-.access-modal-key-box--grow {
-  flex: 1;
+.access-modal-secret-line--key {
+  align-items: center;
+}
+
+.access-modal-key-scroll {
+  flex: 1 1 0;
   min-width: 0;
+  overflow-x: auto;
+  padding: var(--space-2) var(--space-3);
+  border-radius: 8px;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-subtle);
+}
+
+.access-modal-key-scroll--missing {
+  display: flex;
+  align-items: center;
+  min-height: 2.25rem;
+}
+
+.access-modal-key-scroll--missing .access-modal-missing-inline {
+  margin: 0;
+  white-space: nowrap;
+}
+
+.access-modal-key-text {
+  display: inline-block;
+  max-width: none;
+  white-space: nowrap;
+  word-break: normal;
+  overflow: visible;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.grant-credential-code.access-modal-key-text {
+  font-size: var(--font-caption);
+  line-height: 1.45;
 }
 
 .access-key-icon-group {
@@ -1237,7 +1269,7 @@ h3 {
 }
 
 .access-modal-missing-key-row {
-  align-items: flex-start;
+  align-items: center;
 }
 
 .access-modal-missing-key-row .access-modal-section-hint {

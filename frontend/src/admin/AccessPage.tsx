@@ -15,25 +15,35 @@ import type {
 } from "../types";
 import { formatDateTime, parseApiDateTime, parseLines, relativeTime } from "../utils";
 
-function grantState(grant: DelegationGrantOut): string {
-  if (grant.revoked_at) return "Revoked";
-  if (!grant.is_enabled) return "Disabled";
-  if (grant.expires_at && parseApiDateTime(grant.expires_at).getTime() <= Date.now()) return "Expired";
+type AdminGrantUiState = "active" | "expired" | "paused" | "ended";
+
+function adminGrantUiState(grant: DelegationGrantOut): AdminGrantUiState {
+  if (grant.revoked_at) return "ended";
+  if (!grant.is_enabled) return "paused";
+  if (grant.expires_at && parseApiDateTime(grant.expires_at).getTime() <= Date.now()) return "expired";
+  return "active";
+}
+
+function adminGrantLabel(grant: DelegationGrantOut): string {
+  const s = adminGrantUiState(grant);
+  if (s === "ended") return "Removed";
+  if (s === "paused") return "Paused";
+  if (s === "expired") return "Expired";
   return "Active";
 }
 
 function accessModeLabel(mode: string): string {
-  if (mode === "relay") return "Proxy path";
-  if (mode === "direct_token") return "Direct token";
+  if (mode === "relay") return "Relay";
+  if (mode === "direct_token") return "Direct";
   if (mode === "hybrid") return "Hybrid";
   return mode;
 }
 
-function grantTone(grant: DelegationGrantOut): "neutral" | "success" | "warn" | "danger" {
-  const state = grantState(grant);
-  if (state === "Active") return "success";
-  if (state === "Expired") return "danger";
-  if (state === "Revoked") return "warn";
+function adminGrantTone(grant: DelegationGrantOut): "neutral" | "success" | "warn" | "danger" {
+  const s = adminGrantUiState(grant);
+  if (s === "active") return "success";
+  if (s === "expired") return "warn";
+  if (s === "ended") return "neutral";
   return "neutral";
 }
 
@@ -50,6 +60,7 @@ export function AccessPage() {
   const [grantModalOpen, setGrantModalOpen] = useState(false);
   const [createdResult, setCreatedResult] = useState<DelegationGrantCreateResult | null>(null);
   const [advanced, setAdvanced] = useState(false);
+  const [showInactiveRules, setShowInactiveRules] = useState(false);
   const [form, setForm] = useState<DelegationGrantFormValues>({
     user_email: "",
     service_client_key: "",
@@ -120,7 +131,7 @@ export function AccessPage() {
         capabilities: parseLines(form.capabilities_text),
       });
       setCreatedResult(result);
-      notify({ tone: "success", title: "Access granted" });
+      notify({ tone: "success", title: "Access added" });
       setForm((current) => ({
         ...current,
         connected_account_id: "",
@@ -148,7 +159,7 @@ export function AccessPage() {
     setGrantRevokePending(true);
     try {
       await api.revokeDelegationGrant(session.csrfToken, grantId);
-      notify({ tone: "success", title: "Access revoked" });
+      notify({ tone: "success", title: "Access removed" });
       await load();
     } catch (error) {
       notify({
@@ -178,11 +189,25 @@ export function AccessPage() {
     (connection) => !form.provider_app_key || providerAppById[connection.provider_app_id]?.key === form.provider_app_key,
   );
 
+  const visibleGrants = useMemo(() => {
+    if (showInactiveRules) return grants;
+    return grants.filter((grant) => adminGrantUiState(grant) === "active");
+  }, [grants, showInactiveRules]);
+
+  const rulesEmptyTitle =
+    grants.length === 0 ? "Nothing here yet" : visibleGrants.length === 0 ? "No active rules yet" : "";
+  const rulesEmptyBody =
+    grants.length === 0
+      ? "Add access when an internal app should act for a user."
+      : visibleGrants.length === 0
+        ? "Add access, or switch to Show inactive to see paused, expired, or removed rules."
+        : "";
+
   return (
     <>
       <PageIntro
         title="Access"
-        description="Rules that let internal services use a person’s connected integrations."
+        description="Which internal apps may use a person’s connections."
         actions={
           <button type="button" className="primary-button" onClick={() => setGrantModalOpen(true)}>
             Add access
@@ -191,42 +216,67 @@ export function AccessPage() {
       />
       {createdResult ? (
         <SecretPanel
-          title="Save this secret"
-          body={`Copy now. It cannot be shown again.`}
+          title="Save this value"
+          body="Copy now. It cannot be shown again."
           value={createdResult.delegated_credential}
         />
       ) : null}
 
-      <Card title="Active rules">
+      <Card title="Rules">
+        <div className="grants-filter-bar">
+          <button
+            type="button"
+            className={showInactiveRules ? "grants-filter-toggle grants-filter-toggle--on" : "grants-filter-toggle"}
+            aria-pressed={showInactiveRules}
+            onClick={() => setShowInactiveRules((v) => !v)}
+          >
+            {showInactiveRules ? "Active only" : "Show inactive"}
+          </button>
+        </div>
         <DataTable
+          tableClassName="admin-rules-table"
+          wrapClassName="grants-table-wrap grants-table-wrap--animate"
+          wrapKey={showInactiveRules ? "all" : "active"}
           columns={["Person", "Service", "Integration", "Expires", "Status", ""]}
-          rows={grants.map((grant) => [
+          rowKey={(rowIndex) => visibleGrants[rowIndex]?.id ?? rowIndex}
+          rowClassName={(rowIndex) => {
+            const g = visibleGrants[rowIndex];
+            if (!g) return undefined;
+            return adminGrantUiState(g) !== "active" ? "data-table-row--grant-muted" : undefined;
+          }}
+          rows={visibleGrants.map((grant) => [
             userById[grant.user_id]?.email ?? grant.user_id,
             grant.service_client_id
               ? serviceClientById[grant.service_client_id]?.display_name ?? grant.service_client_id
-              : "Credential only",
+              : "Any service",
             providerAppById[grant.provider_app_id]?.display_name ?? grant.provider_app_id,
-            `${formatDateTime(grant.expires_at)} (${relativeTime(grant.expires_at)})`,
-            <StatusBadge key={grant.id} tone={grantTone(grant)}>
-              {grantState(grant)}
+            <span
+              key={`${grant.id}-exp`}
+              className="admin-expires-cell"
+              title={grant.expires_at ? `${formatDateTime(grant.expires_at)} · ${relativeTime(grant.expires_at)}` : undefined}
+            >
+              {grant.expires_at ? formatDateTime(grant.expires_at) : "—"}
+            </span>,
+            <StatusBadge key={grant.id} tone={adminGrantTone(grant)}>
+              {adminGrantLabel(grant)}
             </StatusBadge>,
             grant.revoked_at ? (
               "—"
             ) : (
-              <button type="button" className="ghost-button" onClick={() => setGrantRevokeConfirmId(grant.id)}>
-                Revoke
+              <button type="button" className="ghost-button grants-inline-btn" onClick={() => setGrantRevokeConfirmId(grant.id)}>
+                Remove
               </button>
             ),
           ])}
-          emptyTitle="No access rules"
-          emptyBody="Create access when an internal service needs to act for a user."
+          emptyTitle={rulesEmptyTitle}
+          emptyBody={rulesEmptyBody}
         />
       </Card>
 
       {grantModalOpen ? (
         <Modal
           title="Add access"
-          description="The person must have connected the integration in their workspace when required."
+          description="The person must have connected the app in their workspace when required."
           wide
           onClose={() => setGrantModalOpen(false)}
         >
@@ -252,7 +302,7 @@ export function AccessPage() {
                   value={form.service_client_key}
                   onChange={(event) => setForm((current) => ({ ...current, service_client_key: event.target.value }))}
                 >
-                  <option value="">Credential only</option>
+                  <option value="">Any service</option>
                   {serviceClients.map((client) => (
                     <option key={client.id} value={client.key}>
                       {client.display_name}
@@ -285,7 +335,7 @@ export function AccessPage() {
                   ))}
                 </select>
               </Field>
-              <Field label="Access modes">
+              <Field label="Connection type">
                 <div className="check-grid compact">
                   {["relay", "direct_token", "hybrid"].map((mode) => (
                     <label key={mode} className="check-option">
@@ -322,13 +372,13 @@ export function AccessPage() {
               </button>
               {advanced ? (
                 <>
-                  <Field label="Scope ceiling" hint="Comma or newline separated">
+                  <Field label="Permission limit" hint="One per line or comma-separated">
                     <textarea
                       value={form.scope_ceiling_text}
                       onChange={(event) => setForm((current) => ({ ...current, scope_ceiling_text: event.target.value }))}
                     />
                   </Field>
-                  <Field label="Capabilities" hint="Comma or newline separated">
+                  <Field label="Extra permissions" hint="One per line or comma-separated">
                     <textarea
                       value={form.capabilities_text}
                       onChange={(event) => setForm((current) => ({ ...current, capabilities_text: event.target.value }))}
@@ -351,8 +401,8 @@ export function AccessPage() {
 
       {grantRevokeConfirmId ? (
         <ConfirmModal
-          title="Revoke access"
-          confirmLabel="Revoke"
+          title="Remove access"
+          confirmLabel="Remove"
           confirmBusy={grantRevokePending}
           onCancel={() => setGrantRevokeConfirmId(null)}
           onConfirm={() => void revokeGrant(grantRevokeConfirmId)}
@@ -360,10 +410,10 @@ export function AccessPage() {
           <p className="lede">
             {grantRevokeTarget ? (
               <>
-                The service loses access for <strong>{providerAppById[grantRevokeTarget.provider_app_id]?.display_name ?? "this integration"}</strong> until you issue a new grant.
+                The app loses access to <strong>{providerAppById[grantRevokeTarget.provider_app_id]?.display_name ?? "this integration"}</strong> until you add new access.
               </>
             ) : (
-              "The service loses access until you issue a new grant."
+              "The app loses access until you add new access."
             )}
           </p>
         </ConfirmModal>

@@ -75,8 +75,8 @@ const CARDS: CardModel[] = [
   },
   {
     id: "add",
-    title: "Custom provider",
-    description: "Another OAuth 2.0 provider.",
+    title: "Custom integration",
+    description: "Another sign-in provider with authorize and exchange URLs.",
     templateKey: "",
   },
 ];
@@ -99,8 +99,11 @@ function cardMeta(app: ProviderAppOut | undefined, instance: ProviderInstanceOut
   const st = statusLabel(app, instance, needsTenant);
   if (st.label === "Not configured") return "Complete setup to enable this integration.";
   const tid = (instance.settings as { tenant_id?: string })?.tenant_id;
-  if (needsTenant && tid) return `Directory: ${tid === "common" ? "Multi-tenant" : tid}`;
-  if (app.client_id?.trim()) return "Client ID on file.";
+  if (needsTenant && tid) {
+    if (tid === "common") return "Directory: multi-tenant";
+    return "Directory: single tenant";
+  }
+  if (app.client_id?.trim()) return "App settings saved.";
   return st.label;
 }
 
@@ -445,7 +448,9 @@ export function IntegrationsPage() {
                 <span className="integration-card-body">
                   <span className="integration-card-desc">{card.description}</span>
                 </span>
-                <span className="integration-card-cta">Add</span>
+                <div className="integration-card-actions">
+                  <span className="secondary-button">Add</span>
+                </div>
               </button>
             );
           }
@@ -487,13 +492,12 @@ export function IntegrationsPage() {
         })}
       </div>
 
-      <Card title="Registered apps">
+      <Card title="Apps">
         {apps.length ? (
           <ul className="integration-inline-list">
             {apps.map((a) => (
-              <li key={a.id}>
+              <li key={a.id} title={a.key}>
                 <strong>{a.display_name}</strong>
-                <span className="muted">{a.key}</span>
               </li>
             ))}
           </ul>

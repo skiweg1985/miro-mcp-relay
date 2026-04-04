@@ -1,3 +1,36 @@
+## 2026-04-04 – Cursor Agent – Admin UI Design-System
+
+- Done:
+  - `frontend/src/admin/AccessPage.tsx`: Regeln **Rules**, Toggle **Show inactive**, Status-Labels (Removed/Paused/…), Expires eine Zeile + Tooltip, Modals/Toasts ohne Grant-Wording.
+  - `frontend/src/admin/UsersPage.tsx`: Connections-Filter Standard **Connected**, Status **Removed**, Aktion **Verify**, **Manual import** / Formularlabels ohne „Token“.
+  - `frontend/src/admin/IntegrationsPage.tsx`: Karten-Meta ohne GUID, Custom-Card + **Apps**-Liste.
+  - `frontend/src/admin/ServicesPage.tsx`: PageIntro + SecretPanel-Copy.
+  - `frontend/src/index.css`: `.admin-expires-cell`, `.admin-rules-table`, `.admin-conn-actions`.
+  - `docs/CHANGELOG.md` [Unreleased] Changed.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - frontend/src/admin/AccessPage.tsx
+  - frontend/src/admin/UsersPage.tsx
+  - frontend/src/admin/IntegrationsPage.tsx
+  - frontend/src/admin/ServicesPage.tsx
+  - frontend/src/index.css
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build`
+- UI path:
+  - Admin: Access, People → Connections, Integrations, Services
+- Changelog updated:
+  - yes ([Unreleased] Changed)
+- Follow-ups:
+  - keine
+
 ## 2026-04-04 – Cursor Agent – App access: Zeile klickbar
 
 - Done:

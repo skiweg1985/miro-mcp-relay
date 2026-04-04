@@ -959,6 +959,23 @@ h3 {
   animation: grants-table-wrap-in 0.22s ease-out;
 }
 
+.admin-expires-cell {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-rules-table {
+  table-layout: fixed;
+}
+
+.admin-conn-actions {
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+}
+
 .grants-filter-bar {
   display: flex;
   flex-wrap: wrap;

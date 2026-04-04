@@ -81,7 +81,7 @@ export function ServicesPage() {
     <>
       <PageIntro
         title="Services"
-        description="Internal apps authenticated with a shared secret."
+        description="Service identities for apps that call your APIs."
         actions={
           <button type="button" className="primary-button" onClick={() => setCreateOpen(true)}>
             Add service
@@ -90,8 +90,8 @@ export function ServicesPage() {
       />
       {createdResult ? (
         <SecretPanel
-          title="Client secret"
-          body={`Store this secret for ${createdResult.service_client.display_name} now. It is only shown once.`}
+          title="Save this value"
+          body={`Store for ${createdResult.service_client.display_name} now. Shown once.`}
           value={createdResult.client_secret}
         />
       ) : null}
@@ -106,7 +106,7 @@ export function ServicesPage() {
             formatDateTime(client.created_at),
           ])}
           emptyTitle="No services"
-          emptyBody="Create a service to obtain API credentials."
+          emptyBody="Create a service to receive API access."
         />
       </Card>
 

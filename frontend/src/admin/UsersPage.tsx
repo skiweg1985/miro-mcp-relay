@@ -14,10 +14,17 @@ import type {
 import { formatDateTime, parseLines, toIsoDateTime } from "../utils";
 
 function connectionTone(connection: ConnectedAccountOut): "neutral" | "success" | "warn" | "danger" {
-  if (connection.status === "revoked") return "warn";
+  if (connection.status === "revoked") return "neutral";
   if (connection.last_error) return "danger";
   if (connection.status === "connected") return "success";
   return "neutral";
+}
+
+function connectionStatusLabel(connection: ConnectedAccountOut): string {
+  if (connection.status === "revoked") return "Removed";
+  if (connection.status === "connected" && connection.last_error) return "Needs attention";
+  if (connection.status === "connected") return "Connected";
+  return connection.status;
 }
 
 function friendlyMessage(raw: string | null | undefined): string {
@@ -25,9 +32,9 @@ function friendlyMessage(raw: string | null | undefined): string {
   if (!message) return "The request could not be completed.";
   if (message === "Invalid or expired OAuth state") return "The session expired. Start the connection again.";
   if (message.includes("did not match expected email")) return "The signed-in identity did not match the expected account.";
-  if (message.startsWith("microsoft_graph_refresh_failed")) return "Could not refresh Microsoft credentials. Reconnect the account.";
-  if (message.startsWith("miro_token_exchange_failed")) return "Token exchange failed. Try again.";
-  if (message.startsWith("miro_refresh_failed")) return "Could not refresh stored credentials. Reconnect the account.";
+  if (message.startsWith("microsoft_graph_refresh_failed")) return "Could not refresh Microsoft. Reconnect the account.";
+  if (message.startsWith("miro_token_exchange_failed")) return "Connection exchange failed. Try again.";
+  if (message.startsWith("miro_refresh_failed")) return "Could not refresh the connection. Reconnect the account.";
   return message;
 }
 
@@ -46,7 +53,7 @@ export function UsersPage() {
   const [filters, setFilters] = useState({
     userEmail: "",
     providerAppKey: "",
-    status: "",
+    status: "connected",
   });
   const [form, setForm] = useState<ConnectedAccountFormValues>({
     user_email: "",
@@ -247,9 +254,9 @@ export function UsersPage() {
               </Field>
               <Field label="Status">
                 <select value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}>
-                  <option value="">Any</option>
                   <option value="connected">Connected</option>
-                  <option value="revoked">Revoked</option>
+                  <option value="">Any</option>
+                  <option value="revoked">Removed</option>
                 </select>
               </Field>
             </div>
@@ -261,9 +268,9 @@ export function UsersPage() {
                 connection.display_name || connection.external_email || connection.external_account_ref || connection.id,
                 formatDateTime(connection.connected_at),
                 <StatusBadge key={connection.id} tone={connectionTone(connection)}>
-                  {connection.status === "connected" && connection.last_error ? "Issue" : connection.status}
+                  {connectionStatusLabel(connection)}
                 </StatusBadge>,
-                <div className="inline-actions" key={`${connection.id}-actions`}>
+                <div className="inline-actions admin-conn-actions" key={`${connection.id}-actions`}>
                   <button
                     type="button"
                     className="ghost-button"
@@ -289,13 +296,13 @@ export function UsersPage() {
                         notify({
                           tone: result.ok ? "success" : "error",
                           title: result.ok ? "Check succeeded" : "Check failed",
-                          description: result.ok ? "The provider accepted stored credentials." : friendlyMessage(result.message),
+                          description: result.ok ? "The provider accepted this connection." : friendlyMessage(result.message),
                         });
                         await load();
                       })
                     }
                   >
-                    {busyActions.has(`probe:${connection.id}`) ? "…" : "Test access"}
+                    {busyActions.has(`probe:${connection.id}`) ? "…" : "Verify"}
                   </button>
                   <button
                     type="button"
@@ -307,8 +314,8 @@ export function UsersPage() {
                   </button>
                 </div>,
               ])}
-              emptyTitle="No connected accounts"
-              emptyBody="Users connect integrations from their workspace."
+              emptyTitle="No connections match"
+              emptyBody="Change filters or ask people to connect apps from their workspace."
             />
           </Card>
 
@@ -331,16 +338,16 @@ export function UsersPage() {
             </Card>
           ) : null}
 
-          <Card title="Token import">
+          <Card title="Manual import" description="For migration when sign-in is not available.">
             <button type="button" className="primary-button" onClick={() => setImportModalOpen(true)}>
-              Import tokens
+              Import data
             </button>
           </Card>
 
           {importModalOpen ? (
             <Modal
-              title="Import tokens"
-              description="For migration or recovery when the normal sign-in flow is unavailable."
+              title="Manual import"
+              description="Paste connection values from a secure export. Prefer the normal sign-in flow when possible."
               wide
               onClose={() => setImportModalOpen(false)}
             >
@@ -389,33 +396,33 @@ export function UsersPage() {
                       type="email"
                     />
                   </Field>
-                  <Field label="Consented scopes" hint="Comma or newline separated">
+                  <Field label="Permissions" hint="One per line or comma-separated">
                     <textarea
                       value={form.consented_scopes_text}
                       onChange={(event) => setForm((current) => ({ ...current, consented_scopes_text: event.target.value }))}
                     />
                   </Field>
-                  <Field label="Access token">
+                  <Field label="Short-lived access">
                     <textarea
                       value={form.access_token}
                       onChange={(event) => setForm((current) => ({ ...current, access_token: event.target.value }))}
                       required
                     />
                   </Field>
-                  <Field label="Refresh token">
+                  <Field label="Refresh">
                     <textarea value={form.refresh_token} onChange={(event) => setForm((current) => ({ ...current, refresh_token: event.target.value }))} />
                   </Field>
-                  <Field label="Token type">
+                  <Field label="Type" hint="Usually Bearer">
                     <input value={form.token_type} onChange={(event) => setForm((current) => ({ ...current, token_type: event.target.value }))} />
                   </Field>
-                  <Field label="Access token expiry">
+                  <Field label="Short-lived expiry">
                     <input
                       value={form.expires_at}
                       onChange={(event) => setForm((current) => ({ ...current, expires_at: event.target.value }))}
                       type="datetime-local"
                     />
                   </Field>
-                  <Field label="Refresh token expiry">
+                  <Field label="Refresh expiry">
                     <input
                       value={form.refresh_expires_at}
                       onChange={(event) => setForm((current) => ({ ...current, refresh_expires_at: event.target.value }))}

@@ -5,7 +5,7 @@
   - `.gitignore`: `data/` ergänzt.
   - `docs/CHANGELOG.md`, `planning/coordination/WORKLOG.md` aktualisiert.
 - Next:
-  - `git push origin --force --all` und `git push origin --force --tags` (Klone mit altem Stand: Rebase/Fetch mit Vorsicht oder neu klonen).
+  - keine
 - Blockers:
   - keine
 - Branch/PR:
@@ -17,7 +17,7 @@
   - planning/coordination/WORKLOG.md
   - (Historie: `data/*` aus allen Commits entfernt)
 - Test notes:
-  - commands: `python3 -m git_filter_repo ...`; danach Commit mit Ignore/Changelog/Worklog
+  - commands: `python3 -m git_filter_repo ...`; danach Commit mit Ignore/Changelog/Worklog; `git push origin --force --all`
 - endpoints:
   - n/a
 - UI path:
@@ -25,7 +25,7 @@
 - Changelog updated:
   - yes ([Unreleased] Removed)
 - Follow-ups:
-  - Mitbearbeiter: nach Force-Push lokale Repos mit `git fetch origin` + Reset oder frisch klonen.
+  - Mitbearbeiter: nach Force-Push lokale Repos mit `git fetch origin` + harter Reset auf `origin/<branch>` oder neu klonen.
 
 ## 2026-04-03 – Cursor Agent – Frontend-Build-Artefakte committen und Branch pushen
 

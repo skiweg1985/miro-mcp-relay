@@ -1097,3 +1097,22 @@
   - yes ([Unreleased] Changed)
 - Follow-ups:
   - keine
+
+## 2026-04-04 – Cursor Agent – Key-Zeile ohne Bullet-Duplikat
+
+- Done:
+  - `AccessCredentialSummary.tsx`: ein Statusstring; OAuth vs. Relay; Hinweis nur bei Relay-Rotation; `connection_access_details.py`: Graph-Label **OAuth token**.
+  - `docs/CHANGELOG.md` [Unreleased] Changed.
+- Next:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - frontend/src/AccessCredentialSummary.tsx, backend/app/connection_access_details.py, docs/CHANGELOG.md, planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build`
+- Changelog updated:
+  - yes ([Unreleased] Changed)
+- Follow-ups:
+  - keine

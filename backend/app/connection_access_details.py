@@ -140,7 +140,7 @@ def _microsoft_graph_payload_to_connection_access_details(
 
     key_section = AccessCredentialKeyOut(
         status=key_status,
-        label="Key",
+        label="OAuth token",
         masked_hint=masked,
         plaintext=plaintext,
     )

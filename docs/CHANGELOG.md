@@ -15,6 +15,8 @@
 
 ### Changed
 
+- Frontend: **Connection details** Key-Zeile ohne doppelte Bullet-Anzeige; getrennte Kurztexte für rotierbaren Relay-Key vs. OAuth; Graph-Label **OAuth token**.
+
 - API/UI: Microsoft-Graph-Verbindungen liefern `GET .../access-details` mit Direct-/Relay-Zeilen, API-**Endpoint**, **Access request** (Token-Ausgabe-URL), Key-Status (maskiert, kein Klartext, kein Rotate); **App access**-Detail zeigt dieselbe Zusammenfassung bei **Direct** oder **Relay** (nicht nur Relay).
 - Frontend: **Integrations** lädt **Connection details** für alle Verbindungen mit unterstützten Zugangsdaten (mehrere Karten bei mehreren aktiven Integrationen).
 

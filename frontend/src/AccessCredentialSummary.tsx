@@ -5,12 +5,18 @@ import { useAppContext } from "./app-context";
 import type { ConnectionAccessDetails } from "./types";
 import { copyToClipboard } from "./utils";
 
-function keyStatusLine(section: NonNullable<ConnectionAccessDetails["key_section"]>): string {
+function keyStatusDisplay(
+  section: NonNullable<ConnectionAccessDetails["key_section"]>,
+  canRotate: boolean,
+): string {
   switch (section.status) {
     case "ready":
-      return "New key ready to copy";
+      return "New key ready — use Copy in the dialog";
     case "stored":
-      return "Key on file";
+      if (!canRotate) {
+        return "Not shown in the browser";
+      }
+      return "Hidden — create a new key to copy";
     case "none":
       return "No key yet";
     default:
@@ -129,13 +135,7 @@ export function AccessCredentialSummary({
           <div className="stack-cell access-credential-row">
             <strong>{key.label || "Key"}</strong>
             <span className="access-credential-row-value">
-              <span>{keyStatusLine(key)}</span>
-              {key.plaintext || key.masked_hint ? (
-                <span className="access-credential-masked" aria-hidden="true">
-                  {" "}
-                  ••••••••
-                </span>
-              ) : null}
+              <span>{keyStatusDisplay(key, details.can_rotate)}</span>
             </span>
           </div>
         ) : null}
@@ -164,12 +164,8 @@ export function AccessCredentialSummary({
         </div>
       ) : null}
 
-      {showStoredHint ? (
-        <p className="lede">
-          {showRotate
-            ? "The current key still works elsewhere. Create a new key when you need to copy it again."
-            : "The provider token is stored securely. Use the access request URL with the secret from App access. The full key is not shown here."}
-        </p>
+      {showStoredHint && showRotate ? (
+        <p className="lede">The current key still works elsewhere. Create a new key when you need to copy it again.</p>
       ) : null}
 
       {revealSections ? <CredentialRevealModal sections={revealSections} /> : null}

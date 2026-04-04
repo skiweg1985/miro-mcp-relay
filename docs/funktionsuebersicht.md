@@ -28,7 +28,7 @@ Standardablauf:
 2. Der Benutzer verbindet sein Provider-Konto (vorrangig Miro).
 3. Ein Admin legt Service-Clients an, also vertrauenswuerdige Verbraucher der Plattform.
 4. Der Benutzer oder Admin erstellt einen Delegation Grant fuer einen Service-Client.
-5. Ein Aufrufer nutzt `X-Delegated-Credential`; optional kommt `X-Service-Secret` hinzu, wenn der Grant an einen Service-Client gebunden ist.
+5. Ein Aufrufer sendet den Access Key im Header `X-Access-Key` (Abwaertskompatibilitaet `X-Delegated-Credential`); optional kommt `X-Service-Secret` hinzu, wenn der Grant an einen Service-Client gebunden ist.
 6. Der Broker prueft Berechtigung, Scope-Grenzen, Modus und Verbindung und gibt entweder Zugriff frei oder blockiert den Vorgang.
 
 ## Einstiegspunkte
@@ -173,7 +173,7 @@ Bereiche:
 
 Hinweis:
 
-- Das `delegated_credential` wird nur einmal direkt nach der Erstellung angezeigt.
+- Der Access Key wird nur einmal direkt nach der Erstellung angezeigt.
 
 ### Audit
 
@@ -270,7 +270,7 @@ Ein Benutzer waehlt dabei:
 Hinweis:
 
 - Nur die eigenen Grants werden angezeigt.
-- Das neue `delegated_credential` wird nur einmal eingeblendet.
+- Der neue Access Key wird nur einmal eingeblendet.
 
 ### Token Access
 
@@ -331,9 +331,9 @@ Ein vertrauenswuerdiger Verbraucher des Brokers, der sich mit einem Secret gegen
 
 Eine explizite Freigabe, dass ein bestimmter Service-Client im Kontext eines Benutzers auf eine bestimmte Provider-App zugreifen darf.
 
-### Delegated Credential
+### Access Credential
 
-Ein einmalig ausgegebenes Geheimnis, mit dem ein Service zusammen mit seinem Client-Secret einen konkreten Grant nutzen kann.
+Ein einmalig ausgegebenes Geheimnis (Access Key), mit dem ein Aufrufer im Header `X-Access-Key` einen konkreten Grant nutzt; bei gebundenem Service-Client zusammen mit `X-Service-Secret`.
 
 ## Self-Service und Downstream-Provider
 

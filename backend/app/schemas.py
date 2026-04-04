@@ -277,7 +277,7 @@ class AccessDetailRowOut(BaseModel):
 
 class AccessCredentialKeyOut(BaseModel):
     status: str
-    label: str = "Key"
+    label: str = "Access key"
     masked_hint: str | None = None
     plaintext: str | None = None
 
@@ -365,7 +365,7 @@ class DelegationGrantOut(BaseModel):
 class DelegationGrantSecretResponse(BaseModel):
     ok: bool = True
     delegation_grant: DelegationGrantOut
-    delegated_credential: str
+    access_credential: str
 
 
 class VisibleServiceClientOut(BaseModel):
@@ -412,12 +412,12 @@ class SelfServiceDelegationGrantOut(BaseModel):
 class SelfServiceDelegationGrantSecretResponse(BaseModel):
     ok: bool = True
     delegation_grant: SelfServiceDelegationGrantOut
-    delegated_credential: str
+    access_credential: str
 
 
-class DelegatedCredentialRotateOut(BaseModel):
+class AccessCredentialRotateOut(BaseModel):
     ok: bool = True
-    delegated_credential: str
+    access_credential: str
 
 
 class ProviderAccessIssueRequest(BaseModel):

@@ -11,7 +11,7 @@ from app.deps import get_current_user, record_audit, require_csrf
 from app.models import ConnectedAccount, DelegationGrant, GrantedCapability, ProviderApp, ServiceClient, TokenIssueEvent, User
 from app.relay_config import effective_allowed_connection_types
 from app.schemas import (
-    DelegatedCredentialRotateOut,
+    AccessCredentialRotateOut,
     SelfServiceDelegationGrantCreate,
     SelfServiceDelegationGrantOut,
     SelfServiceDelegationGrantSecretResponse,
@@ -163,16 +163,16 @@ def create_my_delegation_grant(
         if not connected_account:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No active connection exists for this provider app")
 
-    delegated_credential = issue_plain_secret()
+    access_credential = issue_plain_secret()
     grant = DelegationGrant(
         organization_id=current_user.organization_id,
         user_id=current_user.id,
         service_client_id=service_client.id if service_client else None,
         provider_app_id=provider_app.id,
         connected_account_id=connected_account.id if connected_account else None,
-        credential_hash=hash_secret(delegated_credential),
-        credential_lookup_hash=lookup_secret_hash(delegated_credential),
-        encrypted_delegated_credential=encrypt_text(delegated_credential),
+        credential_hash=hash_secret(access_credential),
+        credential_lookup_hash=lookup_secret_hash(access_credential),
+        encrypted_delegated_credential=encrypt_text(access_credential),
         allowed_access_modes_json=dumps_json(allowed_access_modes),
         scope_ceiling_json=dumps_json(payload.scope_ceiling),
         environment=payload.environment,
@@ -211,12 +211,11 @@ def create_my_delegation_grant(
             connections={connected_account.id: connected_account} if connected_account else {},
             capabilities={grant.id: payload.capabilities},
         ),
-        delegated_credential=delegated_credential,
+        access_credential=access_credential,
     )
 
 
-@router.get("/delegation-grants/{grant_id}/delegated-credential", response_model=DelegatedCredentialRotateOut)
-def get_my_delegation_grant_delegated_credential(grant_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def _get_delegation_grant_access_credential(grant_id: str, current_user: User, db: Session) -> AccessCredentialRotateOut:
     grant = db.scalar(select(DelegationGrant).where(DelegationGrant.id == grant_id, DelegationGrant.user_id == current_user.id))
     if not grant:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Delegation grant not found")
@@ -227,13 +226,23 @@ def get_my_delegation_grant_delegated_credential(grant_id: str, current_user: Us
 
     plaintext = decrypt_text(grant.encrypted_delegated_credential)
     if not plaintext:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="delegated_credential_not_stored")
-    return DelegatedCredentialRotateOut(delegated_credential=plaintext)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="access_credential_not_stored")
+    return AccessCredentialRotateOut(access_credential=plaintext)
+
+
+@router.get("/delegation-grants/{grant_id}/access-credential", response_model=AccessCredentialRotateOut)
+def get_my_delegation_grant_access_credential(grant_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return _get_delegation_grant_access_credential(grant_id, current_user, db)
+
+
+@router.get("/delegation-grants/{grant_id}/delegated-credential", response_model=AccessCredentialRotateOut, include_in_schema=False)
+def get_my_delegation_grant_delegated_credential_legacy(grant_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return _get_delegation_grant_access_credential(grant_id, current_user, db)
 
 
 @router.post(
     "/delegation-grants/{grant_id}/rotate-credential",
-    response_model=DelegatedCredentialRotateOut,
+    response_model=AccessCredentialRotateOut,
     dependencies=[Depends(require_csrf)],
 )
 def rotate_my_delegation_grant_credential(grant_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -245,10 +254,10 @@ def rotate_my_delegation_grant_credential(grant_id: str, current_user: User = De
     if not grant.is_enabled:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Delegation grant is disabled")
 
-    delegated_credential = issue_plain_secret()
-    grant.credential_hash = hash_secret(delegated_credential)
-    grant.credential_lookup_hash = lookup_secret_hash(delegated_credential)
-    grant.encrypted_delegated_credential = encrypt_text(delegated_credential)
+    access_credential = issue_plain_secret()
+    grant.credential_hash = hash_secret(access_credential)
+    grant.credential_lookup_hash = lookup_secret_hash(access_credential)
+    grant.encrypted_delegated_credential = encrypt_text(access_credential)
     grant.updated_at = utcnow()
     record_audit(
         db,
@@ -259,7 +268,7 @@ def rotate_my_delegation_grant_credential(grant_id: str, current_user: User = De
         metadata={"grant_id": grant.id},
     )
     db.commit()
-    return DelegatedCredentialRotateOut(delegated_credential=delegated_credential)
+    return AccessCredentialRotateOut(access_credential=access_credential)
 
 
 @router.post("/delegation-grants/{grant_id}/revoke", response_model=SelfServiceDelegationGrantOut, dependencies=[Depends(require_csrf)])

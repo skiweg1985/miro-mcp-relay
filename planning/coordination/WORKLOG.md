@@ -1314,6 +1314,30 @@
 - Follow-ups:
   - keine
 
+## 2026-04-04 – Cursor Agent – Access Key / X-Access-Key Vereinheitlichung
+
+- Done:
+  - Backend: `AccessCredential`-Alias, `coalesce_service_access_headers` / `coalesce_legacy_mcp_access_headers`, `diagnose_service_access(..., access_credential=...)`, Responses `access_credential`, `AccessCredentialRotateOut`, `GET .../access-credential` + Legacy `.../delegated-credential`, MCP-JSON `X-Access-Key`, Legacy-MCP akzeptiert `X-Access-Key` vor `X-Relay-Key`.
+  - Frontend: API/Typen, UI-Texte „Access key“, CSS `grant-access-credential-*`, Developer-Beispiele, `SecretPanel`-Titel.
+  - Doku: README, AGENTS.md, `docs/technische-referenz.md`, `docs/funktionsuebersicht.md`, `docs/CHANGELOG.md`; Legacy `src/index.js` Header/JSON.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - backend/app/deps.py, schemas.py, miro.py, routers/token_issuance.py, connections.py, legacy_miro.py, user.py, admin.py, test_welle1_smoke.py
+  - frontend/src/App.tsx, api.ts, types.ts, index.css, AccessCredentialSummary.tsx, accessCredentialMappers.ts, admin/AccessPage.tsx
+  - README.md, AGENTS.md, docs/CHANGELOG.md, docs/technische-referenz.md, docs/funktionsuebersicht.md, src/index.js, planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `python3 -m unittest backend.test_welle1_smoke -v`, `cd frontend && npm run build`, `npm test`
+- Changelog updated:
+  - yes ([Unreleased] Changed)
+- Follow-ups:
+  - keine
+
 ## 2026-04-04 – Cursor Agent – App access key oben im Access-Detailmodal
 
 - Done:

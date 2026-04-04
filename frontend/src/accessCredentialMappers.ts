@@ -2,12 +2,12 @@ import type { ConnectionAccessDetails, MiroRelayAccess } from "./types";
 
 function keySectionFromMiro(m: MiroRelayAccess): ConnectionAccessDetails["key_section"] {
   if (m.relay_token) {
-    return { status: "ready", label: "Key", masked_hint: null, plaintext: m.relay_token };
+    return { status: "ready", label: "Access key", masked_hint: null, plaintext: m.relay_token };
   }
   if (m.has_relay_token) {
-    return { status: "stored", label: "Key", masked_hint: "••••••••", plaintext: null };
+    return { status: "stored", label: "Access key", masked_hint: "••••••••", plaintext: null };
   }
-  return { status: "none", label: "Key", masked_hint: null, plaintext: null };
+  return { status: "none", label: "Access key", masked_hint: null, plaintext: null };
 }
 
 /** Maps a legacy Miro access payload to the generic connection access shape (e.g. after setup exchange). */

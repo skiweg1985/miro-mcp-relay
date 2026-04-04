@@ -201,7 +201,7 @@ export function AccessPage() {
         <SecretPanel
           title="Save this value"
           body="Copy now. It cannot be shown again."
-          value={createdResult.delegated_credential}
+          value={createdResult.access_credential}
         />
       ) : null}
 

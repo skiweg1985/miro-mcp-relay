@@ -300,7 +300,7 @@ def build_miro_access_payload(connected_account: ConnectedAccount, relay_token: 
                         "type": "streamable-http",
                         "url": mcp_url,
                         "headers": {
-                            "X-Relay-Key": relay_token,
+                            "X-Access-Key": relay_token,
                         },
                     }
                 }

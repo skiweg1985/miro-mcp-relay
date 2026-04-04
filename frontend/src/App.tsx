@@ -364,10 +364,10 @@ function GrantAppAccessKeySection({ grantId, canUse }: { grantId: string; canUse
     setCredential(null);
     setReveal(false);
     void api
-      .getMyDelegationGrantDelegatedCredential(grantId)
+      .getMyDelegationGrantAccessCredential(grantId)
       .then((result) => {
         if (cancelled) return;
-        setCredential(result.delegated_credential);
+        setCredential(result.access_credential);
         setLoadState("ready");
       })
       .catch((error: unknown) => {
@@ -375,7 +375,7 @@ function GrantAppAccessKeySection({ grantId, canUse }: { grantId: string; canUse
         if (
           isApiError(error) &&
           error.status === 404 &&
-          (error.message.includes("delegated_credential_not_stored") || error.message.includes("not stored"))
+          (error.message.includes("access_credential_not_stored") || error.message.includes("not stored"))
         ) {
           setLoadState("missing");
           return;
@@ -403,7 +403,7 @@ function GrantAppAccessKeySection({ grantId, canUse }: { grantId: string; canUse
     setRotatePending(true);
     try {
       const result = await api.rotateMyDelegationGrantCredential(session.csrfToken, grantId);
-      setCredential(result.delegated_credential);
+      setCredential(result.access_credential);
       setReveal(true);
       setRotateConfirm(false);
       setLoadState("ready");
@@ -415,7 +415,7 @@ function GrantAppAccessKeySection({ grantId, canUse }: { grantId: string; canUse
     } catch (error) {
       notify({
         tone: "error",
-        title: "Could not replace key",
+        title: "Could not replace access key",
         description: isApiError(error) ? error.message : "Unexpected error.",
       });
     } finally {
@@ -430,14 +430,14 @@ function GrantAppAccessKeySection({ grantId, canUse }: { grantId: string; canUse
   return (
     <>
       <div className="access-modal-dev-block">
-        <h4 className="access-modal-dev-heading">App access key</h4>
+        <h4 className="access-modal-dev-heading">Access key</h4>
         <p className="access-modal-dev-lede muted">For API requests to this workspace.</p>
         {loadState === "loading" ? <p className="muted access-modal-dev-lede">Loading…</p> : null}
         {loadState === "error" ? <p className="muted access-modal-dev-lede">Could not load. Try again later.</p> : null}
         {loadState === "ready" && credential ? (
-          <div className="grant-delegated-credential-block">
+          <div className="grant-access-credential-block">
             <div className="access-modal-secret-line">
-              <div className="grant-delegated-credential-value access-modal-key-box access-modal-key-box--grow">
+              <div className="grant-access-credential-value access-modal-key-box access-modal-key-box--grow">
                 {reveal ? (
                   <code className="grant-credential-code">{credential}</code>
                 ) : (
@@ -455,16 +455,16 @@ function GrantAppAccessKeySection({ grantId, canUse }: { grantId: string; canUse
             </div>
             <div className="access-modal-replace-key">
               <button type="button" className="ghost-button" onClick={() => setRotateConfirm(true)}>
-                Replace key
+                Replace access key
               </button>
             </div>
           </div>
         ) : null}
         {loadState === "missing" ? (
-          <div className="grant-delegated-credential-block grant-delegated-credential-block--empty">
+          <div className="grant-access-credential-block grant-access-credential-block--empty">
             <p className="muted access-modal-dev-lede">Not stored for this entry. Replace once to enable Show and Copy.</p>
             <button type="button" className="secondary-button" onClick={() => setRotateConfirm(true)}>
-              Replace key
+              Replace access key
             </button>
           </div>
         ) : null}
@@ -472,8 +472,8 @@ function GrantAppAccessKeySection({ grantId, canUse }: { grantId: string; canUse
 
       {rotateConfirm ? (
         <ConfirmModal
-          title="Replace app access key?"
-          confirmLabel="Replace key"
+          title="Replace access key?"
+          confirmLabel="Replace access key"
           cancelLabel="Cancel"
           confirmBusy={rotatePending}
           onCancel={() => setRotateConfirm(false)}
@@ -553,7 +553,7 @@ function AccessConnectionTool({
         <div className="access-modal-value-wrap access-modal-value-wrap--key">
           {keyReady && keyPlaintext ? (
             <div className="access-modal-secret-line">
-              <div className="grant-delegated-credential-value access-modal-key-box access-modal-key-box--grow">
+              <div className="grant-access-credential-value access-modal-key-box access-modal-key-box--grow">
                 {keyReveal ? (
                   <code className="grant-credential-code">{keyPlaintext}</code>
                 ) : (
@@ -576,7 +576,7 @@ function AccessConnectionTool({
               </span>
               {canRotateConnection ? (
                 <button type="button" className="ghost-button" disabled={replaceConnectionKeyPending} onClick={onReplaceConnectionKey}>
-                  {replaceConnectionKeyPending ? "Working…" : "Replace key"}
+                  {replaceConnectionKeyPending ? "Working…" : "Replace access key"}
                 </button>
               ) : (
                 <span className="muted access-modal-muted-inline">Not shown here</span>
@@ -680,9 +680,24 @@ function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
 
   const developerHeadersExample = useMemo(() => {
     const ep = accessDetails?.rows.find((r) => r.label === "Endpoint")?.value ?? "<endpoint>";
-    const lines = [`POST ${ep}`, `Content-Type: application/json`, ``, `X-Delegated-Credential: <app access key>`];
+    const lines = [
+      `# Broker proxy`,
+      `POST ${ep}`,
+      `Content-Type: application/json`,
+      ``,
+      `X-Access-Key: <access key>`,
+    ];
     if (relayAllowed && accessDetails?.supported) {
-      lines.push(`X-Relay-Key: <connection access key>`);
+      const profile = accessDetails.rows.find((r) => r.label === "Workspace")?.value ?? "<profile_id>";
+      const mcpUrl = `${brokerPublicOrigin()}/miro/mcp/${profile}`;
+      lines.push(
+        ``,
+        `# MCP profile endpoint`,
+        `POST ${mcpUrl}`,
+        `Content-Type: application/json`,
+        ``,
+        `X-Access-Key: <access key>`,
+      );
     }
     return lines.join("\n");
   }, [accessDetails, relayAllowed]);
@@ -1395,13 +1410,13 @@ function GrantsPage() {
 
       {createdResult ? (
         <SecretPanel
-          title="Save this secret"
+          title="Save this access key"
           body={`Copy now${
             createdResult.delegation_grant.service_client_display_name
               ? ` (${createdResult.delegation_grant.service_client_display_name})`
               : ""
           }. It will not be shown again.`}
-          value={createdResult.delegated_credential}
+          value={createdResult.access_credential}
         />
       ) : null}
 
@@ -1499,7 +1514,7 @@ function GrantsPage() {
       {grantListHelpOpen ? (
         <Modal
           title="How access works"
-          description="Each entry links an app (or any app) to an integration. A secret is shown once when you create access—store it safely. Open a row for details and examples."
+          description="Each entry links an app (or any app) to an integration. An access key is shown once when you create access—store it safely. Open a row for details and examples."
           onClose={() => setGrantListHelpOpen(false)}
         />
       ) : null}

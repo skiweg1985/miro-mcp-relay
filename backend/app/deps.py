@@ -13,6 +13,31 @@ from app.models import AccessMode, AuditEvent, ConnectedAccount, DelegationGrant
 from app.relay_config import effective_allowed_connection_types
 from app.security import dumps_json, hash_secret, issue_plain_secret, loads_json, lookup_secret_hash, utcnow, verify_secret
 
+# Plaintext secret presented by callers (HTTP `X-Access-Key` or legacy `X-Delegated-Credential`).
+AccessCredential = str
+
+
+def coalesce_service_access_headers(
+    x_access_key: str | None,
+    x_delegated_credential: str | None,
+) -> str | None:
+    primary = (x_access_key or "").strip()
+    if primary:
+        return primary
+    return (x_delegated_credential or "").strip() or None
+
+
+def coalesce_legacy_mcp_access_headers(
+    x_access_key: str | None,
+    x_relay_key: str | None,
+    bearer_token: str | None,
+) -> str | None:
+    for candidate in (x_access_key, x_relay_key, bearer_token):
+        v = (candidate or "").strip()
+        if v:
+            return v
+    return None
+
 
 @dataclass
 class ServiceAuthContext:
@@ -100,11 +125,11 @@ def clear_session_cookie(response: Response) -> None:
 
 def _find_delegation_grant_by_credential(
     db: Session,
-    delegated_credential: str,
+    access_credential: AccessCredential,
     *,
     service_client_id: str | None = None,
 ) -> DelegationGrant | None:
-    cred_lookup = lookup_secret_hash(delegated_credential)
+    cred_lookup = lookup_secret_hash(access_credential)
     q = select(DelegationGrant).where(
         DelegationGrant.is_enabled.is_(True),
         DelegationGrant.revoked_at.is_(None),
@@ -113,14 +138,14 @@ def _find_delegation_grant_by_credential(
     if service_client_id is not None:
         q = q.where(DelegationGrant.service_client_id == service_client_id)
     exact_grants = db.scalars(q).all()
-    return next((g for g in exact_grants if verify_secret(delegated_credential, g.credential_hash)), None)
+    return next((g for g in exact_grants if verify_secret(access_credential, g.credential_hash)), None)
 
 
 def diagnose_service_access(
     *,
     db: Session,
     provider_app_key: str,
-    delegated_credential: str | None,
+    access_credential: str | None,
     service_secret: str | None,
     requested_scopes: list[str],
     required_mode: str = AccessMode.DIRECT_TOKEN.value,
@@ -128,14 +153,14 @@ def diagnose_service_access(
  ) -> tuple[ServiceAuthContext, HTTPException | None]:
     auth_context = ServiceAuthContext()
 
-    if not delegated_credential or not str(delegated_credential).strip():
-        return auth_context, HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing delegated credential")
+    if not access_credential or not str(access_credential).strip():
+        return auth_context, HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing access credential")
 
     service_secret_value = str(service_secret).strip() if service_secret else ""
 
-    auth_context.grant = _find_delegation_grant_by_credential(db, delegated_credential, service_client_id=None)
+    auth_context.grant = _find_delegation_grant_by_credential(db, access_credential, service_client_id=None)
     if not auth_context.grant:
-        return auth_context, HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid delegated credential")
+        return auth_context, HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid access credential")
 
     if service_secret_value:
         svc_lookup = lookup_secret_hash(service_secret_value)
@@ -149,7 +174,7 @@ def diagnose_service_access(
         if not resolved_client:
             return auth_context, HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid service client")
         if auth_context.grant.service_client_id is not None and auth_context.grant.service_client_id != resolved_client.id:
-            return auth_context, HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Delegated credential does not match service client")
+            return auth_context, HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access credential does not match service client")
         auth_context.service_client = resolved_client if auth_context.grant.service_client_id is not None else None
     elif auth_context.grant.service_client_id is not None:
         auth_context.service_client = db.get(ServiceClient, auth_context.grant.service_client_id)
@@ -219,7 +244,7 @@ def authenticate_service(
     *,
     db: Session,
     provider_app_key: str,
-    delegated_credential: str | None,
+    access_credential: str | None,
     service_secret: str | None,
     requested_scopes: list[str],
     required_mode: str = AccessMode.DIRECT_TOKEN.value,
@@ -228,7 +253,7 @@ def authenticate_service(
     auth_context, auth_error = diagnose_service_access(
         db=db,
         provider_app_key=provider_app_key,
-        delegated_credential=delegated_credential,
+        access_credential=access_credential,
         service_secret=service_secret,
         requested_scopes=requested_scopes,
         required_mode=required_mode,

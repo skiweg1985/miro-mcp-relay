@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Header
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import diagnose_service_access, record_audit, record_service_access_decision, service_access_audit_actor
+from app.deps import coalesce_service_access_headers, diagnose_service_access, record_audit, record_service_access_decision, service_access_audit_actor
 from app.microsoft_graph import refresh_microsoft_graph_connection
 from app.models import AccessMode, ProviderApp
 from app.provider_templates import MICROSOFT_GRAPH_DIRECT_TEMPLATE, provider_app_matches_template
@@ -19,12 +19,14 @@ async def issue_provider_access_token(
     payload: ProviderAccessIssueRequest,
     db: Session = Depends(get_db),
     x_service_secret: str | None = Header(default=None, alias="X-Service-Secret"),
+    x_access_key: str | None = Header(default=None, alias="X-Access-Key"),
     x_delegated_credential: str | None = Header(default=None, alias="X-Delegated-Credential"),
 ):
+    access_credential = coalesce_service_access_headers(x_access_key, x_delegated_credential)
     auth_context, auth_error = diagnose_service_access(
         db=db,
         provider_app_key=payload.provider_app_key,
-        delegated_credential=x_delegated_credential,
+        access_credential=access_credential,
         service_secret=x_service_secret,
         requested_scopes=payload.requested_scopes,
         required_mode=AccessMode.DIRECT_TOKEN.value,

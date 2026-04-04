@@ -20,6 +20,9 @@
 
 ### Changed
 
+- HTTP: Kanonischer Header `X-Access-Key` für Service-APIs (`/api/v1/token-issues/provider-access`, `/api/v1/broker-proxy/miro/…`) und Legacy-MCP (`POST /miro/mcp/…`); Abwärtskompatibilität `X-Delegated-Credential` bzw. `X-Relay-Key` (Priorität jeweils `X-Access-Key`). JSON: `access_credential`; Endpoint `GET /api/v1/delegation-grants/{id}/access-credential` (Legacy-Pfad `…/delegated-credential`); Fehlercode `access_credential_not_stored`. Typ `AccessCredential` / `AccessCredentialRotateOut` im Backend; MCP-Config-JSON nutzt `X-Access-Key`.
+- UI/Doku: einheitliche Bezeichnung **Access key**; README, technische Referenz, Funktionsübersicht, Legacy-`src/index.js` angepasst.
+
 - Auth: Delegation-Grants und Service-Clients ohne gesetzten Lookup-Hash (`credential_lookup_hash` / `secret_lookup_hash`) werden nicht mehr per Vollscan authentifiziert.
 
 - Miro-Verbindungen: Relay-Key ist nach Session-Authentifizierung aus `GET /api/v1/connections/{id}/miro-access` und `GET /api/v1/connections/{id}/access-details` anzeig- und kopierbar, sobald der verschlüsselte Wert in der DB liegt (Erstausstellung, Rotation oder Erzeugung in `ensure_legacy_miro_identity`).

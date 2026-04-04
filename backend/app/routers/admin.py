@@ -590,16 +590,16 @@ def create_delegation_grant(payload: DelegationGrantCreate, admin: User = Depend
         ):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Connected account mismatch")
 
-    delegated_credential = issue_plain_secret()
+    access_credential = issue_plain_secret()
     grant = DelegationGrant(
         organization_id=admin.organization_id,
         user_id=user.id,
         service_client_id=service_client.id if service_client else None,
         provider_app_id=provider_app.id,
         connected_account_id=connected_account_id,
-        credential_hash=hash_secret(delegated_credential),
-        credential_lookup_hash=lookup_secret_hash(delegated_credential),
-        encrypted_delegated_credential=encrypt_text(delegated_credential),
+        credential_hash=hash_secret(access_credential),
+        credential_lookup_hash=lookup_secret_hash(access_credential),
+        encrypted_delegated_credential=encrypt_text(access_credential),
         allowed_access_modes_json=dumps_json(grant_modes),
         scope_ceiling_json=dumps_json(payload.scope_ceiling),
         environment=payload.environment,
@@ -631,7 +631,7 @@ def create_delegation_grant(payload: DelegationGrantCreate, admin: User = Depend
     )
     db.commit()
     db.refresh(grant)
-    return DelegationGrantSecretResponse(delegation_grant=DelegationGrantOut.model_validate(grant), delegated_credential=delegated_credential)
+    return DelegationGrantSecretResponse(delegation_grant=DelegationGrantOut.model_validate(grant), access_credential=access_credential)
 
 
 @router.post("/delegation-grants/{grant_id}/revoke", response_model=DelegationGrantOut, dependencies=[Depends(require_csrf)])

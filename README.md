@@ -14,9 +14,9 @@ The active app now runs as:
 
 - Profile-based Miro OAuth (PKCE)
 - Per-profile MCP endpoint: `/miro/mcp/<profile_id>`
-- Per-profile relay token (`X-Relay-Key`)
+- Per-profile access key sent as `X-Access-Key` (legacy: `X-Relay-Key`)
 - Configurable provider app policy with `access_mode`: `relay`, `direct_token`, `hybrid`
-- Generic service client + delegated credential model for brokered access
+- Generic service client + access credential model for brokered access
 - Direct provider access-token issuance endpoint for explicitly allowed provider apps
 - Separate relay-call and token-issue audit streams
 - Self-service + admin deregistration options
@@ -95,8 +95,8 @@ This is the reproducible Miro path that now defines feature-complete Welle 1:
 1. Start the backend and frontend.
 2. Open the frontend login page and sign in as an end user through Microsoft.
 3. Open `/workspace/integrations` and complete the Miro OAuth flow.
-4. In `/grants`, create a delegated credential (optionally tied to a service client).
-5. Call one of these broker paths with `X-Delegated-Credential`. `X-Service-Secret` is optional and only required when the grant is restricted to a service client and you use the legacy two-secret flow.
+4. In `/grants`, create an access key (optionally tied to a service client).
+5. Call one of these broker paths with `X-Access-Key` (legacy: `X-Delegated-Credential`). `X-Service-Secret` is optional and only required when the grant is restricted to a service client and you use the legacy two-secret flow.
    - `POST /api/v1/token-issues/provider-access`
    - `POST /api/v1/broker-proxy/miro/{connected_account_id}`
 6. Verify the result in:
@@ -109,7 +109,7 @@ Example direct-token request:
 curl -sS \
   -X POST http://localhost/api/v1/token-issues/provider-access \
   -H "Content-Type: application/json" \
-  -H "X-Delegated-Credential: <delegated-credential>" \
+  -H "X-Access-Key: <access-key>" \
   -d '{
     "provider_app_key": "microsoft-graph-default",
     "requested_scopes": ["Mail.Read"]
@@ -138,7 +138,7 @@ Open:
 
 - `/workspace` → authenticated end-user workspace
 - `/workspace/integrations` → connect and manage provider integrations (Miro, Microsoft Graph, …)
-- `/grants` → self-service delegated-credential management
+- `/grants` → self-service access key management
 - `/token-access` → self-service diagnostics for issued or blocked delegated access
 - `/miro`, `/start`, `/miro/start`, and `/miro/workspace` → compatibility entries that redirect into the new frontend experience
 - primary user journey is now: sign in with Microsoft → connect Miro → copy MCP config from the new app handoff card
@@ -246,7 +246,7 @@ POST /api/v1/admin/delegation-grants/{grant_id}/revoke
 
 ```http
 POST /api/v1/token-issues/provider-access
-X-Delegated-Credential: <delegated-credential>
+X-Access-Key: <access-key>
 Content-Type: application/json
 
 {
@@ -287,7 +287,7 @@ The old profile-provisioning UI is retired. The equivalent user journey is now:
 
 ```http
 POST /miro/mcp/<profile_id>
-X-Relay-Key: <relay_token>
+X-Access-Key: <access-key>
 ```
 
 You can inspect the stored relay identity without rotating the token:
@@ -324,7 +324,7 @@ Content-Type: application/json
       "type": "streamable-http",
       "url": "https://relay.example.com/miro/mcp/<profile_id>",
       "headers": {
-        "X-Relay-Key": "<relay_token>"
+        "X-Access-Key": "<access-key>"
       }
     }
   }
@@ -351,7 +351,7 @@ backend be_broker_backend
 - Terminate public TLS at the upstream load balancer in production
 - The app-local HAProxy also exposes `443` with a self-signed certificate for local development only
 - Use long random relay tokens and service secrets
-- Treat `service_key` and `delegated_credential` like secrets; both are shown only once
+- Treat `service_key` and access keys like secrets; both are shown only once
 - Keep `access_mode=relay` for sensitive integrations unless direct token return is explicitly required
 - Restrict `/miro/mcp/*` by IP if possible
 - Rotate keys periodically

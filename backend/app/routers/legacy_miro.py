@@ -7,6 +7,7 @@ from starlette.responses import RedirectResponse
 
 from app.core.config import get_settings
 from app.database import get_db
+from app.deps import coalesce_legacy_mcp_access_headers
 from app.miro import get_miro_provider_app, resolve_legacy_miro_connection, validate_relay_token
 from app.models import ProviderApp, ProviderInstance
 from app.relay_config import effective_relay_config, relay_health_check_url
@@ -51,13 +52,14 @@ async def legacy_miro_mcp_proxy(
     profile_id: str,
     request: Request,
     db: Session = Depends(get_db),
+    x_access_key: str | None = Header(default=None, alias="X-Access-Key"),
     x_relay_key: str | None = Header(default=None, alias="X-Relay-Key"),
     authorization: str | None = Header(default=None),
 ):
     bearer = None
     if authorization and authorization.lower().startswith("bearer "):
         bearer = authorization[7:].strip()
-    supplied_token = x_relay_key or bearer
+    supplied_token = coalesce_legacy_mcp_access_headers(x_access_key, x_relay_key, bearer)
 
     connection = resolve_legacy_miro_connection(db, profile_id)
     if not connection:

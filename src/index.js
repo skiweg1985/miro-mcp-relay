@@ -2447,8 +2447,8 @@ function requireProfileToken(req, res, next) {
 
 function authenticateServiceRequest(req, { profileId, providerKey, requestedMode }) {
   const serviceKey = req.header('x-service-key') || req.header('authorization')?.replace(/^Bearer\s+/i, '');
-  const delegatedCredential = req.header('x-delegated-credential');
-  if (!serviceKey || !delegatedCredential) {
+  const accessCredential = req.header('x-access-key') || req.header('x-delegated-credential');
+  if (!serviceKey || !accessCredential) {
     return { ok: false, status: 401, error: 'missing_service_credentials' };
   }
 
@@ -2463,11 +2463,11 @@ function authenticateServiceRequest(req, { profileId, providerKey, requestedMode
 
   const grant = Object.values(delegationGrants).find((item) => {
     if (!item?.delegated_credential_hash) return false;
-    return timingSafeEqualHex(tokenHash(delegatedCredential), item.delegated_credential_hash);
+    return timingSafeEqualHex(tokenHash(accessCredential), item.delegated_credential_hash);
   });
 
   if (!grant) {
-    return { ok: false, status: 401, error: 'invalid_delegated_credential' };
+    return { ok: false, status: 401, error: 'invalid_access_credential' };
   }
 
   const providerApp = getProviderApp(grant.provider_app_id || 'miro-default');
@@ -2551,7 +2551,7 @@ function issueDelegationGrant({
   }
 
   const grantId = newRecordId('grant');
-  const delegatedCredential = newOpaqueSecret();
+  const accessCredential = newOpaqueSecret();
   let ttlMs;
   if (expires_in_days != null && expires_in_days !== '') {
     const days = Math.max(1, Math.min(365, Number(expires_in_days) || 365));
@@ -2572,7 +2572,7 @@ function issueDelegationGrant({
     scope_ceiling: normalizeStringArray(scope_ceiling),
     environment: safeText(environment || '', 40),
     enabled: true,
-    delegated_credential_hash: tokenHash(delegatedCredential),
+    delegated_credential_hash: tokenHash(accessCredential),
     expires_at: expiresAt,
     created_at: nowIso(),
     updated_at: nowIso(),
@@ -2582,7 +2582,7 @@ function issueDelegationGrant({
 
   return {
     grant_id: grantId,
-    delegated_credential: delegatedCredential,
+    access_credential: accessCredential,
     grant: delegationGrants[grantId]
   };
 }
@@ -2846,7 +2846,7 @@ app.get('/miro/workspace', (_req, res) => {
           </div>
           <div>
             <label for="credsBlob">Paste credentials or MCP config</label>
-            <textarea id="credsBlob" placeholder='{"mcpServers":{"miro_personal":{"type":"streamable-http","url":"https://relay.example.com/miro/mcp/user_example.com","headers":{"X-Relay-Key":"..."}}}}'></textarea>
+            <textarea id="credsBlob" placeholder='{"mcpServers":{"miro_personal":{"type":"streamable-http","url":"https://relay.example.com/miro/mcp/user_example.com","headers":{"X-Access-Key":"..."}}}}'></textarea>
           </div>
           <div class="actions">
             <button class="button secondary" type="button" onclick="applyCredentialsBlob()">Use pasted credentials</button>
@@ -2856,8 +2856,8 @@ app.get('/miro/workspace', (_req, res) => {
             <input id="delProfile" placeholder="user_example.com" />
           </div>
           <div>
-            <label for="delToken">Relay token</label>
-            <input id="delToken" placeholder="Paste the one-time relay token" />
+            <label for="delToken">Access key</label>
+            <input id="delToken" placeholder="Paste the one-time access key" />
           </div>
           <div class="actions">
             <button class="button primary" type="button" onclick="doStatus()">Check connection</button>
@@ -2930,7 +2930,7 @@ app.get('/miro/workspace', (_req, res) => {
           if (parsed && parsed.mcpServers && typeof parsed.mcpServers === 'object') {
             var firstServer = Object.values(parsed.mcpServers)[0];
             var mcpUrl = String((firstServer && firstServer.url) || '');
-            var token = String(((firstServer && firstServer.headers && (firstServer.headers['X-Relay-Key'] || firstServer.headers['x-relay-key'])) || ''));
+            var token = String(((firstServer && firstServer.headers && (firstServer.headers['X-Access-Key'] || firstServer.headers['x-access-key'] || firstServer.headers['X-Relay-Key'] || firstServer.headers['x-relay-key'])) || ''));
             var profileFromUrl = mcpUrl.match(/\\/miro\\/mcp\\/([^/?#]+)/i);
             return {
               profile_id: profileFromUrl ? decodeURIComponent(profileFromUrl[1]) : '',
@@ -3036,7 +3036,7 @@ app.get('/miro/workspace', (_req, res) => {
 
         renderHintPanel('Checking connection', 'Loading status from the relay...');
         var response = await fetch('/miro/status/' + encodeURIComponent(id), {
-          headers: { 'X-Relay-Key': token, Accept: 'application/json' }
+          headers: { 'X-Access-Key': token, Accept: 'application/json' }
         });
         var parsed = await readJsonResponse(response);
 
@@ -3063,7 +3063,7 @@ app.get('/miro/workspace', (_req, res) => {
         renderHintPanel('Removing connection', 'Deleting the connection from the relay...');
         var response = await fetch('/miro/profiles/' + encodeURIComponent(id), {
           method: 'DELETE',
-          headers: { 'X-Relay-Key': token, Accept: 'application/json' }
+          headers: { 'X-Access-Key': token, Accept: 'application/json' }
         });
         var parsed = await readJsonResponse(response);
 
@@ -3829,7 +3829,7 @@ app.get('/miro/auth/callback', async (req, res) => {
             type: 'streamable-http',
             url: mcpUrl,
             headers: {
-              'X-Relay-Key': relayToken
+              'X-Access-Key': relayToken
             }
           }
         }
@@ -3941,7 +3941,7 @@ app.post('/broker/admin/delegation-grants', requireAdmin, (req, res) => {
       profile_id: created.grant.profile_id,
       provider_app_id: created.grant.provider_app_id
     }, req);
-    res.status(201).json({ ok: true, ...created, note: 'Store delegated_credential now. It is not shown again.' });
+    res.status(201).json({ ok: true, ...created, note: 'Store access_credential now. It is not shown again.' });
   } catch (e) {
     res.status(Number(e?.status) || 500).json({ error: String(e?.message || e) });
   }
@@ -4140,10 +4140,10 @@ app.get('/', (_req, res) => {
       status: '/miro/status',
       create_profile: 'POST /miro/profiles (X-Admin-Key)',
       auth_start: '/miro/auth/start?profile=<profile_id>',
-      mcp_proxy: '/miro/mcp/:profile (POST, X-Relay-Key)',
-      generic_relay: '/broker/relay/:provider/:profileId (POST, X-Service-Key + X-Delegated-Credential)',
-      provider_access_token: '/broker/provider-access/:provider/:profileId (POST, X-Service-Key + X-Delegated-Credential)',
-      deregister: 'DELETE /miro/profiles/:profileId (X-Relay-Key of profile)',
+      mcp_proxy: '/miro/mcp/:profile (POST, X-Access-Key)',
+      generic_relay: '/broker/relay/:provider/:profileId (POST, X-Service-Key + X-Access-Key)',
+      provider_access_token: '/broker/provider-access/:provider/:profileId (POST, X-Service-Key + X-Access-Key)',
+      deregister: 'DELETE /miro/profiles/:profileId (X-Access-Key of profile)',
       admin_deregister: 'DELETE /miro/admin/profiles/:profileId (X-Admin-Key)',
       admin_rotate_token: 'POST /miro/admin/profiles/:profileId/rotate-token (X-Admin-Key)',
       admin_revoke_oauth: 'POST /miro/admin/profiles/:profileId/revoke-oauth (X-Admin-Key)',

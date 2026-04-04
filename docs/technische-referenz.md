@@ -281,7 +281,7 @@ Stand Self-Service und Miro:
 
 ### Grundprinzip
 
-Zugriff erfolgt mit einem `delegated_credential`, das an einen konkreten Grant gebunden ist. Optional kann der Grant an einen Service-Client gebunden sein; dann kann zusaetzlich `X-Service-Secret` zur Abwaertskompatibilitaet verlangt werden. Grants ohne Service-Client reichen mit `X-Delegated-Credential` allein.
+Zugriff erfolgt mit einem Access Credential (Klartext), das an einen konkreten Grant gebunden ist und im HTTP-Header `X-Access-Key` uebergeben wird (Abwaertskompatibilitaet: `X-Delegated-Credential`). Optional kann der Grant an einen Service-Client gebunden sein; dann kann zusaetzlich `X-Service-Secret` zur Abwaertskompatibilitaet verlangt werden. Grants ohne Service-Client reichen mit `X-Access-Key` allein.
 
 ### Direct Token Issuance
 
@@ -291,7 +291,7 @@ Endpunkt:
 
 Header:
 
-- `X-Delegated-Credential` (Pflicht)
+- `X-Access-Key` (Pflicht; Abwaertskompatibilitaet `X-Delegated-Credential`)
 - `X-Service-Secret` (optional, z. B. bei aelteren Grants mit Service-Client-Bindung)
 
 Payload:
@@ -321,7 +321,7 @@ Endpunkt:
 
 - `POST /api/v1/broker-proxy/miro/{connected_account_id}`
 
-`X-Delegated-Credential` ist Pflicht; `X-Service-Secret` optional (siehe Direct Token). Der Broker validiert die Berechtigung und leitet den Request danach gegen Miro weiter.
+`X-Access-Key` ist Pflicht (Abwaertskompatibilitaet `X-Delegated-Credential`); `X-Service-Secret` optional (siehe Direct Token). Der Broker validiert die Berechtigung und leitet den Request danach gegen Miro weiter.
 
 Pro Miro-Verbindung liegt der Relay-Key als `legacy_relay_token_hash` (Lookup bei der Verifizierung) und als `encrypted_legacy_relay_token` (Fernet, `BROKER_ENCRYPTION_KEY`) vor. Klartext an den Kontoinhaber: `GET /api/v1/connections/{id}/miro-access` und `GET /api/v1/connections/{id}/access-details` nach Session-Authentifizierung, sofern der Ciphertext gespeichert ist.
 
@@ -352,7 +352,7 @@ Pro Miro-Verbindung liegt der Relay-Key als `legacy_relay_token_hash` (Lookup be
 - `GET /api/v1/service-clients`
 - `GET /api/v1/delegation-grants`
 - `POST /api/v1/delegation-grants`
-- `GET /api/v1/delegation-grants/{id}/delegated-credential`
+- `GET /api/v1/delegation-grants/{id}/access-credential` (Legacy-Pfad: `.../delegated-credential`)
 - `POST /api/v1/delegation-grants/{id}/rotate-credential`
 - `POST /api/v1/delegation-grants/{id}/revoke`
 - `GET /api/v1/token-issues`
@@ -382,7 +382,7 @@ Pro Miro-Verbindung liegt der Relay-Key als `legacy_relay_token_hash` (Lookup be
 ### Secret-Handling
 
 - Service-Client-Secrets werden nur gehasht gespeichert
-- Delegated Credentials werden nur gehasht gespeichert
+- Access Credentials (Delegation-Grants) werden nur gehasht gespeichert
 - Provider-Tokens und Client-Secrets werden verschluesselt gespeichert
 
 ### Rollen

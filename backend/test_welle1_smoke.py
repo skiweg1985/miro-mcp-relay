@@ -179,7 +179,7 @@ class Welle1SmokeTest(unittest.TestCase):
             },
             headers={
                 "X-Service-Secret": fixture["service_secret"],
-                "X-Delegated-Credential": fixture["graph_credential"],
+                "X-Access-Key": fixture["graph_credential"],
             },
         )
         self.assertEqual(issued.status_code, 200)
@@ -194,7 +194,7 @@ class Welle1SmokeTest(unittest.TestCase):
             },
             headers={
                 "X-Service-Secret": fixture["service_secret"],
-                "X-Delegated-Credential": fixture["miro_credential"],
+                "X-Access-Key": fixture["miro_credential"],
             },
         )
         self.assertEqual(blocked.status_code, 403)
@@ -250,10 +250,21 @@ class Welle1SmokeTest(unittest.TestCase):
                 "connected_account_id": fixture["graph_connection_id"],
                 "requested_scopes": ["Mail.Read"],
             },
-            headers={"X-Delegated-Credential": solo_credential},
+            headers={"X-Access-Key": solo_credential},
         )
         self.assertEqual(issued.status_code, 200)
         self.assertEqual(issued.json()["access_token"], "graph-access-token")
+
+        legacy = self.client.post(
+            "/api/v1/token-issues/provider-access",
+            json={
+                "provider_app_key": "microsoft-graph-default",
+                "connected_account_id": fixture["graph_connection_id"],
+                "requested_scopes": ["Mail.Read"],
+            },
+            headers={"X-Delegated-Credential": solo_credential},
+        )
+        self.assertEqual(legacy.status_code, 200)
 
     def test_graph_connection_access_details(self) -> None:
         fixture = self._seed_service_access_fixture()
@@ -319,7 +330,7 @@ class Welle1SmokeTest(unittest.TestCase):
         rotated_body = rotated.json()
         self.assertTrue(rotated_body["relay_token"])
         self.assertIn("/miro/mcp/person_example.com", rotated_body["mcp_url"])
-        self.assertIn("X-Relay-Key", rotated_body["mcp_config_json"])
+        self.assertIn("X-Access-Key", rotated_body["mcp_config_json"])
 
         with SessionLocal() as db:
             setup_token = issue_miro_setup_token(
@@ -348,7 +359,7 @@ class Welle1SmokeTest(unittest.TestCase):
             relayed = client.post(
                 "/miro/mcp/person_example.com",
                 json={"method": "tools/list"},
-                headers={"X-Relay-Key": rotated_body["relay_token"]},
+                headers={"X-Access-Key": rotated_body["relay_token"]},
             )
 
         self.assertEqual(relayed.status_code, 200)

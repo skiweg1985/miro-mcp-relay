@@ -192,7 +192,7 @@ export type DelegationGrantOut = {
 export type DelegationGrantCreateResult = {
   ok: boolean;
   delegation_grant: DelegationGrantOut;
-  delegated_credential: string;
+  access_credential: string;
 };
 
 export type VisibleServiceClientOut = {
@@ -226,12 +226,12 @@ export type SelfServiceDelegationGrantOut = {
 export type SelfServiceDelegationGrantCreateResult = {
   ok: boolean;
   delegation_grant: SelfServiceDelegationGrantOut;
-  delegated_credential: string;
+  access_credential: string;
 };
 
-export type DelegatedCredentialRotateResult = {
+export type AccessCredentialRotateResult = {
   ok: boolean;
-  delegated_credential: string;
+  access_credential: string;
 };
 
 export type TokenIssueEventOut = {

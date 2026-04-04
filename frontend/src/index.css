@@ -763,17 +763,17 @@ h3 {
   font-weight: 650;
 }
 
-.grant-delegated-credential {
+.grant-access-credential {
   margin-bottom: var(--space-2);
 }
 
-.grant-delegated-credential-block {
+.grant-access-credential-block {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
 }
 
-.grant-delegated-credential-value {
+.grant-access-credential-value {
   padding: var(--space-2) var(--space-3);
   border-radius: 8px;
   background: var(--surface-elevated);
@@ -796,14 +796,14 @@ h3 {
   color: var(--ink-secondary);
 }
 
-.grant-delegated-credential-buttons {
+.grant-access-credential-buttons {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
   align-items: center;
 }
 
-.grant-delegated-credential-block--empty {
+.grant-access-credential-block--empty {
   align-items: flex-start;
 }
 

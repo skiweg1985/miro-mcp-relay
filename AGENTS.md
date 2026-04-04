@@ -59,7 +59,7 @@ Follow these repo-specific conventions and commands first.
   - `curl -sS http://localhost/healthz`
   - `curl -sS http://localhost/readyz`
 - Root endpoint check: `curl -sS http://localhost/`
-- MCP relay smoke check: `curl -sS -X POST http://localhost/miro/mcp/<profile_id> -H "X-Relay-Key: <relay_token>" -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'`
+- MCP relay smoke check: `curl -sS -X POST http://localhost/miro/mcp/<profile_id> -H "X-Access-Key: <access_key>" -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'`
 - HTTPS dev smoke test: `curl -k -sS https://localhost/api/v1/health`
 
 ## Testing Guidance (Especially Single Test)

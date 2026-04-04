@@ -9,7 +9,7 @@ from starlette.responses import RedirectResponse
 
 from app.core.config import get_settings
 from app.database import get_db
-from app.deps import diagnose_service_access, get_current_user, record_audit, record_service_access_decision, require_csrf, service_access_audit_actor
+from app.deps import coalesce_service_access_headers, diagnose_service_access, get_current_user, record_audit, record_service_access_decision, require_csrf, service_access_audit_actor
 from app.microsoft_graph import (
     fetch_graph_me,
     finalize_microsoft_graph_callback,
@@ -539,8 +539,10 @@ async def broker_proxy_miro(
     request: Request,
     db: Session = Depends(get_db),
     x_service_secret: str | None = Header(default=None, alias="X-Service-Secret"),
+    x_access_key: str | None = Header(default=None, alias="X-Access-Key"),
     x_delegated_credential: str | None = Header(default=None, alias="X-Delegated-Credential"),
 ):
+    access_credential = coalesce_service_access_headers(x_access_key, x_delegated_credential)
     connected_account = db.get(ConnectedAccount, connected_account_id)
     if not connected_account:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Connected account not found")
@@ -549,7 +551,7 @@ async def broker_proxy_miro(
     auth_context, auth_error = diagnose_service_access(
         db=db,
         provider_app_key=provider_app.key,
-        delegated_credential=x_delegated_credential,
+        access_credential=access_credential,
         service_secret=x_service_secret,
         requested_scopes=[],
         required_mode=AccessMode.RELAY.value,

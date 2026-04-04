@@ -1,3 +1,24 @@
+## 2026-04-04 – Cursor Agent – Sidebar-Nav: Rahmen zurückgenommen
+
+- Done:
+  - `frontend/src/index.css`: `.nav-link` wieder transparent ohne Rand, aktiver Eintrag mit Inset-Linie wie zuvor.
+  - `docs/CHANGELOG.md` [Unreleased] angepasst.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - frontend/src/index.css
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Changelog updated:
+  - yes ([Unreleased] Changed)
+- Follow-ups:
+  - keine
+
 ## 2026-04-04 – Cursor Agent – UI: Rahmen für Ghost/Theme/Nav, Integrations-Padding
 
 - Done:

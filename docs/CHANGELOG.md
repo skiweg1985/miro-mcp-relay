@@ -19,7 +19,7 @@
 
 ### Changed
 
-- Frontend: sichtbare Rahmen für bisher randlose Steuerflächen (`.ghost-button`, Theme-Umschalter, Sidebar-Navigation, Registerkarten, „Administrator sign-in“ auf der Login-Seite, Drawer-Schließen); Integrations-Aktionszeile mit Innenabstand, damit Rahmen/Fokus am scrollbaren Rand nicht abgeschnitten werden.
+- Frontend: sichtbare Rahmen für bisher randlose Steuerflächen (`.ghost-button`, Theme-Umschalter, Registerkarten, „Administrator sign-in“ auf der Login-Seite, Drawer-Schließen); Sidebar-Navigationslinks wieder ohne äußeren Rahmen; Integrations-Aktionszeile mit Innenabstand, damit Rahmen/Fokus am scrollbaren Rand nicht abgeschnitten werden.
 - Frontend: Integrations-Karten und Verbindungs-Detail-Footer halten Aktions-Buttons in einer Zeile (`flex-wrap: nowrap`, horizontaler Scroll bei Bedarf); destruktive Aktionen (Verbindung trennen, Grants widerrufen, Admin: Zugriff/Verbindung entfernen) erfordern ein Bestätigungsmodal (`ConfirmModal`).
 - Docker Compose (`broker-backend`): Host-Zeitzone read-only gemountet (`/etc/localtime`); Legacy-Volume `./data:/legacy-data` entfernt; `SESSION_SECURE_COOKIE` nicht mehr über Compose-Environment gesetzt (Wert kommt aus Image/`.env` am Start).
 - Self-Service **Integrations** (`/workspace/integrations`): Navigationszeile bündelt Provider-Verbindungen; Karten mit Status und Kurzbeschreibung; technische Verbindungsdetails im Wizard-Modal (Account / Session, Refresh/Probe/Disconnect); zweistufiger Connect-Wizard (Overview → Continue to provider) im gleichen Modal-Stil wie die Admin-Integrationen; nach **Disconnect** keine Kontodaten mehr auf der Karte, Miro-MCP-Handoff nur bei aktiver Verbindung; OAuth-Callbacks leiten auf diese Seite; Legacy-Pfade `/connect/*` und `/miro` leiten dorthin um.

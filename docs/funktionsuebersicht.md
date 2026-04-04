@@ -206,47 +206,40 @@ Pfad: `/workspace`
 
 Zweck:
 
-- zentrale Uebersicht ueber eigene Provider-Verbindungen
-- Anzeige wichtiger Kennzahlen wie aktive Verbindungen, Fehler und letzter Probe-Status
-
-Moegliche Aktionen:
-
-- `Connect Miro`
-  Startet den Miro-Verbindungsflow
-
-- `Refresh`
-  Aktualisiert vorhandene Zugangsdaten
-
-- `Probe`
-  Fuehrt einen sicheren Verbindungstest aus
-
-- `Revoke`
-  Entzieht dem Broker den Zugriff auf die Verbindung
+- kompakte Kennzahlen zu Verbindungen und Integrationsangebot
 
 Rolle:
 
-- Dies ist die Startseite fuer Endnutzer nach dem Login.
+- Startseite fuer Endnutzer nach dem Login; Verbindungsdetails und Aktionen liegen unter Integrations.
 
-### Connect Miro
+### Integrations
 
-Pfad: `/connect/miro`
+Pfad: `/workspace/integrations`
 
 Zweck:
 
-- startet oder erneuert die Verbindung eines Miro-Kontos mit dem Broker
+- alle vom Broker angebotenen Provider-Integrationen an einer Stelle verbinden, erneuern oder trennen
+
+Moegliche Aktionen (pro Integration):
+
+- `Connect` / `Reconnect`
+  Startet den OAuth-Flow
+
+- `Disconnect`
+  Entzieht dem Broker die Verbindung
+
+- `Refresh token` / `Probe`
+  Aktualisiert Zugangsdaten bzw. prueft Erreichbarkeit
 
 Seiteninhalt:
 
-- `Miro authorization`
-  Startet den OAuth-Flow
-
-- `Current Miro state`
-  Zeigt den gespeicherten Broker-Zustand der Miro-Verbindung
+- Karten pro konfigurierter Provider-App inkl. Status und OAuth-Metadaten
+- fuer Miro: zusaetzlich MCP-Handoff mit Relay-Token und Konfiguration
 
 Hinweis:
 
 - Der Broker speichert das Tokenmaterial serverseitig.
-- Nach erfolgreichem Callback wird automatisch zur App zurueckgeleitet.
+- Nach erfolgreichem OAuth-Callback wird auf diese Seite zurueckgeleitet.
 
 ### My Grants
 

@@ -94,7 +94,7 @@ This is the reproducible Miro path that now defines feature-complete Welle 1:
 
 1. Start the backend and frontend.
 2. Open the frontend login page and sign in as an end user through Microsoft.
-3. Open `/connect/miro` and complete the Miro OAuth flow.
+3. Open `/workspace/integrations` and complete the Miro OAuth flow.
 4. In `/grants`, create a delegated credential (optionally tied to a service client).
 5. Call one of these broker paths with `X-Delegated-Credential`. `X-Service-Secret` is optional and only required when the grant is restricted to a service client and you use the legacy two-secret flow.
    - `POST /api/v1/token-issues/provider-access`
@@ -137,13 +137,13 @@ Set `BASE_URL` to host+port only.
 Open:
 
 - `/workspace` → authenticated end-user workspace
-- `/connect/miro` → user-facing Miro connect and reconnect flow
+- `/workspace/integrations` → connect and manage provider integrations (Miro, Microsoft Graph, …)
 - `/grants` → self-service delegated-credential management
 - `/token-access` → self-service diagnostics for issued or blocked delegated access
 - `/miro`, `/start`, `/miro/start`, and `/miro/workspace` → compatibility entries that redirect into the new frontend experience
 - primary user journey is now: sign in with Microsoft → connect Miro → copy MCP config from the new app handoff card
 - profile id remains URL-safe: `@` is replaced with `_`
-- the FastAPI callback now finalizes or reuses the stored Miro connection, then redirects to `/connect/miro`
+- the FastAPI callback now finalizes or reuses the stored Miro connection, then redirects to `/workspace/integrations`
 - on first successful connect, the frontend receives a one-time relay token handoff and shows the ready-to-paste MCP config
 
 ## API
@@ -281,7 +281,7 @@ For Miro, the new backend currently uses relay as the primary supported mode.
 The old profile-provisioning UI is retired. The equivalent user journey is now:
 
 1. Sign in to the new app.
-2. Open `/connect/miro` and finish the Miro OAuth flow.
+2. Open `/workspace/integrations` and finish the Miro OAuth flow.
 3. Copy the one-time relay token or full MCP config from the handoff card.
 4. Use the legacy-compatible relay endpoint:
 

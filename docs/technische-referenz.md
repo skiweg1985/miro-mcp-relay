@@ -74,14 +74,14 @@ Admin-Routen:
 Self-Service-Routen:
 
 - `/workspace`
-- `/connect/miro`
+- `/workspace/integrations`
 - `/grants`
 - `/token-access`
 
 Rollenselektion:
 
-- Admins werden aus Self-Service-Routen nach `/app` umgeleitet
 - Endnutzer werden aus Admin-Routen nach `/workspace` umgeleitet
+- Admins können Self-Service unter `/workspace` nutzen (z. B. OAuth-Rückkehr); die Admin-Konsole bleibt unter `/app`
 
 ## Backend
 
@@ -270,7 +270,7 @@ Flow:
 5. Das Backend tauscht den Code gegen Tokenmaterial
 6. Die erkannte Provider-Identitaet wird geprueft
 7. `ConnectedAccount` und `TokenMaterial` werden angelegt oder aktualisiert
-8. Redirect zurueck ins Frontend auf `/connect/miro` mit Statusparametern
+8. Redirect zurueck ins Frontend auf `/workspace/integrations` mit Statusparametern
 
 Stand Self-Service und Miro:
 

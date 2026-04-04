@@ -653,6 +653,7 @@ function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
       return [
         `curl -sS -X POST ${shellSingleQuoted(`${origin}/api/v1/token-issues/provider-access`)} \\`,
         `  -H ${shellSingleQuoted("Content-Type: application/json")} \\`,
+        `  -H ${shellSingleQuoted("X-Access-Key: <access key>")} \\`,
         `  -d ${shellSingleQuoted(body)}`,
       ].join("\n");
     }

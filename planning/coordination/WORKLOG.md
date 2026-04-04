@@ -25,6 +25,29 @@
 - Follow-ups:
   - keine
 
+## 2026-04-04 – Cursor Agent – cURL Direct: X-Access-Key
+
+- Done:
+  - `frontend/src/App.tsx`: Im **Direct**-Zweig des **cURL**-Beispiels `X-Access-Key: <access key>` ergänzt (`/token-issues/provider-access` verlangt denselben Delegation-Grant wie Relay).
+  - `docs/CHANGELOG.md`: Eintrag unter [Unreleased] / Fixed.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - frontend/src/App.tsx
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build`
+- Changelog updated:
+  - yes (Fixed)
+- Follow-ups:
+  - keine
+
 ## 2026-04-04 – Cursor Agent – Access-Modal cURL-Beispiel
 
 - Done:

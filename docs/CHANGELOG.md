@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Frontend: Self-Service **Access**-Modal **cURL** für **Direct** (z. B. Microsoft Graph, `POST …/token-issues/provider-access`): fehlender Header `X-Access-Key: <access key>` ergänzt (entspricht der API; zuvor nur Relay-Zweig).
+
 ### Removed
 
 - Root-Router `legacy_miro` (`POST /miro/mcp/{profile_id}`, Redirects unter `/miro/*`, `/start`, `/healthz`, `/readyz`).

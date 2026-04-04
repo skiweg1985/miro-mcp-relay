@@ -70,8 +70,8 @@ function connectionTone(connection: ConnectedAccountOut): "neutral" | "success" 
 }
 
 function grantState(grant: SelfServiceDelegationGrantOut | DelegationGrantOut): string {
-  if (grant.revoked_at) return "Revoked";
-  if (!grant.is_enabled) return "Disabled";
+  if (grant.revoked_at) return "Removed";
+  if (!grant.is_enabled) return "Off";
   if (grant.expires_at && new Date(grant.expires_at).getTime() <= Date.now()) return "Expired";
   return "Active";
 }
@@ -80,7 +80,7 @@ function grantTone(grant: SelfServiceDelegationGrantOut | DelegationGrantOut): "
   const state = grantState(grant);
   if (state === "Active") return "success";
   if (state === "Expired") return "danger";
-  if (state === "Revoked") return "warn";
+  if (state === "Removed") return "warn";
   return "neutral";
 }
 
@@ -91,18 +91,26 @@ function decisionTone(decision: string): "neutral" | "success" | "warn" | "dange
   return "neutral";
 }
 
+function userIssueDecisionLabel(decision: string): string {
+  if (decision === "issued") return "Allowed";
+  if (decision === "relayed") return "Forwarded";
+  if (decision === "blocked") return "Blocked";
+  if (decision === "error") return "Error";
+  return decision;
+}
+
 function friendlyBrokerMessage(raw: string | null | undefined): string {
   const message = (raw ?? "").trim();
-  if (!message) return "The broker could not complete the request.";
-  if (message === "Invalid or expired OAuth state") return "The Miro session expired before the callback returned. Start the connection again.";
-  if (message === "Missing or expired Miro callback parameters") return "The Miro callback did not include a usable authorization result. Please try again.";
-  if (message === "Miro authorization was denied.") return "Miro authorization was cancelled before the broker could connect your account.";
-  if (message.includes("did not match expected email")) return "The signed-in Miro identity did not match the expected account. Retry with the correct Miro user.";
-  if (message.startsWith("miro_token_exchange_failed")) return "Miro accepted the login but the broker could not finish token exchange. Please retry.";
-  if (message.startsWith("miro_refresh_failed")) return "The broker could not refresh the stored Miro credentials. Reconnect the account.";
-  if (message.startsWith("token_context_")) return "The broker reached Miro but could not verify the token context. Retry once, then reconnect if needed.";
-  if (message.startsWith("microsoft_graph_refresh_failed")) return "The broker could not refresh the stored Microsoft Graph credentials. Reconnect the account.";
-  if (message.startsWith("graph_me_")) return "The broker reached Microsoft Graph but could not verify the current account identity.";
+  if (!message) return "Something went wrong. Please try again.";
+  if (message === "Invalid or expired OAuth state") return "Your Miro sign-in timed out. Start the connection again.";
+  if (message === "Missing or expired Miro callback parameters") return "Miro did not return a usable sign-in result. Please try again.";
+  if (message === "Miro authorization was denied.") return "Miro sign-in was cancelled before your account could be connected.";
+  if (message.includes("did not match expected email")) return "The Miro account did not match the expected user. Sign in with the correct Miro account.";
+  if (message.startsWith("miro_token_exchange_failed")) return "Miro accepted the login but we could not finish connecting. Please try again.";
+  if (message.startsWith("miro_refresh_failed")) return "We could not refresh your Miro connection. Reconnect the account.";
+  if (message.startsWith("token_context_")) return "We reached Miro but could not verify the connection. Try again, or reconnect if it keeps happening.";
+  if (message.startsWith("microsoft_graph_refresh_failed")) return "We could not refresh your Microsoft connection. Reconnect the account.";
+  if (message.startsWith("graph_me_")) return "We reached Microsoft but could not verify the signed-in account.";
   return message;
 }
 
@@ -134,8 +142,8 @@ function isWorkspaceSelfServiceRoute(route: RouteMatch): boolean {
 }
 
 function userAccessModeLabel(mode: string): string {
-  if (mode === "relay") return "Proxy path";
-  if (mode === "direct_token") return "Direct token";
+  if (mode === "relay") return "Through the app service";
+  if (mode === "direct_token") return "Direct connection";
   return mode;
 }
 
@@ -152,10 +160,10 @@ function splitConnectionLabel(raw: string): { primary: string; secondary?: strin
 function grantPolicySummary(grant: SelfServiceDelegationGrantOut): string {
   const sc = grant.scope_ceiling.length;
   const cap = grant.capabilities.length;
-  if (sc === 0 && cap === 0) return "Inherited";
-  if (sc > 0 && cap === 0) return sc === 1 ? "1 scope" : `${sc} scopes`;
+  if (sc === 0 && cap === 0) return "Default";
+  if (sc > 0 && cap === 0) return sc === 1 ? "1 limit" : `${sc} limits`;
   if (sc === 0 && cap > 0) return "Custom";
-  return `${sc} scopes + custom`;
+  return `${sc} limits + extras`;
 }
 
 function GrantConnectionCell({ grant }: { grant: SelfServiceDelegationGrantOut }) {
@@ -163,7 +171,7 @@ function GrantConnectionCell({ grant }: { grant: SelfServiceDelegationGrantOut }
     return (
       <div className="table-cell-stack">
         <strong className="table-cell-primary">Auto-select</strong>
-        <span className="table-cell-secondary muted">Matching connection at issue</span>
+        <span className="table-cell-secondary muted">Uses matching connection when used</span>
       </div>
     );
   }
@@ -215,16 +223,16 @@ function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
   return (
     <div className="grant-detail-panel stack-list">
       <div className="stack-cell">
-        <strong>Service client</strong>
-        <span>{grant.service_client_display_name ?? "Credential only"}</span>
+        <strong>App</strong>
+        <span>{grant.service_client_display_name ?? "Any app (no name)"}</span>
       </div>
       <div className="stack-cell">
-        <strong>Provider</strong>
+        <strong>Integration</strong>
         <span>{grant.provider_app_display_name}</span>
       </div>
       <div className="stack-cell">
         <strong>Connection</strong>
-        <span>{grant.connected_account_display_name ?? "Auto-select at issue time"}</span>
+        <span>{grant.connected_account_display_name ?? "Pick automatically when used"}</span>
       </div>
       <div className="stack-cell">
         <strong>Status</strong>
@@ -239,15 +247,15 @@ function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
         </span>
       </div>
       <div className="stack-cell">
-        <strong>Access modes</strong>
+        <strong>How access works</strong>
         <span>{grant.allowed_access_modes.map((m) => userAccessModeLabel(m)).join(", ")}</span>
       </div>
       <div className="stack-cell">
-        <strong>Scope ceiling</strong>
-        <span>{grant.scope_ceiling.length ? grant.scope_ceiling.join(", ") : "Inherited from provider app"}</span>
+        <strong>Permission limits</strong>
+        <span>{grant.scope_ceiling.length ? grant.scope_ceiling.join(", ") : "Same as the integration"}</span>
       </div>
       <div className="stack-cell">
-        <strong>Capabilities</strong>
+        <strong>Extra access</strong>
         <span>{grant.capabilities.length ? grant.capabilities.join(", ") : "None"}</span>
       </div>
       {grant.environment ? (
@@ -566,8 +574,8 @@ function WorkspacePage() {
     <>
       <PageIntro
         eyebrow="Workspace"
-        title="Your broker workspace"
-        description="Review connection health at a glance. Use Integrations to connect or disconnect provider accounts."
+        title="Overview"
+        description="See how your connected accounts are doing. Open Integrations to connect or disconnect apps."
       />
 
       <div className="metric-grid workspace-metric-grid">
@@ -576,7 +584,7 @@ function WorkspacePage() {
           value={String(connections.filter((c) => c.status === "connected").length)}
           caption="Currently usable accounts"
         />
-        <MetricCard label="Integrations available" value={String(connectableCount)} caption="Published provider apps" />
+        <MetricCard label="Integrations available" value={String(connectableCount)} caption="Apps you can connect" />
         <MetricCard
           label="Attention"
           value={String(connections.filter((c) => Boolean(c.last_error)).length)}
@@ -635,8 +643,8 @@ function GrantsPage() {
     } catch (error) {
       notify({
         tone: "error",
-        title: "Failed to load grants",
-        description: isApiError(error) ? error.message : "Unexpected grant loading error.",
+        title: "Could not load app access",
+        description: isApiError(error) ? error.message : "Something went wrong while loading.",
       });
     } finally {
       setLoading(false);
@@ -695,7 +703,7 @@ function GrantsPage() {
         capabilities: parseLines(form.capabilities_text),
       });
       setCreatedResult(result);
-      notify({ tone: "success", title: "Delegated credential created" });
+      notify({ tone: "success", title: "App access added" });
       setGrantModalOpen(false);
       setForm((current) => ({
         ...current,
@@ -709,8 +717,8 @@ function GrantsPage() {
     } catch (error) {
       notify({
         tone: "error",
-        title: "Could not create grant",
-        description: isApiError(error) ? error.message : "Unexpected grant creation error.",
+        title: "Could not add app access",
+        description: isApiError(error) ? error.message : "Something went wrong while saving.",
       });
     } finally {
       setPending(false);
@@ -722,13 +730,13 @@ function GrantsPage() {
     setGrantRevokePending(true);
     try {
       await api.revokeMyDelegationGrant(session.csrfToken, grantId);
-      notify({ tone: "info", title: "Grant revoked" });
+      notify({ tone: "info", title: "Access removed" });
       await load();
     } catch (error) {
       notify({
         tone: "error",
-        title: "Could not revoke grant",
-        description: isApiError(error) ? error.message : "Unexpected revoke error.",
+        title: "Could not remove access",
+        description: isApiError(error) ? error.message : "Something went wrong.",
       });
     } finally {
       setGrantRevokePending(false);
@@ -736,34 +744,34 @@ function GrantsPage() {
     }
   };
 
-  if (loading) return <LoadingScreen label="Loading your grants..." />;
+  if (loading) return <LoadingScreen label="Loading app access…" />;
 
   return (
     <>
       <PageIntro
-        eyebrow="My Grants"
-        title="Delegated access"
-        description="Optionally restrict a grant to a registered service client, or leave it unset to use only the delegated credential when calling the broker."
+        eyebrow="App access"
+        title="Apps that can use your account"
+        description="Let other apps use your connected accounts on your behalf. You can add access for a named app or leave the app unset."
         actions={
           <button type="button" className="primary-button" onClick={() => setGrantModalOpen(true)}>
-            New grant
+            Add access
           </button>
         }
       />
 
       {createdResult ? (
         <SecretPanel
-          title="Delegated credential available"
-          body={`Store this delegated credential${
+          title="Save your connection details"
+          body={`Copy this value${
             createdResult.delegation_grant.service_client_display_name
               ? ` for ${createdResult.delegation_grant.service_client_display_name}`
               : ""
-          } now. It will not be shown again later.`}
+          } now. It will not be shown again.`}
           value={createdResult.delegated_credential}
         />
       ) : null}
 
-      <Card title="Your grants" description="Only your own grants appear here, and you can revoke them whenever a downstream consumer should lose access.">
+      <Card title="Your app access" description="Only your entries appear here. Remove access when an app should no longer reach your account.">
         <DataTable
           tableClassName="grants-table"
           wrapClassName="grants-table-wrap"
@@ -777,9 +785,9 @@ function GrantsPage() {
             "grants-col--actions",
           ]}
           rowKey={(rowIndex) => grants[rowIndex]?.id ?? rowIndex}
-          columns={["Client", "Provider", "Connection", "Status", "Expires", "Policy", "Actions"]}
+          columns={["App", "Integration", "Connection", "Status", "Expires", "Limits", "Actions"]}
           rows={grants.map((grant) => {
-            const clientLabel = grant.service_client_display_name ?? "Credential only";
+            const clientLabel = grant.service_client_display_name ?? "Any app";
             const providerLabel = grant.provider_app_display_name;
             return [
               <span className="grants-cell-ellipsis" title={clientLabel}>
@@ -799,34 +807,34 @@ function GrantsPage() {
                   </span>
                 ) : (
                   <button type="button" className="ghost-button grants-inline-btn" onClick={() => setGrantRevokeConfirmId(grant.id)}>
-                    Revoke
+                    Remove access
                   </button>
                 )}
               </div>,
             ];
           })}
-          emptyTitle="No grants yet"
-          emptyBody="Create a delegated credential once you have a provider connection."
+          emptyTitle="No app access yet"
+          emptyBody="Connect an integration first, then add access for an app that should use your account."
         />
       </Card>
 
       {grantDetailId && grantDetailGrant ? (
-        <Modal title="Grant details" wide onClose={() => setGrantDetailId(null)}>
+        <Modal title="Access details" wide onClose={() => setGrantDetailId(null)}>
           <GrantDetailPanel grant={grantDetailGrant} />
         </Modal>
       ) : null}
 
       {grantModalOpen ? (
-        <Modal title="New grant" wide onClose={() => setGrantModalOpen(false)}>
+        <Modal title="Add app access" wide onClose={() => setGrantModalOpen(false)}>
           <form className="stack-form" onSubmit={handleSubmit}>
-            <p className="lede">Optionally pick a service client for governance. Leave unset to rely on the delegated credential alone.</p>
+            <p className="lede">Optionally choose a specific app. Leave empty to allow any app that is allowed to use this access.</p>
             <div className="form-grid">
-              <Field label="Service client" hint="Optional">
+              <Field label="App" hint="Optional">
                 <select
                   value={form.service_client_key}
                   onChange={(event) => setForm((current) => ({ ...current, service_client_key: event.target.value }))}
                 >
-                  <option value="">Credential only</option>
+                  <option value="">Any app</option>
                   {serviceClients.map((client) => (
                     <option key={client.id} value={client.key}>
                       {client.display_name}
@@ -834,7 +842,7 @@ function GrantsPage() {
                   ))}
                 </select>
               </Field>
-              <Field label="Provider app">
+              <Field label="Integration">
                 <select
                   value={form.provider_app_key}
                   onChange={(event) => setForm((current) => ({ ...current, provider_app_key: event.target.value, connected_account_id: "" }))}
@@ -851,7 +859,7 @@ function GrantsPage() {
                   value={form.connected_account_id}
                   onChange={(event) => setForm((current) => ({ ...current, connected_account_id: event.target.value }))}
                 >
-                  <option value="">Auto-select matching active connection</option>
+                  <option value="">Choose automatically from active connections</option>
                   {eligibleConnections.map((connection) => (
                     <option key={connection.id} value={connection.id}>
                       {connection.display_name || connection.external_email || connection.id}
@@ -859,7 +867,7 @@ function GrantsPage() {
                   ))}
                 </select>
               </Field>
-              <Field label="Allowed access modes">
+              <Field label="How the app connects">
                 <div className="check-grid compact">
                   {["relay", "direct_token"].map((mode) => (
                     <label key={mode} className="check-option">
@@ -873,13 +881,13 @@ function GrantsPage() {
                   ))}
                 </div>
               </Field>
-              <Field label="Scope ceiling" hint="Comma or newline separated">
+              <Field label="Permission limits" hint="Comma or newline separated">
                 <textarea
                   value={form.scope_ceiling_text}
                   onChange={(event) => setForm((current) => ({ ...current, scope_ceiling_text: event.target.value }))}
                 />
               </Field>
-              <Field label="Capabilities" hint="Comma or newline separated">
+              <Field label="Extra access" hint="Comma or newline separated">
                 <textarea
                   value={form.capabilities_text}
                   onChange={(event) => setForm((current) => ({ ...current, capabilities_text: event.target.value }))}
@@ -909,7 +917,7 @@ function GrantsPage() {
                 Cancel
               </button>
               <button type="submit" className="primary-button" disabled={pending}>
-                {pending ? "Working…" : "Create delegated credential"}
+                {pending ? "Working…" : "Create access"}
               </button>
             </div>
           </form>
@@ -918,8 +926,8 @@ function GrantsPage() {
 
       {grantRevokeConfirmId ? (
         <ConfirmModal
-          title="Revoke grant"
-          confirmLabel="Revoke"
+          title="Remove access"
+          confirmLabel="Remove access"
           confirmBusy={grantRevokePending}
           onCancel={() => setGrantRevokeConfirmId(null)}
           onConfirm={() => void revokeGrant(grantRevokeConfirmId)}
@@ -927,11 +935,11 @@ function GrantsPage() {
           <p className="lede">
             {grantRevokeTarget ? (
               <>
-                Downstream access that uses this grant for <strong>{grantRevokeTarget.provider_app_display_name}</strong> stops until you
-                create a new grant.
+                Apps that used this access for <strong>{grantRevokeTarget.provider_app_display_name}</strong> stop working until you add
+                access again.
               </>
             ) : (
-              "Downstream access that uses this grant stops until you create a new grant."
+              "Apps that used this access stop working until you add access again."
             )}
           </p>
         </ConfirmModal>
@@ -980,8 +988,8 @@ function TokenAccessPage() {
     } catch (error) {
       notify({
         tone: "error",
-        title: "Failed to load token access diagnostics",
-        description: isApiError(error) ? error.message : "Unexpected diagnostics loading error.",
+        title: "Could not load activity",
+        description: isApiError(error) ? error.message : "Something went wrong while loading.",
       });
     } finally {
       setLoading(false);
@@ -1003,8 +1011,8 @@ function TokenAccessPage() {
       setProbeResult(result);
       notify({
         tone: result.ok ? "success" : "error",
-        title: result.ok ? "Probe successful" : "Probe failed",
-        description: result.ok ? "The broker could reach the provider using the stored connection." : friendlyBrokerMessage(result.message),
+        title: result.ok ? "Connection test succeeded" : "Connection test failed",
+        description: result.ok ? "We could reach the service using your saved connection." : friendlyBrokerMessage(result.message),
       });
       await load();
       if (result.ok) {
@@ -1013,26 +1021,26 @@ function TokenAccessPage() {
     } catch (error) {
       notify({
         tone: "error",
-        title: "Probe request failed",
-        description: isApiError(error) ? error.message : "Unexpected probe request error.",
+        title: "Connection test failed",
+        description: isApiError(error) ? error.message : "Something went wrong.",
       });
     } finally {
       setProbePending(false);
     }
   };
 
-  if (loading) return <LoadingScreen label="Loading token access diagnostics..." />;
+  if (loading) return <LoadingScreen label="Loading activity…" />;
 
   return (
     <>
       <PageIntro
-        eyebrow="Token Access"
-        title="Inspect access history and verify your connection"
-        description="Review token issuance history for your grants and run a safe probe against a current connection when something looks wrong."
+        eyebrow="Activity"
+        title="Recent activity and connection tests"
+        description="See what happened when apps used your access. Run a connection test if something looks wrong."
         actions={
           <div className="inline-actions">
             <button type="button" className="ghost-button" onClick={() => setFilterModalOpen(true)}>
-              Filter history
+              Filter activity
             </button>
             <button type="button" className="ghost-button" onClick={() => setProbeModalOpen(true)}>
               Test connection
@@ -1045,51 +1053,53 @@ function TokenAccessPage() {
       />
 
       {probeResult ? (
-        <Card title="Latest probe" description="The probe checks broker-to-provider access and never exposes raw access tokens.">
+        <Card title="Last connection test" description="This checks that we can reach the service with your saved connection. It does not show private sign-in data.">
           <div className="stack-list">
             <div className="stack-cell">
               <strong>Status</strong>
-              <span>{probeResult.ok ? "Healthy connection" : friendlyBrokerMessage(probeResult.message)}</span>
+              <span>{probeResult.ok ? "Connection OK" : friendlyBrokerMessage(probeResult.message)}</span>
             </div>
             <div className="stack-cell">
               <strong>Checked</strong>
               <span>{formatDateTime(probeResult.checked_at)}</span>
             </div>
             <div className="stack-cell">
-              <strong>Resolved provider identity</strong>
+              <strong>Account</strong>
               <span>{probeResult.external_user_name || probeResult.external_user_id || "Not returned"}</span>
             </div>
           </div>
         </Card>
       ) : null}
 
-      <Card title="Token issue history" description="Read-only audit trail of broker token issuance decisions for your own grants.">
+      <Card title="Access activity" description="Read-only list of how apps used your app access.">
         <DataTable
-          columns={["Time", "Service client", "Grant", "Provider", "Decision", "Scopes", "Metadata"]}
+          columns={["Time", "App", "Access entry", "Integration", "Result", "Permissions", "Details"]}
           rows={filteredIssues.map((issue) => [
             formatDateTime(issue.created_at),
             issue.service_client_display_name ?? issue.service_client_id ?? "Unknown",
             issue.delegation_grant_id ?? "Unknown",
             issue.provider_app_display_name ?? issue.provider_app_id ?? "Unknown",
             <StatusBadge key={issue.id} tone={decisionTone(issue.decision)}>
-              {issue.reason ? `${issue.decision}: ${friendlyBrokerMessage(issue.reason)}` : issue.decision}
+              {issue.reason
+                ? `${userIssueDecisionLabel(issue.decision)}: ${friendlyBrokerMessage(issue.reason)}`
+                : userIssueDecisionLabel(issue.decision)}
             </StatusBadge>,
-            issue.scopes.length ? issue.scopes.join(", ") : "Inherited",
+            issue.scopes.length ? issue.scopes.join(", ") : "Default",
             <pre className="audit-metadata" key={`${issue.id}-metadata`}>
               {JSON.stringify(issue.metadata, null, 2)}
             </pre>,
           ])}
-          emptyTitle="No token issues recorded"
-          emptyBody="Once a service client uses one of your grants, the broker records the issuance result here."
+          emptyTitle="No activity yet"
+          emptyBody="When an app uses your app access, a row appears here."
         />
       </Card>
 
       {filterModalOpen ? (
-        <Modal title="Filter history" onClose={() => setFilterModalOpen(false)}>
+        <Modal title="Filter activity" onClose={() => setFilterModalOpen(false)}>
           <div className="stack-form">
-            <Field label="Service client">
+            <Field label="App">
               <select value={serviceClientFilter} onChange={(event) => setServiceClientFilter(event.target.value)}>
-                <option value="">All service clients</option>
+                <option value="">All apps</option>
                 {serviceClients.map((client) => (
                   <option key={client.id} value={client.id}>
                     {client.display_name}
@@ -1097,21 +1107,21 @@ function TokenAccessPage() {
                 ))}
               </select>
             </Field>
-            <Field label="Grant">
+            <Field label="App access">
               <select value={grantFilter} onChange={(event) => setGrantFilter(event.target.value)}>
-                <option value="">All grants</option>
+                <option value="">All entries</option>
                 {grants.map((grant) => (
                   <option key={grant.id} value={grant.id}>
-                    {(grant.service_client_display_name ?? "Credential only") + " · " + grant.provider_app_display_name}
+                    {(grant.service_client_display_name ?? "Any app") + " · " + grant.provider_app_display_name}
                   </option>
                 ))}
               </select>
             </Field>
-            <Field label="Decision">
+            <Field label="Result">
               <select value={decisionFilter} onChange={(event) => setDecisionFilter(event.target.value)}>
-                <option value="">All decisions</option>
-                <option value="issued">Issued</option>
-                <option value="relayed">Relayed</option>
+                <option value="">All results</option>
+                <option value="issued">Allowed</option>
+                <option value="relayed">Forwarded</option>
                 <option value="blocked">Blocked</option>
                 <option value="error">Error</option>
               </select>
@@ -1143,21 +1153,21 @@ function TokenAccessPage() {
             </Field>
             <div className="inline-actions">
               <button type="button" className="primary-button" disabled={probePending || !probeConnectionId} onClick={() => void runProbe()}>
-                {probePending ? "Probing…" : "Run probe"}
+                {probePending ? "Testing…" : "Run test"}
               </button>
             </div>
             {probeResult ? (
               <div className="stack-list">
                 <div className="stack-cell">
                   <strong>Status</strong>
-                  <span>{probeResult.ok ? "Healthy connection" : friendlyBrokerMessage(probeResult.message)}</span>
+                  <span>{probeResult.ok ? "Connection OK" : friendlyBrokerMessage(probeResult.message)}</span>
                 </div>
                 <div className="stack-cell">
                   <strong>Checked</strong>
                   <span>{formatDateTime(probeResult.checked_at)}</span>
                 </div>
                 <div className="stack-cell">
-                  <strong>Resolved provider identity</strong>
+                  <strong>Account</strong>
                   <span>{probeResult.external_user_name || probeResult.external_user_id || "Not returned"}</span>
                 </div>
               </div>
@@ -1177,10 +1187,10 @@ function TokenAccessPage() {
 function NotFoundPage({ onNavigate, fallbackPath }: { onNavigate: (path: string) => void; fallbackPath: string }) {
   return (
     <main className="login-layout">
-      <Card title="Route not found" description="This path is not part of the broker frontend.">
+      <Card title="Page not found" description="This address is not available in this app.">
         <EmptyState
           title="Unknown page"
-          body="Use the current shell navigation to return to a supported broker surface."
+          body="Use the menu to open a supported page."
         />
         <div className="inline-actions">
           <button type="button" className="primary-button" onClick={() => onNavigate(fallbackPath)}>
@@ -1195,8 +1205,8 @@ function NotFoundPage({ onNavigate, fallbackPath }: { onNavigate: (path: string)
 const USER_WORKSPACE_NAV = [
   { href: "/workspace", label: "Workspace" },
   { href: "/workspace/integrations", label: "Integrations" },
-  { href: "/grants", label: "My Grants" },
-  { href: "/token-access", label: "Token Access" },
+  { href: "/grants", label: "App access" },
+  { href: "/token-access", label: "Activity" },
 ];
 
 function AuthenticatedApp() {
@@ -1227,7 +1237,7 @@ function AuthenticatedApp() {
       notify({
         tone: "success",
         title: "Signed in with Microsoft",
-        description: "Your broker workspace session is ready.",
+        description: "You are signed in.",
       });
     }
 
@@ -1243,7 +1253,7 @@ function AuthenticatedApp() {
       notify({
         tone: "success",
         title: "Miro connected",
-        description: connectedAccountId ? `Connection ${connectedAccountId} is now available in your workspace.` : "Your Miro account is now connected.",
+        description: connectedAccountId ? `Your connection ${connectedAccountId} is ready in your workspace.` : "Your Miro account is now connected.",
       });
     }
 
@@ -1264,8 +1274,8 @@ function AuthenticatedApp() {
         title:
           route.name === "connect"
             ? `${providerRouteLabel(route.params.providerKey)} connected`
-            : "Provider connected",
-        description: connectedAccountId ? `Connection ${connectedAccountId} is now available in your workspace.` : "Your provider account is now connected.",
+            : "Connected",
+        description: connectedAccountId ? `Your connection ${connectedAccountId} is ready in your workspace.` : "Your account is now connected.",
       });
     }
 
@@ -1275,7 +1285,7 @@ function AuthenticatedApp() {
         title:
           route.name === "connect"
             ? `${providerRouteLabel(route.params.providerKey)} connect failed`
-            : "Provider connect failed",
+            : "Connection failed",
         description: friendlyMessage,
       });
     }
@@ -1309,7 +1319,7 @@ function AuthenticatedApp() {
   }, [navigate, route.name, session]);
 
   if (session.status === "booting") {
-    return <LoadingScreen label="Restoring broker session..." />;
+    return <LoadingScreen label="Restoring your session…" />;
   }
 
   if (session.status === "anonymous") {
@@ -1343,9 +1353,9 @@ function AuthenticatedApp() {
         currentPath={route.path}
         navItems={USER_WORKSPACE_NAV}
         onNavigate={navigate}
-        kicker="Broker Workspace"
-        title="Self-service suite"
-        subtitle="Connections, grants, and diagnostics"
+        kicker="Workspace"
+        title="Your account"
+        subtitle="Connections, app access, and activity"
       >
         {userWorkspaceMain}
       </Shell>
@@ -1408,9 +1418,9 @@ function AuthenticatedApp() {
       currentPath={route.path}
       navItems={USER_WORKSPACE_NAV}
       onNavigate={navigate}
-      kicker="Broker Workspace"
-      title="Self-service suite"
-      subtitle="Connections, grants, and diagnostics"
+      kicker="Workspace"
+      title="Your account"
+      subtitle="Connections, app access, and activity"
     >
       {userWorkspaceMain}
     </Shell>

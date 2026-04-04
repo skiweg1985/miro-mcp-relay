@@ -244,7 +244,7 @@ export function SecretPanel({
     <div className="secret-panel">
       <div className="secret-panel-header">
         <div>
-          <p className="eyebrow">Sensitive value</p>
+          <p className="eyebrow">Private</p>
           <h3>{title}</h3>
           <p>{body}</p>
         </div>
@@ -377,8 +377,8 @@ export function MiroAccessCard({
   access,
   pending,
   onIssueToken,
-  title = "Miro MCP access",
-  description = "Use this broker-managed endpoint and relay token in your MCP client.",
+  title = "Use Miro in other apps",
+  description = "Copy the connection address and access key for the app that should use your Miro account.",
 }: {
   access: MiroRelayAccess | null;
   pending: boolean;
@@ -390,18 +390,18 @@ export function MiroAccessCard({
     return (
       <Card title={title} description={description}>
         <EmptyState
-          title="No Miro relay access yet"
-          body="Connect Miro first. Once the broker has a connected account, this panel will show the MCP endpoint and let you mint a new relay token."
+          title="Miro not connected yet"
+          body="Connect Miro first. Then this panel shows the connection address and lets you create a new access key when needed."
         />
       </Card>
     );
   }
 
   const tokenState = access.relay_token
-    ? "New one-time relay token ready"
+    ? "New one-time access key ready"
     : access.has_relay_token
-      ? "A relay token exists but cannot be shown again"
-      : "No relay token exists yet";
+      ? "An access key exists but cannot be shown again"
+      : "No access key yet";
 
   return (
     <Card title={title} description={description}>
@@ -411,19 +411,19 @@ export function MiroAccessCard({
           <span>{access.display_name || access.external_email || access.connected_account_id}</span>
         </div>
         <div className="stack-cell">
-          <strong>Profile ID</strong>
+          <strong>Workspace ID</strong>
           <code className="inline-code">{access.profile_id}</code>
         </div>
         <div className="stack-cell">
-          <strong>MCP endpoint</strong>
+          <strong>Connection address</strong>
           <code className="inline-code">{access.mcp_url}</code>
         </div>
         <div className="stack-cell">
-          <strong>Relay token state</strong>
+          <strong>Access key</strong>
           <span>{tokenState}</span>
         </div>
         <div className="stack-cell">
-          <strong>Broker status</strong>
+          <strong>Status</strong>
           <span>{access.connection_status}</span>
         </div>
       </div>
@@ -431,36 +431,36 @@ export function MiroAccessCard({
       {onIssueToken ? (
         <div className="inline-actions">
           <button type="button" className="primary-button" disabled={pending} onClick={onIssueToken}>
-            {pending ? "Generating..." : access.has_relay_token ? "Generate new relay token" : "Create relay token"}
+            {pending ? "Working…" : access.has_relay_token ? "New access key" : "Create access key"}
           </button>
         </div>
       ) : null}
 
       {!access.relay_token && access.has_relay_token ? (
         <p className="lede">
-          Existing MCP clients can keep using the current token, but the broker cannot reveal it again. Generate a new token
-          when you want to copy a fresh config from the UI.
+          Other apps can keep using the current key, but it cannot be shown again here. Create a new access key when you need to copy
+          fresh details from this page.
         </p>
       ) : null}
 
       {access.relay_token ? (
         <>
           <SecretPanel
-            title="Relay token"
-            body="This token is shown only for this issuance. Store it in your MCP client before leaving the page."
+            title="Access key"
+            body="This value is shown only once. Save it in your app before you leave the page."
             value={access.relay_token}
           />
           {access.mcp_config_json ? (
             <SecretPanel
-              title="Ready-to-paste MCP config"
-              body="Paste this JSON into your MCP client configuration to use the brokered Miro endpoint."
+              title="App configuration (JSON)"
+              body="Paste this into your app’s settings to use the Miro connection from this service."
               value={access.mcp_config_json}
             />
           ) : null}
           {access.credentials_bundle_json ? (
             <SecretPanel
-              title="Backup credentials bundle"
-              body="This compact bundle mirrors the old flow and is useful when you need profile ID plus relay token together."
+              title="Combined setup (JSON)"
+              body="Includes workspace ID and access key together for apps that need one block to paste."
               value={access.credentials_bundle_json}
             />
           ) : null}

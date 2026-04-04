@@ -25,12 +25,12 @@ import { formatDateTime, relativeTime } from "./utils";
 
 const CONNECT_WIZARD_STEPS: WizardStep[] = [
   { id: "intro", label: "Overview" },
-  { id: "provider", label: "Provider" },
+  { id: "provider", label: "App" },
 ];
 
 const DETAILS_WIZARD_STEPS: WizardStep[] = [
   { id: "identity", label: "Account" },
-  { id: "session", label: "Session" },
+  { id: "session", label: "Connection" },
 ];
 
 function connectionTone(connection: ConnectedAccountOut): "neutral" | "success" | "warn" | "danger" {
@@ -42,16 +42,16 @@ function connectionTone(connection: ConnectedAccountOut): "neutral" | "success" 
 
 function friendlyBrokerMessage(raw: string | null | undefined): string {
   const message = (raw ?? "").trim();
-  if (!message) return "The broker could not complete the request.";
-  if (message === "Invalid or expired OAuth state") return "The Miro session expired before the callback returned. Start the connection again.";
-  if (message === "Missing or expired Miro callback parameters") return "The Miro callback did not include a usable authorization result. Please try again.";
-  if (message === "Miro authorization was denied.") return "Miro authorization was cancelled before the broker could connect your account.";
-  if (message.includes("did not match expected email")) return "The signed-in Miro identity did not match the expected account. Retry with the correct Miro user.";
-  if (message.startsWith("miro_token_exchange_failed")) return "Miro accepted the login but the broker could not finish token exchange. Please retry.";
-  if (message.startsWith("miro_refresh_failed")) return "The broker could not refresh the stored Miro credentials. Reconnect the account.";
-  if (message.startsWith("token_context_")) return "The broker reached Miro but could not verify the token context. Retry once, then reconnect if needed.";
-  if (message.startsWith("microsoft_graph_refresh_failed")) return "The broker could not refresh the stored Microsoft Graph credentials. Reconnect the account.";
-  if (message.startsWith("graph_me_")) return "The broker reached Microsoft Graph but could not verify the current account identity.";
+  if (!message) return "Something went wrong. Please try again.";
+  if (message === "Invalid or expired OAuth state") return "Your Miro sign-in timed out. Start the connection again.";
+  if (message === "Missing or expired Miro callback parameters") return "Miro did not return a usable sign-in result. Please try again.";
+  if (message === "Miro authorization was denied.") return "Miro sign-in was cancelled before your account could be connected.";
+  if (message.includes("did not match expected email")) return "The Miro account did not match the expected user. Sign in with the correct Miro account.";
+  if (message.startsWith("miro_token_exchange_failed")) return "Miro accepted the login but we could not finish connecting. Please try again.";
+  if (message.startsWith("miro_refresh_failed")) return "We could not refresh your Miro connection. Reconnect the account.";
+  if (message.startsWith("token_context_")) return "We reached Miro but could not verify the connection. Try again, or reconnect if it keeps happening.";
+  if (message.startsWith("microsoft_graph_refresh_failed")) return "We could not refresh your Microsoft connection. Reconnect the account.";
+  if (message.startsWith("graph_me_")) return "We reached Microsoft but could not verify the signed-in account.";
   return message;
 }
 
@@ -185,14 +185,14 @@ export function UserIntegrationsPage() {
         setMiroAccess(result);
         notify({
           tone: "success",
-          title: "Miro MCP config ready",
-          description: "Copy the relay token or the full MCP config before leaving this page.",
+          title: "Miro connection details ready",
+          description: "Copy the details before you leave this page.",
         });
       })
       .catch((error) => {
         notify({
           tone: "error",
-          title: "Could not load the one-time Miro setup bundle",
+          title: "Could not load the one-time Miro setup",
           description: isApiError(error) ? friendlyBrokerMessage(error.message) : "Unexpected setup exchange error.",
         });
       })
@@ -281,8 +281,8 @@ export function UserIntegrationsPage() {
       setProbeById((prev) => ({ ...prev, [connectionId]: result }));
       notify({
         tone: result.ok ? "success" : "error",
-        title: result.ok ? "Probe succeeded" : "Probe failed",
-        description: result.ok ? "The broker could reach the provider with the stored credentials." : friendlyBrokerMessage(result.message),
+        title: result.ok ? "Connection test succeeded" : "Connection test failed",
+        description: result.ok ? "We could reach the service with your saved connection." : friendlyBrokerMessage(result.message),
       });
       await load();
     });
@@ -296,13 +296,13 @@ export function UserIntegrationsPage() {
       setMiroAccess(result);
       notify({
         tone: "success",
-        title: "Fresh relay token issued",
-        description: "Copy the MCP config now. The previous relay token is no longer valid.",
+        title: "New access key ready",
+        description: "Copy the details now. The previous key no longer works.",
       });
     } catch (error) {
       notify({
         tone: "error",
-        title: "Could not mint a new relay token",
+        title: "Could not create a new access key",
         description: isApiError(error) ? friendlyBrokerMessage(error.message) : "Unexpected error.",
       });
     } finally {
@@ -322,14 +322,14 @@ export function UserIntegrationsPage() {
       <PageIntro
         eyebrow="Integrations"
         title="Connected apps"
-        description="Connect third-party accounts the broker can use for relay access, delegated tokens, and approved automation."
+        description="Connect the apps you use so this service can work with your accounts on your behalf."
       />
 
-      {setupPending ? <LoadingScreen label="Preparing your one-time Miro MCP config…" /> : null}
+      {setupPending ? <LoadingScreen label="Preparing your one-time Miro setup…" /> : null}
 
       {connectableApps.length === 0 ? (
         <Card title="No integrations available" description="Your organization has not published any connectable apps yet.">
-          <EmptyState title="Nothing to connect" body="Ask an administrator to register provider apps for your organization." />
+          <EmptyState title="Nothing to connect" body="Ask an administrator to add integrations for your organization." />
         </Card>
       ) : (
         <div className="integration-grid user-integration-grid">
@@ -337,7 +337,7 @@ export function UserIntegrationsPage() {
             const connection = connections.find(
               (c) => c.provider_app_id === app.id && c.status !== "revoked",
             );
-            const desc = templateDescription(definitions, app.template_key) || "OAuth connection managed by the broker.";
+            const desc = templateDescription(definitions, app.template_key) || "Sign in to connect your account.";
             const primaryDisabled = busy.has(`oauth:${app.id}`);
             const isConnected = Boolean(connection && connection.status === "connected");
             const canDisconnect = Boolean(isConnected && connection);
@@ -395,15 +395,15 @@ export function UserIntegrationsPage() {
           access={miroAccess}
           pending={tokenPending}
           onIssueToken={() => void handleRotateMiroToken(existingMiro.id)}
-          title="Miro MCP handoff"
-          description="Copy the broker MCP endpoint and relay token for your MCP client."
+          title="Use Miro in other apps"
+          description="Copy the connection address and access key for the app that should use your Miro account."
         />
       ) : null}
 
       {connectWizardApp ? (
         <SetupDrawer
           title={connectWizardApp.display_name}
-          subtitle="Provider sign-in"
+          subtitle="Sign in"
           steps={CONNECT_WIZARD_STEPS}
           activeStepIndex={connectWizardStep}
           onClose={closeConnectWizard}
@@ -429,7 +429,7 @@ export function UserIntegrationsPage() {
                     disabled={busy.has(`oauth:${connectWizardApp.id}`) || !connectWizardApp.is_enabled}
                     onClick={() => void startConnect(connectWizardApp, connectWizardConnection)}
                   >
-                    {busy.has(`oauth:${connectWizardApp.id}`) ? "Redirecting…" : "Continue to provider"}
+                    {busy.has(`oauth:${connectWizardApp.id}`) ? "Redirecting…" : "Continue to sign in"}
                   </button>
                 )}
               </div>
@@ -441,11 +441,11 @@ export function UserIntegrationsPage() {
               <>
                 <p className="lede">
                   {connectWizardIsActive
-                    ? "You will sign in again at the provider. The broker replaces stored tokens for this integration when you finish."
-                    : "The broker sends you to the provider to sign in and approve access. When the provider finishes, you return here."}
+                    ? "You will sign in again at the app. Your saved connection is updated when you finish."
+                    : "We open the app’s sign-in so you can approve access. When sign-in finishes, you return here."}
                 </p>
                 <p className="field-hint field-hint--flush">
-                  No extra fields are required here — continue when you are ready to open the provider.
+                  No extra fields are required — continue when you are ready to sign in.
                 </p>
               </>
             ) : null}
@@ -494,7 +494,7 @@ export function UserIntegrationsPage() {
                           disabled={busy.has(`refresh:${detailsConnection.id}`)}
                           onClick={() => void handleRefresh(detailsConnection.id)}
                         >
-                          {busy.has(`refresh:${detailsConnection.id}`) ? "Refreshing…" : "Refresh token"}
+                          {busy.has(`refresh:${detailsConnection.id}`) ? "Refreshing…" : "Refresh connection"}
                         </button>
                         <button
                           type="button"
@@ -502,7 +502,7 @@ export function UserIntegrationsPage() {
                           disabled={busy.has(`probe:${detailsConnection.id}`)}
                           onClick={() => void handleProbe(detailsConnection.id)}
                         >
-                          {busy.has(`probe:${detailsConnection.id}`) ? "Probing…" : "Probe"}
+                          {busy.has(`probe:${detailsConnection.id}`) ? "Testing…" : "Test connection"}
                         </button>
                         <button
                           type="button"
@@ -545,7 +545,7 @@ export function UserIntegrationsPage() {
               <div className="stack-list">
                 {detailsConnection.access_token_expires_at ? (
                   <div className="stack-cell">
-                    <strong>Access token valid until</strong>
+                    <strong>Connection valid until</strong>
                     <span>
                       {formatDateTime(detailsConnection.access_token_expires_at)} (
                       {relativeTime(detailsConnection.access_token_expires_at)})
@@ -554,12 +554,12 @@ export function UserIntegrationsPage() {
                 ) : null}
                 {detailsConnection.refresh_token_expires_at ? (
                   <div className="stack-cell">
-                    <strong>Refresh token valid until</strong>
+                    <strong>Renewal valid until</strong>
                     <span>{formatDateTime(detailsConnection.refresh_token_expires_at)}</span>
                   </div>
                 ) : null}
                 <div className="stack-cell">
-                  <strong>Last token update</strong>
+                  <strong>Last sign-in refresh</strong>
                   <span>
                     {detailsConnection.token_material_updated_at
                       ? formatDateTime(detailsConnection.token_material_updated_at)
@@ -567,20 +567,20 @@ export function UserIntegrationsPage() {
                   </span>
                 </div>
                 <div className="stack-cell">
-                  <strong>Refresh possible</strong>
+                  <strong>Can renew automatically</strong>
                   <span>{detailsConnection.refresh_token_available === true ? "Yes" : "No"}</span>
                 </div>
                 {detailsConnection.last_error ? (
                   <div className="stack-cell user-integration-error">
-                    <strong>Broker note</strong>
+                    <strong>Note</strong>
                     <span>{friendlyBrokerMessage(detailsConnection.last_error)}</span>
                   </div>
                 ) : null}
                 {probeById[detailsConnection.id] ? (
                   <div className="stack-cell">
-                    <strong>Last probe</strong>
+                    <strong>Last connection test</strong>
                     <span>
-                      {probeById[detailsConnection.id].ok ? "Healthy" : friendlyBrokerMessage(probeById[detailsConnection.id].message)}{" "}
+                      {probeById[detailsConnection.id].ok ? "OK" : friendlyBrokerMessage(probeById[detailsConnection.id].message)}{" "}
                       — {formatDateTime(probeById[detailsConnection.id].checked_at)}
                     </span>
                   </div>
@@ -600,7 +600,7 @@ export function UserIntegrationsPage() {
           onConfirm={() => void handleRevoke(revokeConfirmId)}
         >
           <p className="lede">
-            The broker will remove stored access for <strong>{revokeConfirmAppName || "this integration"}</strong>. You can connect again later.
+            We remove saved access for <strong>{revokeConfirmAppName || "this integration"}</strong>. You can connect again later.
           </p>
         </ConfirmModal>
       ) : null}

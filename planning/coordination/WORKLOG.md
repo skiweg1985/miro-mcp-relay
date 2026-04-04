@@ -1,3 +1,33 @@
+## 2026-04-04 – Cursor Agent – Self-Service: Nutzer-Texte vereinfacht
+
+- Done:
+  - `frontend/src/App.tsx`: Workspace-, App-access-, Activity-Seiten; Nav „App access“ / „Activity“; Shell „Workspace“ / „Your account“; Fehlermeldungen ohne Broker-Jargon; `userIssueDecisionLabel`; Status „Removed“/„Off“ statt Revoked/Disabled.
+  - `frontend/src/UserIntegrationsPage.tsx`: Integrations-Copy, Wizard-Schritte, Session-Tab-Labels, Toasts, Disconnect-Bestätigung.
+  - `frontend/src/components.tsx`: `MiroAccessCard` und `SecretPanel`-Eyebrow nutzerfreundlich.
+  - `docs/CHANGELOG.md` [Unreleased] Changed; `frontend/dist` neu gebaut.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - frontend/src/App.tsx
+  - frontend/src/UserIntegrationsPage.tsx
+  - frontend/src/components.tsx
+  - frontend/dist/
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build`
+- UI path:
+  - `/workspace`, `/workspace/integrations`, `/grants`, `/token-access`
+- Changelog updated:
+  - yes ([Unreleased] Changed)
+- Follow-ups:
+  - keine
+
 ## 2026-04-04 – Cursor Agent – Self-Service Grants: Tabelle kompakt, Detail-Modal
 
 - Done:

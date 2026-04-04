@@ -637,6 +637,8 @@ h3 {
   display: grid;
   gap: var(--space-5);
   min-width: 0;
+  align-content: start;
+  align-items: start;
 }
 
 .page-intro {

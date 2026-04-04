@@ -1,3 +1,30 @@
+## 2026-04-04 – Cursor Agent – Shell: Hauptspalte oben bündig
+
+- Done:
+  - `frontend/src/index.css`: `.page-shell` um `align-content: start` und `align-items: start` ergänzt (Kopfzeile nicht mehr nach unten verzogen, wenn `main` höher als der Inhalt ist).
+  - `npm run build`; `frontend/dist` aktualisiert.
+  - `docs/CHANGELOG.md` [Unreleased] Fixed ergänzt.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - frontend/src/index.css
+  - frontend/dist/
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build`
+- UI path:
+  - Shell mit Sidebar + `main.page-shell` (z. B. `/workspace/integrations`)
+- Changelog updated:
+  - yes ([Unreleased] Fixed)
+- Follow-ups:
+  - keine
+
 ## 2026-04-04 – Cursor Agent – Integrations-Karten: vertikales Stretching
 
 - Done:

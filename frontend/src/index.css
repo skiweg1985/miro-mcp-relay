@@ -1055,8 +1055,29 @@ h3 {
   cursor: not-allowed;
 }
 
-.access-modal-replace-key {
-  margin-top: var(--space-2);
+.access-modal-missing-key-row {
+  align-items: flex-start;
+}
+
+.access-modal-missing-key-row .access-modal-section-hint {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
+.access-modal-key-inline-hint {
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.access-key-icon-spinner {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 999px;
+  border: 2px solid var(--line);
+  border-top-color: var(--ink);
+  animation: spin 0.85s linear infinite;
 }
 
 .grant-detail-lede {

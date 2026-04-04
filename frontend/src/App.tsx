@@ -255,40 +255,84 @@ function IconCopy({ className }: { className?: string }) {
   );
 }
 
+function IconRefresh({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" width="20" height="20" aria-hidden>
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M21 12a9 9 0 1 1-4.05-7.5M21 3v7h-7M3 12a9 9 0 0 1 15.38-6.3M3 21v-7h7"
+      />
+    </svg>
+  );
+}
+
 function AccessKeyIconActions({
   reveal,
   onToggleReveal,
   onCopy,
   copyDisabled,
   keyVariant = "access",
+  showRevealCopy = true,
+  onReplace,
+  replaceDisabled,
+  replaceBusy,
+  replaceAriaLabel,
 }: {
   reveal: boolean;
   onToggleReveal: () => void;
   onCopy: () => void;
   copyDisabled?: boolean;
   keyVariant?: "access" | "connection";
+  showRevealCopy?: boolean;
+  onReplace?: () => void;
+  replaceDisabled?: boolean;
+  replaceBusy?: boolean;
+  replaceAriaLabel?: string;
 }) {
   const keyNoun = keyVariant === "connection" ? "connection key" : "access key";
+  const replaceLabel =
+    replaceAriaLabel ?? (keyVariant === "connection" ? "Replace connection key" : "Replace access key");
   return (
     <div className="access-key-icon-group">
-      <button
-        type="button"
-        className="access-key-icon-btn"
-        onClick={onToggleReveal}
-        aria-pressed={reveal}
-        aria-label={reveal ? `Hide ${keyNoun}` : `Show ${keyNoun}`}
-      >
-        {reveal ? <IconEyeOff /> : <IconEye />}
-      </button>
-      <button
-        type="button"
-        className="access-key-icon-btn"
-        onClick={() => void onCopy()}
-        disabled={copyDisabled}
-        aria-label={`Copy ${keyNoun}`}
-      >
-        <IconCopy />
-      </button>
+      {showRevealCopy ? (
+        <>
+          <button
+            type="button"
+            className="access-key-icon-btn"
+            onClick={onToggleReveal}
+            aria-pressed={reveal}
+            aria-label={reveal ? `Hide ${keyNoun}` : `Show ${keyNoun}`}
+          >
+            {reveal ? <IconEyeOff /> : <IconEye />}
+          </button>
+          <button
+            type="button"
+            className="access-key-icon-btn"
+            onClick={() => void onCopy()}
+            disabled={copyDisabled}
+            aria-label={`Copy ${keyNoun}`}
+          >
+            <IconCopy />
+          </button>
+        </>
+      ) : null}
+      {onReplace ? (
+        <button
+          type="button"
+          className="access-key-icon-btn"
+          onClick={onReplace}
+          disabled={replaceDisabled || replaceBusy}
+          aria-busy={replaceBusy}
+          aria-label={replaceLabel}
+          title={replaceLabel}
+        >
+          {replaceBusy ? <span className="access-key-icon-spinner" aria-hidden /> : <IconRefresh />}
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -459,21 +503,26 @@ function GrantAppAccessKeySection({ grantId, canUse }: { grantId: string; canUse
                   onCopy={() => void handleCopy()}
                   copyDisabled={!credential}
                   keyVariant="access"
+                  onReplace={() => setRotateConfirm(true)}
+                  replaceBusy={rotatePending}
                 />
-              </div>
-              <div className="access-modal-replace-key">
-                <button type="button" className="ghost-button" onClick={() => setRotateConfirm(true)}>
-                  Replace access key
-                </button>
               </div>
             </div>
           ) : null}
           {loadState === "missing" ? (
             <div className="grant-access-credential-block grant-access-credential-block--empty">
-              <p className="muted access-modal-section-hint">Not stored for this entry. Replace once to enable Show and Copy.</p>
-              <button type="button" className="secondary-button" onClick={() => setRotateConfirm(true)}>
-                Replace access key
-              </button>
+              <div className="access-modal-secret-line access-modal-missing-key-row">
+                <p className="muted access-modal-section-hint">Not stored for this entry. Replace once to enable Show and Copy.</p>
+                <AccessKeyIconActions
+                  showRevealCopy={false}
+                  reveal={false}
+                  onToggleReveal={() => {}}
+                  onCopy={() => {}}
+                  keyVariant="access"
+                  onReplace={() => setRotateConfirm(true)}
+                  replaceBusy={rotatePending}
+                />
+              </div>
             </div>
           ) : null}
         </div>
@@ -584,18 +633,26 @@ function AccessConnectionTool({
                 />
               </div>
             ) : keyStored ? (
-              <>
-                <span className="grant-credential-masked" aria-hidden>
-                  ••••••••••••••••
-                </span>
-                {canRotateConnection ? (
-                  <button type="button" className="ghost-button" disabled={replaceConnectionKeyPending} onClick={onReplaceConnectionKey}>
-                    {replaceConnectionKeyPending ? "Working…" : "Replace connection key"}
-                  </button>
+              <div className="access-modal-secret-line">
+                <div className="grant-access-credential-value access-modal-key-box access-modal-key-box--grow">
+                  <span className="grant-credential-masked" aria-hidden>
+                    ••••••••••••••••
+                  </span>
+                </div>
+                {canRotateConnection && onReplaceConnectionKey ? (
+                  <AccessKeyIconActions
+                    showRevealCopy={false}
+                    reveal={false}
+                    onToggleReveal={() => {}}
+                    onCopy={() => {}}
+                    keyVariant="connection"
+                    onReplace={onReplaceConnectionKey}
+                    replaceBusy={replaceConnectionKeyPending}
+                  />
                 ) : (
-                  <span className="muted access-modal-muted-inline">Not shown here</span>
+                  <span className="muted access-modal-muted-inline access-modal-key-inline-hint">Not shown here</span>
                 )}
-              </>
+              </div>
             ) : (
               <span className="muted">—</span>
             )}

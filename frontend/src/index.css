@@ -1897,7 +1897,7 @@ html.dark .modal-panel {
 }
 
 .modal-panel--wide {
-  width: min(640px, 100%);
+  width: min(720px, 100%);
 }
 
 .modal-form-actions {

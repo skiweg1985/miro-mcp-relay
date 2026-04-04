@@ -1534,7 +1534,7 @@ function GrantsPage() {
       ) : null}
 
       {grantDetailId && grantDetailGrant ? (
-        <Modal title="Access" onClose={() => setGrantDetailId(null)}>
+        <Modal title="Access" wide onClose={() => setGrantDetailId(null)}>
           <GrantDetailPanel grant={grantDetailGrant} />
         </Modal>
       ) : null}

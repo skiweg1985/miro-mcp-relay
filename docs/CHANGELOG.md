@@ -19,6 +19,7 @@
 
 ### Changed
 
+- Frontend: Integrations-Raster (`integration-grid`, User-Integrations-Grid): Zeilen gleich hoch (`align-items: stretch`), Karten `height: 100%`; Bereich für Titel/Status, flexibler Block `integration-card-body` (Beschreibung/Meta), Aktionszeile mit `margin-top: auto`; Beschreibung/Meta mit `line-clamp`; „Add integration“-Karte ohne vertikale Zentrierung, CTA unten wie bei den anderen Karten; Metric-Karten (`metric-grid`): Flex-Spalte, Untertitel (`small`) unten ausgerichtet.
 - Frontend: Integrations-Karten: `overflow-x` auf der Aktionszeile entfernt (Rand des letzten Buttons wurde vom Scrollport beschnitten); Raster `minmax(min(100%, 340px), 1fr)`; unter 420px Breite darf die Zeile umbrechen.
 - Frontend: sichtbare Rahmen für bisher randlose Steuerflächen (`.ghost-button`, Theme-Umschalter, Registerkarten, „Administrator sign-in“ auf der Login-Seite, Drawer-Schließen); Sidebar-Navigationslinks wieder ohne äußeren Rahmen.
 - Frontend: Integrations-Karten und Verbindungs-Detail-Footer: Aktions-Buttons mit `nowrap` (Karten unter 420px Viewportbreite mit Umbruch; Drawer-Footer bei Bedarf horizontal scrollbar); destruktive Aktionen (Verbindung trennen, Grants widerrufen, Admin: Zugriff/Verbindung entfernen) erfordern ein Bestätigungsmodal (`ConfirmModal`).
@@ -48,6 +49,5 @@
 ### Fixed
 
 - Frontend: `main.page-shell` mit `align-content: start` und `align-items: start`, damit die Hauptspalte bei hoher Sidebar nicht per Grid-Zeilendehnung und `page-intro` (`align-items: flex-end`) den Seitenkopf nach unten schiebt.
-- Frontend: Integrations-Karten (Grid) nicht mehr über die volle Zeilenhöhe gestreckt; Beschreibung wächst nicht mehr mit `flex: 1`, Buttons bleiben unter dem Text (`align-items: start` auf `.integration-grid`, Beschreibung `flex: 0 1 auto`).
 - Legacy-MCP-Proxy nutzt Request-DB-Session statt vorzeitig geschlossener Session.
 - Miro-Setup-Token: Commit nach Verbrauch, damit Einmal-Nutzung gilt.

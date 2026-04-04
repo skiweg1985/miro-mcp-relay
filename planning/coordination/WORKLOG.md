@@ -1,3 +1,32 @@
+## 2026-04-04 – Cursor Agent – Frontend: Karten-Layout (gleiche Höhe, Buttons unten)
+
+- Done:
+  - `frontend/src/index.css`: `integration-grid` mit `align-items: stretch`, `integration-card` mit `height: 100%`; `integration-card-body` für Beschreibung/Meta; `line-clamp` für Titel/Beschreibung/Meta; `integration-card-actions` mit `margin-top: auto` (Override `margin-top` bei `.user-integration-actions` entfernt); `integration-card-add` mit `justify-content: flex-start`; Metric-Karten als Flex-Spalte, `small` mit `margin-top: auto`; `metric-grid` / `workspace-metric-grid` mit `align-items: stretch`.
+  - `frontend/src/admin/IntegrationsPage.tsx`, `frontend/src/UserIntegrationsPage.tsx`: Markup mit `integration-card-body`; Add-Karte mit `span`-Struktur im `<button>` (kein `div` im Button).
+  - `docs/CHANGELOG.md` [Unreleased] Changed; Frontend-Build (`npm run build`) für `frontend/dist`.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - frontend/src/index.css
+  - frontend/src/admin/IntegrationsPage.tsx
+  - frontend/src/UserIntegrationsPage.tsx
+  - frontend/dist/
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build`
+- UI path:
+  - Admin Integrations (`/app/integrations`), Self-Service Integrations (`/workspace/integrations`), Workspace Metric-Karten
+- Changelog updated:
+  - yes ([Unreleased] Changed)
+- Follow-ups:
+  - keine
+
 ## 2026-04-04 – Cursor Agent – Integrations: Disconnect-Rand nicht mehr beschnitten
 
 - Done:

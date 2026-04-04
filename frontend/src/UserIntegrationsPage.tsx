@@ -355,7 +355,9 @@ export function UserIntegrationsPage() {
                     <StatusBadge tone="neutral">not connected</StatusBadge>
                   )}
                 </div>
-                <p className="integration-card-desc">{desc}</p>
+                <div className="integration-card-body">
+                  <p className="integration-card-desc">{desc}</p>
+                </div>
 
                 <div className="integration-card-actions user-integration-actions">
                   <button

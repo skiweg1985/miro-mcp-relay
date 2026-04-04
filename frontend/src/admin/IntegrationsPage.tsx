@@ -443,8 +443,12 @@ export function IntegrationsPage() {
                 className="integration-card integration-card-add"
                 onClick={() => openEditor("custom")}
               >
-                <span className="integration-card-title">{card.title}</span>
-                <span className="integration-card-desc">{card.description}</span>
+                <span className="integration-card-head">
+                  <span className="integration-card-title">{card.title}</span>
+                </span>
+                <span className="integration-card-body">
+                  <span className="integration-card-desc">{card.description}</span>
+                </span>
                 <span className="integration-card-cta">Add integration</span>
               </button>
             );
@@ -461,8 +465,10 @@ export function IntegrationsPage() {
                   {st.label}
                 </StatusBadge>
               </div>
-              <p className="integration-card-desc">{card.description}</p>
-              <p className="integration-card-meta">{cardMeta(app, instance, needsTenant)}</p>
+              <div className="integration-card-body">
+                <p className="integration-card-desc">{card.description}</p>
+                <p className="integration-card-meta">{cardMeta(app, instance, needsTenant)}</p>
+              </div>
               <div className="integration-card-actions">
                 <button
                   type="button"

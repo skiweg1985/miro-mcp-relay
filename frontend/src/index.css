@@ -702,6 +702,7 @@ h3 {
 
 .metric-grid {
   grid-template-columns: repeat(5, minmax(0, 1fr));
+  align-items: stretch;
 }
 
 .two-column {
@@ -711,6 +712,10 @@ h3 {
 .metric-card {
   border-radius: var(--radius-md);
   padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  box-sizing: border-box;
 }
 
 .metric-card span {
@@ -719,18 +724,23 @@ h3 {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  flex-shrink: 0;
 }
 
 .metric-card strong {
   display: block;
+  flex: 1 1 auto;
   font-size: 1.5rem;
   font-weight: 650;
   margin: var(--space-2) 0 var(--space-2);
   color: var(--ink);
+  min-height: 0;
 }
 
 .metric-card small {
   font-size: var(--font-caption);
+  margin-top: auto;
+  flex-shrink: 0;
 }
 
 .table-wrap {
@@ -1124,7 +1134,7 @@ select option {
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: var(--space-4);
   margin-bottom: var(--space-5);
-  align-items: start;
+  align-items: stretch;
 }
 
 .integration-card {
@@ -1139,6 +1149,8 @@ select option {
   flex-direction: column;
   gap: var(--space-3);
   min-height: 160px;
+  height: 100%;
+  box-sizing: border-box;
 }
 
 .integration-card:hover {
@@ -1149,7 +1161,7 @@ select option {
   cursor: pointer;
   border-style: dashed;
   background: var(--bg-subtle);
-  justify-content: center;
+  justify-content: flex-start;
   align-items: stretch;
 }
 
@@ -1158,6 +1170,11 @@ select option {
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.integration-card-head .status-badge {
+  flex-shrink: 0;
 }
 
 .integration-card-title {
@@ -1165,6 +1182,19 @@ select option {
   font-size: 1rem;
   letter-spacing: -0.02em;
   color: var(--ink);
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.integration-card-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 0;
 }
 
 .integration-card-desc {
@@ -1172,13 +1202,21 @@ select option {
   color: var(--ink-secondary);
   font-size: var(--font-label);
   line-height: var(--line-relaxed);
-  flex: 0 1 auto;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+  overflow: hidden;
 }
 
 .integration-card-meta {
   font-size: var(--font-caption);
   color: var(--muted);
   margin: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  flex-shrink: 0;
 }
 
 .integration-card-actions {
@@ -1186,6 +1224,8 @@ select option {
   flex-wrap: wrap;
   gap: var(--space-2);
   margin-top: auto;
+  flex-shrink: 0;
+  align-items: center;
 }
 
 .confirm-modal-root {
@@ -1239,7 +1279,6 @@ select option {
 }
 
 .user-integration-actions {
-  margin-top: var(--space-3);
   flex-wrap: nowrap;
   align-items: center;
   justify-content: flex-start;
@@ -1256,10 +1295,12 @@ select option {
 
 .workspace-metric-grid {
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  align-items: stretch;
 }
 
 .integration-card-cta {
   margin-top: auto;
+  flex-shrink: 0;
   font-weight: 600;
   color: var(--ink);
 }

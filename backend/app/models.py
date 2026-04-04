@@ -223,6 +223,7 @@ class DelegationGrant(Base):
     connected_account_id: Mapped[str | None] = mapped_column(ForeignKey("connected_accounts.id"), nullable=True, index=True)
     credential_hash: Mapped[str] = mapped_column(Text)
     credential_lookup_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    encrypted_delegated_credential: Mapped[str | None] = mapped_column(Text, nullable=True)
     allowed_access_modes_json: Mapped[str] = mapped_column(Text, default="[]")
     scope_ceiling_json: Mapped[str] = mapped_column(Text, default="[]")
     environment: Mapped[str | None] = mapped_column(String(64), nullable=True)

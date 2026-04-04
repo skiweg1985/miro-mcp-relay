@@ -815,6 +815,18 @@ h3 {
   padding: 0 var(--space-3);
 }
 
+.grant-disclosure--inline {
+  margin-top: var(--space-2);
+  border-style: dashed;
+}
+
+.grant-disclosure-summary--inline {
+  padding: var(--space-2) 0;
+  font-size: var(--font-caption);
+  font-weight: 600;
+  color: var(--ink-secondary);
+}
+
 .grant-disclosure[open] {
   padding-bottom: var(--space-2);
 }

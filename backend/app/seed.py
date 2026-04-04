@@ -141,6 +141,7 @@ def reconcile_schema() -> None:
             {
                 "is_enabled": "BOOLEAN DEFAULT TRUE",
                 "credential_lookup_hash": "VARCHAR(64)",
+                "encrypted_delegated_credential": "TEXT",
             },
         )
         _ensure_delegation_grant_service_client_nullable(conn, inspector)

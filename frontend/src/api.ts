@@ -186,6 +186,9 @@ export const api = {
   myDelegationGrants() {
     return request<SelfServiceDelegationGrantOut[]>("/api/v1/delegation-grants");
   },
+  getMyDelegationGrantDelegatedCredential(grantId: string) {
+    return request<DelegatedCredentialRotateResult>(`/api/v1/delegation-grants/${grantId}/delegated-credential`);
+  },
   createMyDelegationGrant(csrfToken: string, body: unknown) {
     return request<SelfServiceDelegationGrantCreateResult>("/api/v1/delegation-grants", {
       method: "POST",

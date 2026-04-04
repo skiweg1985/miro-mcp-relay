@@ -58,15 +58,12 @@ import { isApiError } from "./errors";
 import {
   copyToClipboard,
   formatDateTime,
-  getStoredDelegatedCredential,
   matchesRoute,
   parseApiDateTime,
   parseLines,
   relativeTime,
   relativeTimeCompact,
-  removeStoredDelegatedCredential,
   replaceLegacyAdminPath,
-  setStoredDelegatedCredential,
   toIsoDateTime,
 } from "./utils";
 
@@ -277,17 +274,45 @@ function miroSetupExchangeSections(m: MiroRelayAccess): { title: string; body: s
   return sections;
 }
 
+type DelegatedCredentialLoadState = "loading" | "ready" | "missing" | "error";
+
 function DelegatedCredentialPanel({ grantId, canUse }: { grantId: string; canUse: boolean }) {
   const { notify, session } = useAppContext();
   const [reveal, setReveal] = useState(false);
-  const [credential, setCredential] = useState<string | null>(() => getStoredDelegatedCredential(grantId));
+  const [credential, setCredential] = useState<string | null>(null);
+  const [loadState, setLoadState] = useState<DelegatedCredentialLoadState>("loading");
   const [rotateConfirm, setRotateConfirm] = useState(false);
   const [rotatePending, setRotatePending] = useState(false);
 
   useEffect(() => {
-    setCredential(getStoredDelegatedCredential(grantId));
+    if (!canUse) return;
+    let cancelled = false;
+    setLoadState("loading");
+    setCredential(null);
     setReveal(false);
-  }, [grantId]);
+    void api
+      .getMyDelegationGrantDelegatedCredential(grantId)
+      .then((result) => {
+        if (cancelled) return;
+        setCredential(result.delegated_credential);
+        setLoadState("ready");
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        if (
+          isApiError(error) &&
+          error.status === 404 &&
+          (error.message.includes("delegated_credential_not_stored") || error.message.includes("not stored"))
+        ) {
+          setLoadState("missing");
+          return;
+        }
+        setLoadState("error");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [grantId, canUse]);
 
   const handleCopy = async () => {
     const value = credential;
@@ -305,19 +330,19 @@ function DelegatedCredentialPanel({ grantId, canUse }: { grantId: string; canUse
     setRotatePending(true);
     try {
       const result = await api.rotateMyDelegationGrantCredential(session.csrfToken, grantId);
-      setStoredDelegatedCredential(grantId, result.delegated_credential);
       setCredential(result.delegated_credential);
       setReveal(true);
       setRotateConfirm(false);
+      setLoadState("ready");
       notify({
         tone: "success",
-        title: "New secret ready",
-        description: "Copy it now. The old secret no longer works.",
+        title: "Secret updated",
+        description: "Copy it now. The previous secret no longer works.",
       });
     } catch (error) {
       notify({
         tone: "error",
-        title: "Could not issue a new secret",
+        title: "Could not replace secret",
         description: isApiError(error) ? error.message : "Unexpected error.",
       });
     } finally {
@@ -334,45 +359,65 @@ function DelegatedCredentialPanel({ grantId, canUse }: { grantId: string; canUse
       <div className="grant-delegated-credential panel-inset">
         <h3 className="grant-detail-section-title">Delegated credential</h3>
         <p className="grant-detail-lede muted">
-          Use this value for the <code className="grant-inline-code">X-Delegated-Credential</code> header.
+          Value for the <code className="grant-inline-code">X-Delegated-Credential</code> header.
         </p>
-        {credential ? (
-          <div className="grant-delegated-credential-block">
-            <div className="grant-delegated-credential-value">
-              {reveal ? (
-                <code className="grant-credential-code">{credential}</code>
-              ) : (
-                <span className="grant-credential-masked" aria-hidden>
-                  ••••••••••••••••
-                </span>
-              )}
+        {loadState === "loading" ? (
+          <p className="muted grant-detail-lede">Loading…</p>
+        ) : null}
+
+        {loadState === "error" ? (
+          <p className="muted grant-detail-lede">Could not load the secret. Try again later.</p>
+        ) : null}
+
+        {loadState === "ready" && credential ? (
+          <>
+            <div className="grant-delegated-credential-block">
+              <div className="grant-delegated-credential-value">
+                {reveal ? (
+                  <code className="grant-credential-code">{credential}</code>
+                ) : (
+                  <span className="grant-credential-masked" aria-hidden>
+                    ••••••••••••••••
+                  </span>
+                )}
+              </div>
+              <div className="grant-delegated-credential-buttons">
+                <button type="button" className="ghost-button" onClick={() => setReveal((v) => !v)}>
+                  {reveal ? "Hide" : "Reveal"}
+                </button>
+                <button type="button" className="ghost-button" onClick={() => void handleCopy()}>
+                  Copy
+                </button>
+              </div>
             </div>
-            <div className="grant-delegated-credential-buttons">
-              <button type="button" className="ghost-button" onClick={() => setReveal((v) => !v)}>
-                {reveal ? "Hide" : "Reveal"}
-              </button>
-              <button type="button" className="ghost-button" onClick={() => void handleCopy()}>
-                Copy
-              </button>
-              <button type="button" className="ghost-button" onClick={() => setRotateConfirm(true)}>
-                New secret
-              </button>
-            </div>
-          </div>
-        ) : (
+            <details className="grant-disclosure grant-disclosure--inline">
+              <summary className="grant-disclosure-summary grant-disclosure-summary--inline">Replace secret</summary>
+              <div className="grant-detail-disclosure-body">
+                <p className="muted grant-detail-lede">Creates a new secret and invalidates the current one.</p>
+                <button type="button" className="secondary-button" onClick={() => setRotateConfirm(true)}>
+                  Replace secret
+                </button>
+              </div>
+            </details>
+          </>
+        ) : null}
+
+        {loadState === "missing" ? (
           <div className="grant-delegated-credential-block grant-delegated-credential-block--empty">
-            <p className="muted grant-detail-lede">Not stored in this browser. Issue a new secret to get a copyable value.</p>
+            <p className="muted grant-detail-lede">
+              This access was created before server-side storage. Replace the secret once to enable reveal and copy here.
+            </p>
             <button type="button" className="secondary-button" onClick={() => setRotateConfirm(true)}>
-              Issue new secret
+              Replace secret
             </button>
           </div>
-        )}
+        ) : null}
       </div>
 
       {rotateConfirm ? (
         <ConfirmModal
-          title="New secret?"
-          confirmLabel="Issue new secret"
+          title="Replace secret?"
+          confirmLabel="Replace secret"
           cancelLabel="Cancel"
           confirmBusy={rotatePending}
           onCancel={() => setRotateConfirm(false)}
@@ -1130,7 +1175,6 @@ function GrantsPage() {
         capabilities: parseLines(form.capabilities_text),
       });
       setCreatedResult(result);
-      setStoredDelegatedCredential(result.delegation_grant.id, result.delegated_credential);
       notify({ tone: "success", title: "App access added" });
       setGrantModalOpen(false);
       setForm((current) => ({
@@ -1158,7 +1202,6 @@ function GrantsPage() {
     setGrantRevokePending(true);
     try {
       await api.revokeMyDelegationGrant(session.csrfToken, grantId);
-      removeStoredDelegatedCredential(grantId);
       notify({ tone: "info", title: "Access removed" });
       await load();
     } catch (error) {

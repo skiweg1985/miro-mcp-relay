@@ -350,6 +350,7 @@ Endpunkt:
 - `GET /api/v1/service-clients`
 - `GET /api/v1/delegation-grants`
 - `POST /api/v1/delegation-grants`
+- `GET /api/v1/delegation-grants/{id}/delegated-credential`
 - `POST /api/v1/delegation-grants/{id}/rotate-credential`
 - `POST /api/v1/delegation-grants/{id}/revoke`
 - `GET /api/v1/token-issues`

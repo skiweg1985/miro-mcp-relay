@@ -599,6 +599,7 @@ def create_delegation_grant(payload: DelegationGrantCreate, admin: User = Depend
         connected_account_id=connected_account_id,
         credential_hash=hash_secret(delegated_credential),
         credential_lookup_hash=lookup_secret_hash(delegated_credential),
+        encrypted_delegated_credential=encrypt_text(delegated_credential),
         allowed_access_modes_json=dumps_json(grant_modes),
         scope_ceiling_json=dumps_json(payload.scope_ceiling),
         environment=payload.environment,
@@ -640,6 +641,7 @@ def revoke_delegation_grant(grant_id: str, admin: User = Depends(require_admin),
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Delegation grant not found")
     grant.is_enabled = False
     grant.revoked_at = utcnow()
+    grant.encrypted_delegated_credential = None
     record_audit(db, action="admin.delegation_grant.revoked", actor_type="user", actor_id=admin.id, organization_id=admin.organization_id, metadata={"grant_id": grant.id})
     db.commit()
     db.refresh(grant)

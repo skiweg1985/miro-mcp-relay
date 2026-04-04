@@ -1,3 +1,27 @@
+## 2026-04-04 – Cursor Agent – Delegated Credential serverseitig abrufbar
+
+- Done:
+  - `delegation_grants.encrypted_delegated_credential`, `reconcile_schema`, Create/Rotate/Revoke (User + Admin); `GET /delegation-grants/{id}/delegated-credential`; 404 `delegated_credential_not_stored`.
+  - Frontend: `api.getMyDelegationGrantDelegatedCredential`, `DelegatedCredentialPanel` lädt per GET; **Replace secret** nur in `<details>` oder bei Legacy; `localStorage`-Pfad entfernt.
+  - `docs/CHANGELOG.md`, `docs/technische-referenz.md`; Smoke-Tests mit `encrypt_text` auf Test-Grants.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - backend/app/models.py, seed.py, routers/user.py, routers/admin.py, test_welle1_smoke.py
+  - frontend/src/App.tsx, api.ts, utils.ts, index.css
+  - docs/CHANGELOG.md, docs/technische-referenz.md, planning/coordination/WORKLOG.md
+- Test notes:
+  - `cd frontend && npm run build`, `pytest backend/test_welle1_smoke.py`
+- Changelog updated:
+  - yes
+- Follow-ups:
+  - keine
+
 ## 2026-04-04 – Cursor Agent – Delegated Credential im Access-Modal
 
 - Done:

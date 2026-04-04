@@ -18,7 +18,7 @@ from app.schemas import (
     TokenIssueEventOut,
     VisibleServiceClientOut,
 )
-from app.security import dumps_json, hash_secret, issue_plain_secret, loads_json, lookup_secret_hash, utcnow
+from app.security import decrypt_text, dumps_json, encrypt_text, hash_secret, issue_plain_secret, loads_json, lookup_secret_hash, utcnow
 
 router = APIRouter(tags=["user"])
 
@@ -172,6 +172,7 @@ def create_my_delegation_grant(
         connected_account_id=connected_account.id if connected_account else None,
         credential_hash=hash_secret(delegated_credential),
         credential_lookup_hash=lookup_secret_hash(delegated_credential),
+        encrypted_delegated_credential=encrypt_text(delegated_credential),
         allowed_access_modes_json=dumps_json(allowed_access_modes),
         scope_ceiling_json=dumps_json(payload.scope_ceiling),
         environment=payload.environment,
@@ -214,6 +215,22 @@ def create_my_delegation_grant(
     )
 
 
+@router.get("/delegation-grants/{grant_id}/delegated-credential", response_model=DelegatedCredentialRotateOut)
+def get_my_delegation_grant_delegated_credential(grant_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    grant = db.scalar(select(DelegationGrant).where(DelegationGrant.id == grant_id, DelegationGrant.user_id == current_user.id))
+    if not grant:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Delegation grant not found")
+    if grant.revoked_at is not None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Delegation grant is revoked")
+    if not grant.is_enabled:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Delegation grant is disabled")
+
+    plaintext = decrypt_text(grant.encrypted_delegated_credential)
+    if not plaintext:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="delegated_credential_not_stored")
+    return DelegatedCredentialRotateOut(delegated_credential=plaintext)
+
+
 @router.post(
     "/delegation-grants/{grant_id}/rotate-credential",
     response_model=DelegatedCredentialRotateOut,
@@ -231,6 +248,7 @@ def rotate_my_delegation_grant_credential(grant_id: str, current_user: User = De
     delegated_credential = issue_plain_secret()
     grant.credential_hash = hash_secret(delegated_credential)
     grant.credential_lookup_hash = lookup_secret_hash(delegated_credential)
+    grant.encrypted_delegated_credential = encrypt_text(delegated_credential)
     grant.updated_at = utcnow()
     record_audit(
         db,
@@ -251,6 +269,7 @@ def revoke_my_delegation_grant(grant_id: str, current_user: User = Depends(get_c
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Delegation grant not found")
     grant.is_enabled = False
     grant.revoked_at = utcnow()
+    grant.encrypted_delegated_credential = None
     record_audit(
         db,
         action="user.delegation_grant.revoked",

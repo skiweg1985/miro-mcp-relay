@@ -43,5 +43,6 @@
 
 ### Fixed
 
+- Frontend: Integrations-Karten (Grid) nicht mehr über die volle Zeilenhöhe gestreckt; Beschreibung wächst nicht mehr mit `flex: 1`, Buttons bleiben unter dem Text (`align-items: start` auf `.integration-grid`, Beschreibung `flex: 0 1 auto`).
 - Legacy-MCP-Proxy nutzt Request-DB-Session statt vorzeitig geschlossener Session.
 - Miro-Setup-Token: Commit nach Verbrauch, damit Einmal-Nutzung gilt.

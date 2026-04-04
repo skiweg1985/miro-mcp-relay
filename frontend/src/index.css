@@ -1111,6 +1111,7 @@ select option {
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: var(--space-4);
   margin-bottom: var(--space-5);
+  align-items: start;
 }
 
 .integration-card {
@@ -1158,7 +1159,7 @@ select option {
   color: var(--ink-secondary);
   font-size: var(--font-label);
   line-height: var(--line-relaxed);
-  flex: 1;
+  flex: 0 1 auto;
 }
 
 .integration-card-meta {

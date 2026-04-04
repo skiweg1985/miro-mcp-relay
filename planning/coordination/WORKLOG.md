@@ -1,3 +1,31 @@
+## 2026-04-04 – Cursor Agent – Integrations-Karten: vertikales Stretching
+
+- Done:
+  - `frontend/src/index.css`: `.integration-grid` mit `align-items: start`; `.integration-card-desc` von `flex: 1` auf `flex: 0 1 auto` (kein Wachstum in die Zeilenhöhe).
+  - `npm run build`; `frontend/dist` angepasst.
+  - `docs/CHANGELOG.md` [Unreleased] Fixed ergänzt.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - frontend/src/index.css
+  - frontend/dist/
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build`
+  - endpoints: keine
+- UI path:
+  - `/workspace/integrations`, `/app/integrations` (Integrations-Karten)
+- Changelog updated:
+  - yes ([Unreleased] Fixed)
+- Follow-ups:
+  - keine
+
 ## 2026-04-04 18:30 – Cursor Agent – Self-Service Navigation: zentrale Integrations-Seite
 
 - Done:

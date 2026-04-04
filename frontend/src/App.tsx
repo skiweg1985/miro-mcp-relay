@@ -269,7 +269,7 @@ function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
   const directAllowed = grant.allowed_access_modes.includes("direct_token");
   const relayAllowed = grant.allowed_access_modes.includes("relay");
   const miroRelay = relayAllowed && isMiroProviderKey(grant.provider_app_key);
-  const showConnectionAccess = relayAllowed && Boolean(grant.connected_account_id);
+  const showConnectionAccess = (relayAllowed || directAllowed) && Boolean(grant.connected_account_id);
 
   const directExample = [
     `POST ${origin}/api/v1/token-issues/provider-access`,

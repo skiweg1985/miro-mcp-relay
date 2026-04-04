@@ -15,6 +15,9 @@
 
 ### Changed
 
+- API/UI: Microsoft-Graph-Verbindungen liefern `GET .../access-details` mit Direct-/Relay-Zeilen, API-**Endpoint**, **Access request** (Token-Ausgabe-URL), Key-Status (maskiert, kein Klartext, kein Rotate); **App access**-Detail zeigt dieselbe Zusammenfassung bei **Direct** oder **Relay** (nicht nur Relay).
+- Frontend: **Integrations** lädt **Connection details** für alle Verbindungen mit unterstützten Zugangsdaten (mehrere Karten bei mehreren aktiven Integrationen).
+
 - Frontend: Admin **Integrations** – Klick öffnet zuerst eine **Übersichtsseite** (`/app/integrations/{id}`) mit Status, Konfigurationskurzinfo, Nutzung (Verbundkonten, Token-Ereignisse), Health und ausklappbaren technischen Details; **Edit** / **Test connection** / **Enable**/**Disable** dort; Bearbeitung weiter im bestehenden Wizard-Drawer; benutzerdefinierte OAuth-Apps als Karten und mit **Open**; Liste: **Open** statt direktem Editor, **Set up** wenn noch kein Datensatz existiert.
 - Relay-Pfade (`/miro/mcp/…`, `/api/v1/broker-proxy/miro/…`) nutzen die generische Engine; Miro-spezifische Upstream-Hardcodes in den Handlern entfernt.
 - Service-Zugriff (`diagnose_service_access`): Erlaubnis „relay“ / „direct_token“ aus `effective_allowed_connection_types` statt nur Legacy-Spalten.

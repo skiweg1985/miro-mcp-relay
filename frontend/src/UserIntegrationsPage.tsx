@@ -4,7 +4,7 @@ import { SetupDrawer, SummaryRow, type WizardStep } from "./admin/SetupDrawer";
 import { useAppContext } from "./app-context";
 import { api } from "./api";
 import { connectionAccessDetailsFromMiroLegacy } from "./accessCredentialMappers";
-import { TEMPLATE_MIRO, TEMPLATE_MS_LOGIN } from "./admin/constants";
+import { TEMPLATE_MS_LOGIN } from "./admin/constants";
 import { AccessCredentialSummary } from "./AccessCredentialSummary";
 import {
   Card,
@@ -64,17 +64,6 @@ function friendlyBrokerMessage(raw: string | null | undefined): string {
   return message;
 }
 
-/** Active Miro OAuth link only — revoked rows are ignored so the workspace looks unset after disconnect. */
-function findConnectedMiroConnection(
-  connections: ConnectedAccountOut[],
-  providerAppById: Record<string, ProviderAppOut>,
-): ConnectedAccountOut | undefined {
-  return connections.find(
-    (connection) =>
-      providerAppById[connection.provider_app_id]?.template_key === TEMPLATE_MIRO && connection.status === "connected",
-  );
-}
-
 function templateDescription(definitions: ProviderDefinitionOut[], templateKey: string | null): string {
   if (!templateKey) return "";
   for (const def of definitions) {
@@ -105,10 +94,10 @@ export function UserIntegrationsPage() {
   const [providerApps, setProviderApps] = useState<ProviderAppOut[]>([]);
   const [definitions, setDefinitions] = useState<ProviderDefinitionOut[]>([]);
   const [connections, setConnections] = useState<ConnectedAccountOut[]>([]);
-  const [accessDetails, setAccessDetails] = useState<ConnectionAccessDetails | null>(null);
+  const [accessDetailsByConnectionId, setAccessDetailsByConnectionId] = useState<Record<string, ConnectionAccessDetails>>({});
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<Set<string>>(() => new Set());
-  const [tokenPending, setTokenPending] = useState(false);
+  const [rotatePendingConnectionId, setRotatePendingConnectionId] = useState<string | null>(null);
   const [setupPending, setSetupPending] = useState(false);
   const [probeById, setProbeById] = useState<Record<string, ConnectionProbeResult>>({});
 
@@ -129,17 +118,20 @@ export function UserIntegrationsPage() {
       setProviderApps(appData);
       setDefinitions(defData);
       setConnections(connectionData);
-      const providerMap = Object.fromEntries(appData.map((app) => [app.id, app]));
-      const miroConn = findConnectedMiroConnection(connectionData, providerMap);
-      if (miroConn) {
-        try {
-          setAccessDetails(await api.connectionAccessDetails(miroConn.id));
-        } catch {
-          setAccessDetails(null);
-        }
-      } else {
-        setAccessDetails(null);
-      }
+      const next: Record<string, ConnectionAccessDetails> = {};
+      await Promise.all(
+        connectionData
+          .filter((c) => c.status === "connected")
+          .map(async (c) => {
+            try {
+              const d = await api.connectionAccessDetails(c.id);
+              if (d.supported) next[c.id] = d;
+            } catch {
+              void 0;
+            }
+          }),
+      );
+      setAccessDetailsByConnectionId(next);
     } catch (error) {
       notify({
         tone: "error",
@@ -195,7 +187,10 @@ export function UserIntegrationsPage() {
     void api
       .exchangeMiroSetup(session.csrfToken, setupToken)
       .then((result) => {
-        setAccessDetails(connectionAccessDetailsFromMiroLegacy(result));
+        setAccessDetailsByConnectionId((prev) => ({
+          ...prev,
+          [result.connected_account_id]: connectionAccessDetailsFromMiroLegacy(result),
+        }));
         notify({
           tone: "success",
           title: "Connection details ready",
@@ -301,12 +296,12 @@ export function UserIntegrationsPage() {
     });
   };
 
-  const handleRotateAccessKey = async (miroConnectionId: string) => {
+  const handleRotateAccessKey = async (connectionId: string) => {
     if (session.status !== "authenticated") return;
-    setTokenPending(true);
+    setRotatePendingConnectionId(connectionId);
     try {
-      const result = await api.rotateConnectionAccess(session.csrfToken, miroConnectionId);
-      setAccessDetails(result);
+      const result = await api.rotateConnectionAccess(session.csrfToken, connectionId);
+      setAccessDetailsByConnectionId((prev) => ({ ...prev, [connectionId]: result }));
       notify({
         tone: "success",
         title: "New access key ready",
@@ -319,13 +314,11 @@ export function UserIntegrationsPage() {
         description: isApiError(error) ? friendlyBrokerMessage(error.message) : "Unexpected error.",
       });
     } finally {
-      setTokenPending(false);
+      setRotatePendingConnectionId(null);
     }
   };
 
   if (loading) return <LoadingScreen label="Loading integrations…" />;
-
-  const existingMiro = findConnectedMiroConnection(connections, providerAppById);
 
   const lastConnectStep = connectWizardStep >= CONNECT_WIZARD_STEPS.length - 1;
   const lastDetailsStep = detailsWizardStep >= DETAILS_WIZARD_STEPS.length - 1;
@@ -400,15 +393,16 @@ export function UserIntegrationsPage() {
         </div>
       )}
 
-      {existingMiro ? (
+      {Object.entries(accessDetailsByConnectionId).map(([connectionId, details]) => (
         <AccessCredentialSummary
-          details={accessDetails}
-          rotatePending={tokenPending}
-          onRotate={() => void handleRotateAccessKey(existingMiro.id)}
+          key={connectionId}
+          details={details}
+          rotatePending={rotatePendingConnectionId === connectionId}
+          onRotate={details.can_rotate ? () => void handleRotateAccessKey(connectionId) : undefined}
           cardTitle="Connection details"
           cardDescription="Endpoint and key for tools that use this connection."
         />
-      ) : null}
+      ))}
 
       {connectWizardApp ? (
         <SetupDrawer

@@ -1073,3 +1073,27 @@
   - yes ([Unreleased] Added)
 - Follow-ups:
   - keine
+
+## 2026-04-04 – Cursor Agent – Direct access connection details
+
+- Done:
+  - `connection_access_details.py`: Microsoft Graph mit Access type, Endpoint, Access request; OAuth-Key nur maskiert, `can_rotate` false.
+  - `App.tsx` GrantDetailPanel: Zusammenfassung bei Direct oder Relay; `UserIntegrationsPage.tsx`: mehrere Connection-detail-Karten; `AccessCredentialSummary.tsx`: Hinweis ohne Rotate.
+  - `test_welle1_smoke.py`: `test_graph_connection_access_details`; `docs/CHANGELOG.md` [Unreleased] Changed.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - backend/app/connection_access_details.py, backend/test_welle1_smoke.py
+  - frontend/src/App.tsx, UserIntegrationsPage.tsx, AccessCredentialSummary.tsx
+  - docs/CHANGELOG.md, planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `python3 -m unittest test_welle1_smoke.Welle1SmokeTest.test_graph_connection_access_details`, `cd frontend && npm run build`
+- Changelog updated:
+  - yes ([Unreleased] Changed)
+- Follow-ups:
+  - keine

@@ -252,6 +252,25 @@ class Welle1SmokeTest(unittest.TestCase):
         self.assertEqual(issued.status_code, 200)
         self.assertEqual(issued.json()["access_token"], "graph-access-token")
 
+    def test_graph_connection_access_details(self) -> None:
+        fixture = self._seed_service_access_fixture()
+        client, csrf_token = self._login_admin()
+        r = client.get(
+            f"/api/v1/connections/{fixture['graph_connection_id']}/access-details",
+            headers={"X-CSRF-Token": csrf_token},
+        )
+        self.assertEqual(r.status_code, 200)
+        body = r.json()
+        self.assertTrue(body["supported"])
+        self.assertEqual(body["key_section"]["status"], "stored")
+        self.assertIsNone(body["key_section"]["plaintext"])
+        self.assertFalse(body["can_rotate"])
+        bad = client.post(
+            f"/api/v1/connections/{fixture['graph_connection_id']}/access-details/rotate",
+            headers={"X-CSRF-Token": csrf_token},
+        )
+        self.assertEqual(bad.status_code, 400)
+
     def test_connected_accounts_filters_support_operator_views(self) -> None:
         fixture = self._seed_service_access_fixture()
         client, csrf_token = self._login_admin()

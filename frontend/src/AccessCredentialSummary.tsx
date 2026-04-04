@@ -116,9 +116,9 @@ export function AccessCredentialSummary({
       ) : null}
 
       <div className="stack-list">
-        {details.rows.map((row) => (
+        {details.rows.map((row, index) => (
           <AccessDetailRowView
-            key={row.label}
+            key={`${row.label}-${index}`}
             label={row.label}
             value={row.value}
             copyable={row.copyable}
@@ -165,7 +165,11 @@ export function AccessCredentialSummary({
       ) : null}
 
       {showStoredHint ? (
-        <p className="lede">The current key still works elsewhere. Create a new key when you need to copy it again.</p>
+        <p className="lede">
+          {showRotate
+            ? "The current key still works elsewhere. Create a new key when you need to copy it again."
+            : "The provider token is stored securely. Use the access request URL with the secret from App access. The full key is not shown here."}
+        </p>
       ) : null}
 
       {revealSections ? <CredentialRevealModal sections={revealSections} /> : null}

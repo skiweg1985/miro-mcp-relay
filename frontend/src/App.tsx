@@ -58,12 +58,15 @@ import { isApiError } from "./errors";
 import {
   copyToClipboard,
   formatDateTime,
+  getStoredDelegatedCredential,
   matchesRoute,
-  replaceLegacyAdminPath,
-  parseLines,
   parseApiDateTime,
+  parseLines,
   relativeTime,
   relativeTimeCompact,
+  removeStoredDelegatedCredential,
+  replaceLegacyAdminPath,
+  setStoredDelegatedCredential,
   toIsoDateTime,
 } from "./utils";
 
@@ -274,6 +277,114 @@ function miroSetupExchangeSections(m: MiroRelayAccess): { title: string; body: s
   return sections;
 }
 
+function DelegatedCredentialPanel({ grantId, canUse }: { grantId: string; canUse: boolean }) {
+  const { notify, session } = useAppContext();
+  const [reveal, setReveal] = useState(false);
+  const [credential, setCredential] = useState<string | null>(() => getStoredDelegatedCredential(grantId));
+  const [rotateConfirm, setRotateConfirm] = useState(false);
+  const [rotatePending, setRotatePending] = useState(false);
+
+  useEffect(() => {
+    setCredential(getStoredDelegatedCredential(grantId));
+    setReveal(false);
+  }, [grantId]);
+
+  const handleCopy = async () => {
+    const value = credential;
+    if (!value) return;
+    const ok = await copyToClipboard(value);
+    notify({
+      tone: ok ? "success" : "error",
+      title: ok ? "Copied to clipboard" : "Clipboard unavailable",
+      description: ok ? "Store this value somewhere safe before you navigate away." : "Your browser did not allow the copy action.",
+    });
+  };
+
+  const handleRotate = async () => {
+    if (session.status !== "authenticated") return;
+    setRotatePending(true);
+    try {
+      const result = await api.rotateMyDelegationGrantCredential(session.csrfToken, grantId);
+      setStoredDelegatedCredential(grantId, result.delegated_credential);
+      setCredential(result.delegated_credential);
+      setReveal(true);
+      setRotateConfirm(false);
+      notify({
+        tone: "success",
+        title: "New secret ready",
+        description: "Copy it now. The old secret no longer works.",
+      });
+    } catch (error) {
+      notify({
+        tone: "error",
+        title: "Could not issue a new secret",
+        description: isApiError(error) ? error.message : "Unexpected error.",
+      });
+    } finally {
+      setRotatePending(false);
+    }
+  };
+
+  if (!canUse) {
+    return null;
+  }
+
+  return (
+    <>
+      <div className="grant-delegated-credential panel-inset">
+        <h3 className="grant-detail-section-title">Delegated credential</h3>
+        <p className="grant-detail-lede muted">
+          Use this value for the <code className="grant-inline-code">X-Delegated-Credential</code> header.
+        </p>
+        {credential ? (
+          <div className="grant-delegated-credential-block">
+            <div className="grant-delegated-credential-value">
+              {reveal ? (
+                <code className="grant-credential-code">{credential}</code>
+              ) : (
+                <span className="grant-credential-masked" aria-hidden>
+                  ••••••••••••••••
+                </span>
+              )}
+            </div>
+            <div className="grant-delegated-credential-buttons">
+              <button type="button" className="ghost-button" onClick={() => setReveal((v) => !v)}>
+                {reveal ? "Hide" : "Reveal"}
+              </button>
+              <button type="button" className="ghost-button" onClick={() => void handleCopy()}>
+                Copy
+              </button>
+              <button type="button" className="ghost-button" onClick={() => setRotateConfirm(true)}>
+                New secret
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="grant-delegated-credential-block grant-delegated-credential-block--empty">
+            <p className="muted grant-detail-lede">Not stored in this browser. Issue a new secret to get a copyable value.</p>
+            <button type="button" className="secondary-button" onClick={() => setRotateConfirm(true)}>
+              Issue new secret
+            </button>
+          </div>
+        )}
+      </div>
+
+      {rotateConfirm ? (
+        <ConfirmModal
+          title="New secret?"
+          confirmLabel="Issue new secret"
+          cancelLabel="Cancel"
+          confirmBusy={rotatePending}
+          onCancel={() => setRotateConfirm(false)}
+          onConfirm={() => void handleRotate()}
+        >
+          <p className="lede">The current secret stops working. Update every client that uses it.</p>
+        </ConfirmModal>
+      ) : null}
+    </>
+  );
+}
+
 function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
   const { notify, session } = useAppContext();
   const [accessDetails, setAccessDetails] = useState<ConnectionAccessDetails | null>(null);
@@ -405,74 +516,11 @@ function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
   };
 
   const summaryLoading = accessLoading || (needsConnectionForTools && resolvingConnections && !grant.connected_account_id);
+  const grantCanUseCredential = grantUiState(grant) !== "ended";
 
   return (
     <div className="grant-detail-panel stack-list">
-      <div className="grant-access-requests panel-inset">
-        <h3 className="grant-detail-section-title">Headers and examples</h3>
-        <p className="grant-detail-lede">
-          Use the secret from when you created this access in the header <code className="grant-inline-code">X-Delegated-Credential</code>. Origin:{" "}
-          <code className="grant-inline-code">{origin || "—"}</code>.
-        </p>
-        {grant.service_client_key ? (
-          <p className="grant-detail-lede muted">
-            Named apps may also require <code className="grant-inline-code">X-Service-Secret</code>.
-          </p>
-        ) : null}
-        {!grant.connected_account_id && resolvedConnectionId ? (
-          <p className="grant-detail-lede muted">
-            Connection details below use your active connection for this integration.
-          </p>
-        ) : null}
-        {!grant.connected_account_id && !resolvedConnectionId && connectionResolvedForGrant ? (
-          <p className="grant-detail-lede muted">
-            No active connection for this integration. Add one under Integrations, or pass <code className="grant-inline-code">connected_account_id</code> in
-            the token request body.
-          </p>
-        ) : null}
-        {grant.connected_account_id ? null : !resolvedConnectionId && !connectionResolvedForGrant ? (
-          <p className="grant-detail-lede muted">
-            Resolving which connection applies…
-          </p>
-        ) : null}
-
-        {directAllowed ? (
-          <div className="grant-detail-example-block">
-            <h4 className="grant-detail-example-title">Direct — request header</h4>
-            <p className="muted grant-detail-dev-p">Includes <code className="grant-inline-code">X-Delegated-Credential</code>.</p>
-            <GrantCodeCopy label="Copy example" text={directExample} />
-          </div>
-        ) : null}
-
-        {miroRelay ? (
-          <div className="grant-detail-example-block">
-            <h4 className="grant-detail-example-title">Relay (broker) — request header</h4>
-            <p className="muted grant-detail-dev-p">Includes <code className="grant-inline-code">X-Delegated-Credential</code>.</p>
-            <GrantCodeCopy label="Copy example" text={miroRelayExample} />
-          </div>
-        ) : null}
-
-        {miroRelay && accessDetails?.supported ? (
-          <div className="grant-detail-example-block">
-            <h4 className="grant-detail-example-title">Relay (MCP) — headers</h4>
-            <p className="muted grant-detail-dev-p">
-              Use both headers. The relay key is listed under <strong>Connection details</strong> (not the same value as{" "}
-              <code className="grant-inline-code">X-Delegated-Credential</code>).
-            </p>
-            <GrantCodeCopy label="Copy example" text={mcpRelayExample} />
-          </div>
-        ) : null}
-
-        {relayAllowed && !miroRelay ? (
-          <div className="grant-detail-example-block">
-            <h4 className="grant-detail-example-title">Relay — request header</h4>
-            <p className="muted grant-detail-dev-p">
-              Call the endpoint from <strong>Connection details</strong> with <code className="grant-inline-code">X-Delegated-Credential</code>.
-            </p>
-            <GrantCodeCopy label="Copy example" text={genericRelayExample} />
-          </div>
-        ) : null}
-      </div>
+      <DelegatedCredentialPanel grantId={grant.id} canUse={grantCanUseCredential} />
 
       {showConnectionAccess ? (
         <AccessCredentialSummary
@@ -485,51 +533,117 @@ function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
         />
       ) : null}
 
-      <h3 className="grant-detail-section-title grant-detail-meta-title">This access</h3>
-      <div className="grant-detail-meta stack-list">
-        <div className="stack-cell">
-          <strong>App</strong>
-          <span>{grant.service_client_display_name ?? "Any app (no name)"}</span>
-        </div>
-        <div className="stack-cell">
-          <strong>Integration</strong>
-          <span>{grant.provider_app_display_name}</span>
-        </div>
-        <div className="stack-cell">
-          <strong>Connection</strong>
-          <span>{grant.connected_account_display_name ?? "Pick automatically when used"}</span>
-        </div>
-        <div className="stack-cell">
-          <strong>Status</strong>
-          <span>
-            <StatusBadge tone={grantTone(grant)}>{grantStateLabel(grant)}</StatusBadge>
-          </span>
-        </div>
-        <div className="stack-cell">
-          <strong>Expires</strong>
-          <span>
-            {grant.expires_at ? `${formatDateTime(grant.expires_at)} (${relativeTime(grant.expires_at)})` : "No expiry"}
-          </span>
-        </div>
-        <div className="stack-cell">
-          <strong>Connection type</strong>
-          <span>{grant.allowed_access_modes.map((m) => userAccessModeLabel(m)).join(", ")}</span>
-        </div>
-        <div className="stack-cell">
-          <strong>Scope limits</strong>
-          <span>{grant.scope_ceiling.length ? grant.scope_ceiling.join(", ") : "Same as integration"}</span>
-        </div>
-        <div className="stack-cell">
-          <strong>Extras</strong>
-          <span>{grant.capabilities.length ? grant.capabilities.join(", ") : "None"}</span>
-        </div>
-        {grant.environment ? (
-          <div className="stack-cell">
-            <strong>Environment</strong>
-            <span>{grant.environment}</span>
+      <details className="grant-disclosure">
+        <summary className="grant-disclosure-summary">HTTP examples</summary>
+        <div className="grant-detail-disclosure-body">
+          <div className="grant-access-requests panel-inset grant-access-requests--nested">
+            <p className="grant-detail-lede">
+              Broker origin <code className="grant-inline-code">{origin || "—"}</code>.
+              {grant.service_client_key ? (
+                <> Named apps may require <code className="grant-inline-code">X-Service-Secret</code>.</>
+              ) : null}
+            </p>
+            {!grant.connected_account_id && resolvedConnectionId ? (
+              <p className="grant-detail-lede muted">Connection details use your active connection for this integration.</p>
+            ) : null}
+            {!grant.connected_account_id && !resolvedConnectionId && connectionResolvedForGrant ? (
+              <p className="grant-detail-lede muted">
+                No active connection for this integration. Add one under Integrations, or pass <code className="grant-inline-code">connected_account_id</code> in
+                the token request body.
+              </p>
+            ) : null}
+            {grant.connected_account_id ? null : !resolvedConnectionId && !connectionResolvedForGrant ? (
+              <p className="grant-detail-lede muted">Resolving which connection applies…</p>
+            ) : null}
+
+            {directAllowed ? (
+              <div className="grant-detail-example-block">
+                <h4 className="grant-detail-example-title">Direct</h4>
+                <p className="muted grant-detail-dev-p">Token issue request with <code className="grant-inline-code">X-Delegated-Credential</code>.</p>
+                <GrantCodeCopy label="Copy example" text={directExample} />
+              </div>
+            ) : null}
+
+            {miroRelay ? (
+              <div className="grant-detail-example-block">
+                <h4 className="grant-detail-example-title">Relay (broker)</h4>
+                <p className="muted grant-detail-dev-p">Broker proxy with <code className="grant-inline-code">X-Delegated-Credential</code>.</p>
+                <GrantCodeCopy label="Copy example" text={miroRelayExample} />
+              </div>
+            ) : null}
+
+            {miroRelay && accessDetails?.supported ? (
+              <div className="grant-detail-example-block">
+                <h4 className="grant-detail-example-title">Relay (MCP)</h4>
+                <p className="muted grant-detail-dev-p">
+                  Relay key under <strong>Connection details</strong> (not the same as the delegated credential).
+                </p>
+                <GrantCodeCopy label="Copy example" text={mcpRelayExample} />
+              </div>
+            ) : null}
+
+            {relayAllowed && !miroRelay ? (
+              <div className="grant-detail-example-block">
+                <h4 className="grant-detail-example-title">Relay</h4>
+                <p className="muted grant-detail-dev-p">
+                  Call the endpoint from <strong>Connection details</strong> with <code className="grant-inline-code">X-Delegated-Credential</code>.
+                </p>
+                <GrantCodeCopy label="Copy example" text={genericRelayExample} />
+              </div>
+            ) : null}
           </div>
-        ) : null}
-      </div>
+        </div>
+      </details>
+
+      <details className="grant-disclosure">
+        <summary className="grant-disclosure-summary">Scope and status</summary>
+        <div className="grant-detail-disclosure-body">
+          <div className="grant-detail-meta stack-list">
+            <div className="stack-cell">
+              <strong>App</strong>
+              <span>{grant.service_client_display_name ?? "Any app (no name)"}</span>
+            </div>
+            <div className="stack-cell">
+              <strong>Integration</strong>
+              <span>{grant.provider_app_display_name}</span>
+            </div>
+            <div className="stack-cell">
+              <strong>Connection</strong>
+              <span>{grant.connected_account_display_name ?? "Pick automatically when used"}</span>
+            </div>
+            <div className="stack-cell">
+              <strong>Status</strong>
+              <span>
+                <StatusBadge tone={grantTone(grant)}>{grantStateLabel(grant)}</StatusBadge>
+              </span>
+            </div>
+            <div className="stack-cell">
+              <strong>Expires</strong>
+              <span>
+                {grant.expires_at ? `${formatDateTime(grant.expires_at)} (${relativeTime(grant.expires_at)})` : "No expiry"}
+              </span>
+            </div>
+            <div className="stack-cell">
+              <strong>Connection type</strong>
+              <span>{grant.allowed_access_modes.map((m) => userAccessModeLabel(m)).join(", ")}</span>
+            </div>
+            <div className="stack-cell">
+              <strong>Scope limits</strong>
+              <span>{grant.scope_ceiling.length ? grant.scope_ceiling.join(", ") : "Same as integration"}</span>
+            </div>
+            <div className="stack-cell">
+              <strong>Extras</strong>
+              <span>{grant.capabilities.length ? grant.capabilities.join(", ") : "None"}</span>
+            </div>
+            {grant.environment ? (
+              <div className="stack-cell">
+                <strong>Environment</strong>
+                <span>{grant.environment}</span>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </details>
     </div>
   );
 }
@@ -1016,6 +1130,7 @@ function GrantsPage() {
         capabilities: parseLines(form.capabilities_text),
       });
       setCreatedResult(result);
+      setStoredDelegatedCredential(result.delegation_grant.id, result.delegated_credential);
       notify({ tone: "success", title: "App access added" });
       setGrantModalOpen(false);
       setForm((current) => ({
@@ -1043,6 +1158,7 @@ function GrantsPage() {
     setGrantRevokePending(true);
     try {
       await api.revokeMyDelegationGrant(session.csrfToken, grantId);
+      removeStoredDelegatedCredential(grantId);
       notify({ tone: "info", title: "Access removed" });
       await load();
     } catch (error) {
@@ -1183,7 +1299,7 @@ function GrantsPage() {
       ) : null}
 
       {grantDetailId && grantDetailGrant ? (
-        <Modal title="Details" wide onClose={() => setGrantDetailId(null)}>
+        <Modal title="Access" wide onClose={() => setGrantDetailId(null)}>
           <GrantDetailPanel grant={grantDetailGrant} />
         </Modal>
       ) : null}

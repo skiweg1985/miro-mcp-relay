@@ -15,6 +15,7 @@ import type {
   ProviderAppOut,
   ProviderDefinitionOut,
   ProviderInstanceOut,
+  DelegatedCredentialRotateResult,
   SelfServiceDelegationGrantCreateResult,
   SelfServiceDelegationGrantOut,
   ServiceClientCreateResult,
@@ -194,6 +195,12 @@ export const api = {
   },
   revokeMyDelegationGrant(csrfToken: string, grantId: string) {
     return request<SelfServiceDelegationGrantOut>(`/api/v1/delegation-grants/${grantId}/revoke`, {
+      method: "POST",
+      csrfToken,
+    });
+  },
+  rotateMyDelegationGrantCredential(csrfToken: string, grantId: string) {
+    return request<DelegatedCredentialRotateResult>(`/api/v1/delegation-grants/${grantId}/rotate-credential`, {
       method: "POST",
       csrfToken,
     });

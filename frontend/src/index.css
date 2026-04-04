@@ -763,8 +763,80 @@ h3 {
   font-weight: 650;
 }
 
-.grant-detail-meta-title {
-  margin: var(--space-4) 0 var(--space-2);
+.grant-delegated-credential {
+  margin-bottom: var(--space-2);
+}
+
+.grant-delegated-credential-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.grant-delegated-credential-value {
+  padding: var(--space-2) var(--space-3);
+  border-radius: 8px;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-subtle);
+  overflow-x: auto;
+}
+
+.grant-credential-code {
+  display: block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: var(--font-caption);
+  line-height: 1.45;
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+
+.grant-credential-masked {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  letter-spacing: 0.06em;
+  color: var(--ink-secondary);
+}
+
+.grant-delegated-credential-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.grant-delegated-credential-block--empty {
+  align-items: flex-start;
+}
+
+.grant-disclosure {
+  margin-top: var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: var(--surface-muted);
+  padding: 0 var(--space-3);
+}
+
+.grant-disclosure[open] {
+  padding-bottom: var(--space-2);
+}
+
+.grant-disclosure-summary {
+  cursor: pointer;
+  list-style: none;
+  padding: var(--space-3) 0;
+  font-size: var(--font-body);
+  font-weight: 650;
+}
+
+.grant-disclosure-summary::-webkit-details-marker {
+  display: none;
+}
+
+.grant-detail-disclosure-body {
+  padding-bottom: var(--space-2);
+}
+
+.grant-access-requests--nested {
+  margin-top: 0;
 }
 
 .grant-detail-lede {

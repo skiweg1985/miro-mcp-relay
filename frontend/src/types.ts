@@ -229,6 +229,11 @@ export type SelfServiceDelegationGrantCreateResult = {
   delegated_credential: string;
 };
 
+export type DelegatedCredentialRotateResult = {
+  ok: boolean;
+  delegated_credential: string;
+};
+
 export type TokenIssueEventOut = {
   id: string;
   service_client_id: string | null;

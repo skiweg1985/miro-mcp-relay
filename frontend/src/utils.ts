@@ -148,3 +148,40 @@ export function matchesRoute(pathname: string): RouteMatch {
   }
   return { name: "notFound", path: path };
 }
+
+const BROKER_DELEGATED_CREDENTIAL_STORAGE_KEY = "broker_delegated_credentials_v1";
+
+export function getStoredDelegatedCredential(grantId: string): string | null {
+  try {
+    const raw = localStorage.getItem(BROKER_DELEGATED_CREDENTIAL_STORAGE_KEY);
+    if (!raw) return null;
+    const map = JSON.parse(raw) as Record<string, string>;
+    const value = map[grantId];
+    return typeof value === "string" && value.trim() ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setStoredDelegatedCredential(grantId: string, credential: string) {
+  try {
+    const raw = localStorage.getItem(BROKER_DELEGATED_CREDENTIAL_STORAGE_KEY);
+    const map = raw ? (JSON.parse(raw) as Record<string, string>) : {};
+    map[grantId] = credential;
+    localStorage.setItem(BROKER_DELEGATED_CREDENTIAL_STORAGE_KEY, JSON.stringify(map));
+  } catch {
+    void 0;
+  }
+}
+
+export function removeStoredDelegatedCredential(grantId: string) {
+  try {
+    const raw = localStorage.getItem(BROKER_DELEGATED_CREDENTIAL_STORAGE_KEY);
+    if (!raw) return;
+    const map = JSON.parse(raw) as Record<string, string>;
+    delete map[grantId];
+    localStorage.setItem(BROKER_DELEGATED_CREDENTIAL_STORAGE_KEY, JSON.stringify(map));
+  } catch {
+    void 0;
+  }
+}

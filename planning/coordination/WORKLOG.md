@@ -1,3 +1,38 @@
+## 2026-04-04 – Cursor Agent – Delegated Credential im Access-Modal
+
+- Done:
+  - Backend: `POST /api/v1/delegation-grants/{id}/rotate-credential`, Schema `DelegatedCredentialRotateOut`, Audit `user.delegation_grant.credential_rotated`.
+  - Frontend: `DelegatedCredentialPanel` (Reveal, Copy, New secret / Issue new secret), `localStorage` `broker_delegated_credentials_v1` bei Create/Rotate, Cleanup bei Revoke; Modal **Access**; `<details>` für HTTP-Beispiele und Scope/Status; `utils.ts` Storage-Helfer; `api.rotateMyDelegationGrantCredential`.
+  - `docs/CHANGELOG.md`, `docs/technische-referenz.md`.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - backend/app/schemas.py
+  - backend/app/routers/user.py
+  - frontend/src/App.tsx
+  - frontend/src/api.ts
+  - frontend/src/types.ts
+  - frontend/src/utils.ts
+  - frontend/src/index.css
+  - docs/CHANGELOG.md
+  - docs/technische-referenz.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `python3 -m py_compile …`, `cd frontend && npm run build`
+- endpoints:
+  - `POST /api/v1/delegation-grants/{id}/rotate-credential`
+- UI path:
+  - `/grants` → Zeile → **Access**-Modal
+- Changelog updated:
+  - yes (Added / Changed)
+- Follow-ups:
+  - keine
+
 ## 2026-04-04 – Cursor Agent – Access-Detail Header und Connection-Auflösung
 
 - Done:

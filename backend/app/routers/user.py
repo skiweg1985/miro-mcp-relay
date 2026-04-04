@@ -11,6 +11,7 @@ from app.deps import get_current_user, record_audit, require_csrf
 from app.models import ConnectedAccount, DelegationGrant, GrantedCapability, ProviderApp, ServiceClient, TokenIssueEvent, User
 from app.relay_config import effective_allowed_connection_types
 from app.schemas import (
+    DelegatedCredentialRotateOut,
     SelfServiceDelegationGrantCreate,
     SelfServiceDelegationGrantOut,
     SelfServiceDelegationGrantSecretResponse,
@@ -211,6 +212,36 @@ def create_my_delegation_grant(
         ),
         delegated_credential=delegated_credential,
     )
+
+
+@router.post(
+    "/delegation-grants/{grant_id}/rotate-credential",
+    response_model=DelegatedCredentialRotateOut,
+    dependencies=[Depends(require_csrf)],
+)
+def rotate_my_delegation_grant_credential(grant_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    grant = db.scalar(select(DelegationGrant).where(DelegationGrant.id == grant_id, DelegationGrant.user_id == current_user.id))
+    if not grant:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Delegation grant not found")
+    if grant.revoked_at is not None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Delegation grant is revoked")
+    if not grant.is_enabled:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Delegation grant is disabled")
+
+    delegated_credential = issue_plain_secret()
+    grant.credential_hash = hash_secret(delegated_credential)
+    grant.credential_lookup_hash = lookup_secret_hash(delegated_credential)
+    grant.updated_at = utcnow()
+    record_audit(
+        db,
+        action="user.delegation_grant.credential_rotated",
+        actor_type="user",
+        actor_id=current_user.id,
+        organization_id=current_user.organization_id,
+        metadata={"grant_id": grant.id},
+    )
+    db.commit()
+    return DelegatedCredentialRotateOut(delegated_credential=delegated_credential)
 
 
 @router.post("/delegation-grants/{grant_id}/revoke", response_model=SelfServiceDelegationGrantOut, dependencies=[Depends(require_csrf)])

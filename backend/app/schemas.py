@@ -415,6 +415,11 @@ class SelfServiceDelegationGrantSecretResponse(BaseModel):
     delegated_credential: str
 
 
+class DelegatedCredentialRotateOut(BaseModel):
+    ok: bool = True
+    delegated_credential: str
+
+
 class ProviderAccessIssueRequest(BaseModel):
     provider_app_key: str
     connected_account_id: str | None = None

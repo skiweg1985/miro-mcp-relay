@@ -4,6 +4,8 @@
 
 ### Added
 
+- API: `POST /api/v1/delegation-grants/{id}/rotate-credential` (CSRF): neues Delegated Credential für den Grant; altes Secret ungültig; Audit `user.delegation_grant.credential_rotated`.
+- Frontend: Self-Service **Access**-Detail: Delegated Credential **Reveal** / **Copy**; optional **Issue new secret** (Rotate-API); nach Erstellung Speicherung in `localStorage` (Schlüssel `broker_delegated_credentials_v1`) für Wiederverwendung im gleichen Browser.
 - API: `GET /api/v1/connections/{id}/access-details` und `POST /api/v1/connections/{id}/access-details/rotate` liefern ein gemeinsames Schema für sichtbare Verbindungs-/Endpoint-Zugangsdaten (Key-Status, maskiert, einmaliger Klartext nach Rotation); erste Anbindung über Miro; bestehende Routen `miro-access` und `miro-access/reset` bleiben parallel.
 - Frontend: `AccessCredentialSummary` (Endpoint, Key-Status, Kopieren für Endpoint, Schlüssel nur im Bestätigungs-Modal); **Integrations**, **Access**-Detailmodal und **Add access**-Vorschau bei gewählter Verbindung.
 - Backend: generische Relay-Engine `execute_relay_request` (`relay_engine.py`) mit konfigurierbarem Upstream, Headern, Token-Transport, Retry und Circuit Breaker; OAuth-Refresh über `oauth_connection_tokens.refresh_oauth_tokens` (verbundenes Konto vs. Provider-App je nach `oauth_refresh_client_credential_source`).
@@ -15,7 +17,7 @@
 
 ### Changed
 
-- Frontend: Self-Service **Access** (`/grants`): Detailmodal zeigt **Headers and examples** und **Connection details** oben; bei „automatischer“ Verbindung wird die aktive Integration per `GET /api/v1/connections` aufgelöst, sodass **MCP**-Beispiel und Relay-Key sichtbar werden; MCP-Beispiel listet `X-Delegated-Credential` und `X-Relay-Key` gemeinsam; nicht-Miro-Relay erhält ein kopierbares HTTP-Beispiel; Abschnitt **This access** mit Metadaten darunter.
+- Frontend: Self-Service **Access** (`/grants`): Detailmodal **Access** mit Delegated-Credential-Karte (Reveal, Copy, lokales Speichern nach Erstellung, **Issue new secret** / Rotate), **Connection details**; bei „automatischer“ Verbindung Auflösung per `GET /api/v1/connections` für MCP- und Relay-Beispiele; **HTTP examples** und **Scope and status** einklappbar.
 
 - Frontend: **Connection details** Key-Zeile ohne doppelte Bullet-Anzeige; getrennte Kurztexte für rotierbaren Relay-Key vs. OAuth; Graph-Label **OAuth token**.
 

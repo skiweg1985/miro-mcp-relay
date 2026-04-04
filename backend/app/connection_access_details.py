@@ -16,7 +16,7 @@ from app.schemas import (
     AccessDetailRowOut,
     ConnectionAccessDetailsOut,
 )
-from app.security import lookup_secret_hash
+from app.security import encrypt_text, lookup_secret_hash
 
 
 def connection_supports_access_credentials(provider_app: ProviderApp) -> bool:
@@ -71,6 +71,7 @@ def issue_rotated_connection_access_key(
             ensure_legacy_miro_identity(db, user=owner, connected_account=connection)
         relay_token = issue_relay_token()
         connection.legacy_relay_token_hash = lookup_secret_hash(relay_token)
+        connection.encrypted_legacy_relay_token = encrypt_text(relay_token)
         return relay_token
     raise ValueError("unsupported")
 

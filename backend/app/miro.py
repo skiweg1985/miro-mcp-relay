@@ -279,10 +279,15 @@ def ensure_legacy_miro_identity(db: Session, *, user: User, connected_account: C
     if not connected_account.legacy_relay_token_hash:
         relay_token = issue_relay_token()
         connected_account.legacy_relay_token_hash = lookup_secret_hash(relay_token)
+        connected_account.encrypted_legacy_relay_token = encrypt_text(relay_token)
     return relay_token
 
 
 def build_miro_access_payload(connected_account: ConnectedAccount, relay_token: str | None = None) -> dict[str, Any]:
+    if relay_token is None and connected_account.encrypted_legacy_relay_token:
+        decrypted = decrypt_text(connected_account.encrypted_legacy_relay_token)
+        relay_token = (decrypted or "").strip() or None
+
     profile_id = connected_account.legacy_profile_id or ""
     mcp_url = public_miro_mcp_url(profile_id)
     mcp_config_json = None

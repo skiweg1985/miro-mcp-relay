@@ -299,7 +299,7 @@ class Welle1SmokeTest(unittest.TestCase):
         details_body = details.json()
         self.assertEqual(details_body["profile_id"], "person_example.com")
         self.assertTrue(details_body["has_relay_token"])
-        self.assertIsNone(details_body["relay_token"])
+        self.assertTrue(details_body["relay_token"])
 
         access_generic = client.get(
             f"/api/v1/connections/{fixture['miro_connection_id']}/access-details",
@@ -308,8 +308,8 @@ class Welle1SmokeTest(unittest.TestCase):
         self.assertEqual(access_generic.status_code, 200)
         ag = access_generic.json()
         self.assertTrue(ag["supported"])
-        self.assertEqual(ag["key_section"]["status"], "stored")
-        self.assertIsNone(ag["key_section"]["plaintext"])
+        self.assertEqual(ag["key_section"]["status"], "ready")
+        self.assertTrue(ag["key_section"]["plaintext"])
 
         rotated = client.post(
             f"/api/v1/connections/{fixture['miro_connection_id']}/miro-access/reset",

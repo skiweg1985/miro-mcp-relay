@@ -4,6 +4,7 @@
 
 ### Added
 
+- Datenmodell: `connected_accounts.encrypted_legacy_relay_token` (Fernet) für den Miro-Relay-Key neben `legacy_relay_token_hash`; bei Erstausstellung und Rotation befüllt; `reconcile_schema` ergänzt die Spalte.
 - API: `POST /api/v1/delegation-grants/{id}/rotate-credential` (CSRF): neues Delegated Credential für den Grant; altes Secret ungültig; Audit `user.delegation_grant.credential_rotated`.
 - API: `GET /api/v1/delegation-grants/{id}/delegated-credential` (Session): Klartext für den Grant-Inhaber; **404** `delegated_credential_not_stored` bei älteren Grants ohne gespeicherten Ciphertext.
 - Datenmodell: `delegation_grants.encrypted_delegated_credential` (Fernet, `BROKER_ENCRYPTION_KEY`); bei Create/Rotate befüllt, bei Revoke geleert; bestehende Zeilen ohne Spaltenwert bleiben über Rotate einmalig nachziehbar.
@@ -18,6 +19,8 @@
 - Frontend: Self-Service **App access** (`/grants`): Hilfe-Button (**?**) an der Karte „Your app access“ mit Erklärung zu Delegated Credential; im Modal **Access details** Abschnitt **Use in your application** mit kopierbaren HTTP-Beispielen (Direct connection, Miro-Relay, Hinweis Profil-URL/`X-Relay-Key` vs. Credential); `Card` unterstützt `headerActions`.
 
 ### Changed
+
+- Miro-Verbindungen: Relay-Key ist nach Session-Authentifizierung aus `GET /api/v1/connections/{id}/miro-access` und `GET /api/v1/connections/{id}/access-details` anzeig- und kopierbar, sobald der verschlüsselte Wert in der DB liegt (neue Ausstellung, Rotation oder frisch erzeugter Key in `ensure_legacy_miro_identity`). Bestand nur mit Hash ohne Ciphertext bleibt bis zur nächsten Rotation ohne Klartextabruf.
 
 - Frontend: **Access**-Detailmodal: Access-Key-Zeile mit Icon-Buttons (Auge ein/aus, Kopieren) neben dem Wert; **Replace key** (App-Zugang) darunter.
 

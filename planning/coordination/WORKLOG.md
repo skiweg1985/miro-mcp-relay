@@ -1,3 +1,34 @@
+## 2026-04-04 – Cursor Agent – Miro Relay-Key verschlüsselt speichern
+
+- Done:
+  - `connected_accounts.encrypted_legacy_relay_token`; `reconcile_schema`; `ensure_legacy_miro_identity` + `issue_rotated_connection_access_key` schreiben Fernet-Ciphertext; `build_miro_access_payload` entschlüsselt für API-Antworten.
+  - `test_welle1_smoke`: Erwartungen für `miro-access` / `access-details` (Key `ready` mit Klartext nach Erstausstellung).
+  - `docs/CHANGELOG.md`, `docs/technische-referenz.md`.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - backend/app/models.py
+  - backend/app/seed.py
+  - backend/app/miro.py
+  - backend/app/connection_access_details.py
+  - backend/test_welle1_smoke.py
+  - docs/CHANGELOG.md
+  - docs/technische-referenz.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - `cd backend && python3 -m unittest test_welle1_smoke -v`
+- UI path:
+  - `/grants` → **Access** (Miro-Verbindung)
+- Changelog updated:
+  - yes (Added, Changed)
+- Follow-ups:
+  - Delegation-Grants ohne `encrypted_delegated_credential` (sehr alter Bestand): Klartext nicht rekonstruierbar; Nutzer **Replace key** einmalig oder Datenmigration aus Backup.
+
 ## 2026-04-04 – Cursor Agent – Access-Key Icons im Modal
 
 - Done:

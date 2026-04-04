@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
+import { SetupDrawer, SummaryRow, type WizardStep } from "./admin/SetupDrawer";
 import { useAppContext } from "./app-context";
 import { api } from "./api";
 import { TEMPLATE_MIRO, TEMPLATE_MS_LOGIN } from "./admin/constants";
@@ -20,6 +21,16 @@ import type {
   ProviderDefinitionOut,
 } from "./types";
 import { formatDateTime, relativeTime } from "./utils";
+
+const CONNECT_WIZARD_STEPS: WizardStep[] = [
+  { id: "intro", label: "Overview" },
+  { id: "provider", label: "Provider" },
+];
+
+const DETAILS_WIZARD_STEPS: WizardStep[] = [
+  { id: "identity", label: "Account" },
+  { id: "session", label: "Session" },
+];
 
 function connectionTone(connection: ConnectedAccountOut): "neutral" | "success" | "warn" | "danger" {
   if (connection.status === "revoked") return "warn";
@@ -43,11 +54,15 @@ function friendlyBrokerMessage(raw: string | null | undefined): string {
   return message;
 }
 
-function findMiroConnection(
+/** Active Miro OAuth link only — revoked rows are ignored so the workspace looks unset after disconnect. */
+function findConnectedMiroConnection(
   connections: ConnectedAccountOut[],
   providerAppById: Record<string, ProviderAppOut>,
 ): ConnectedAccountOut | undefined {
-  return connections.find((connection) => providerAppById[connection.provider_app_id]?.template_key === TEMPLATE_MIRO);
+  return connections.find(
+    (connection) =>
+      providerAppById[connection.provider_app_id]?.template_key === TEMPLATE_MIRO && connection.status === "connected",
+  );
 }
 
 function templateDescription(definitions: ProviderDefinitionOut[], templateKey: string | null): string {
@@ -87,6 +102,11 @@ export function UserIntegrationsPage() {
   const [setupPending, setSetupPending] = useState(false);
   const [probeById, setProbeById] = useState<Record<string, ConnectionProbeResult>>({});
 
+  const [connectWizardAppId, setConnectWizardAppId] = useState<string | null>(null);
+  const [connectWizardStep, setConnectWizardStep] = useState(0);
+  const [detailsConnectionId, setDetailsConnectionId] = useState<string | null>(null);
+  const [detailsWizardStep, setDetailsWizardStep] = useState(0);
+
   const load = async () => {
     setLoading(true);
     try {
@@ -99,7 +119,7 @@ export function UserIntegrationsPage() {
       setDefinitions(defData);
       setConnections(connectionData);
       const providerMap = Object.fromEntries(appData.map((app) => [app.id, app]));
-      const miroConn = findMiroConnection(connectionData, providerMap);
+      const miroConn = findConnectedMiroConnection(connectionData, providerMap);
       if (miroConn) {
         setMiroAccess(await api.miroAccess(miroConn.id));
       } else {
@@ -130,6 +150,19 @@ export function UserIntegrationsPage() {
     () => providerApps.filter((app) => app.template_key && app.template_key !== TEMPLATE_MS_LOGIN),
     [providerApps],
   );
+
+  const connectWizardApp = connectWizardAppId ? providerAppById[connectWizardAppId] : undefined;
+  const connectWizardConnection = connectWizardApp
+    ? connections.find((c) => c.provider_app_id === connectWizardApp.id && c.status !== "revoked")
+    : undefined;
+  const connectWizardIsActive = Boolean(
+    connectWizardConnection && connectWizardConnection.status === "connected",
+  );
+
+  const detailsConnection = detailsConnectionId
+    ? connections.find((c) => c.id === detailsConnectionId)
+    : undefined;
+  const detailsApp = detailsConnection ? providerAppById[detailsConnection.provider_app_id] : undefined;
 
   useEffect(() => {
     if (session.status !== "authenticated") return;
@@ -180,6 +213,26 @@ export function UserIntegrationsPage() {
     }
   };
 
+  const closeConnectWizard = () => {
+    setConnectWizardAppId(null);
+    setConnectWizardStep(0);
+  };
+
+  const openConnectWizard = (appId: string) => {
+    setConnectWizardAppId(appId);
+    setConnectWizardStep(0);
+  };
+
+  const closeDetailsWizard = () => {
+    setDetailsConnectionId(null);
+    setDetailsWizardStep(0);
+  };
+
+  const openDetailsWizard = (connectionId: string) => {
+    setDetailsConnectionId(connectionId);
+    setDetailsWizardStep(0);
+  };
+
   const startConnect = async (app: ProviderAppOut, existing: ConnectedAccountOut | undefined) => {
     if (session.status !== "authenticated") return;
     const key = `oauth:${app.id}`;
@@ -194,6 +247,7 @@ export function UserIntegrationsPage() {
     await runBusy(`revoke:${connectionId}`, async () => {
       await api.revokeConnection(session.csrfToken, connectionId);
       notify({ tone: "info", title: "Disconnected" });
+      if (detailsConnectionId === connectionId) closeDetailsWizard();
       await load();
     });
   };
@@ -245,7 +299,10 @@ export function UserIntegrationsPage() {
 
   if (loading) return <LoadingScreen label="Loading integrations…" />;
 
-  const existingMiro = findMiroConnection(connections, providerAppById);
+  const existingMiro = findConnectedMiroConnection(connections, providerAppById);
+
+  const lastConnectStep = connectWizardStep >= CONNECT_WIZARD_STEPS.length - 1;
+  const lastDetailsStep = detailsWizardStep >= DETAILS_WIZARD_STEPS.length - 1;
 
   return (
     <>
@@ -267,20 +324,19 @@ export function UserIntegrationsPage() {
             const connection = connections.find(
               (c) => c.provider_app_id === app.id && c.status !== "revoked",
             );
-            const active =
-              connection ?? connections.find((c) => c.provider_app_id === app.id && c.status === "revoked");
             const desc = templateDescription(definitions, app.template_key) || "OAuth connection managed by the broker.";
             const primaryDisabled = busy.has(`oauth:${app.id}`);
-            const canDisconnect = Boolean(connection && connection.status === "connected");
+            const isConnected = Boolean(connection && connection.status === "connected");
+            const canDisconnect = Boolean(isConnected && connection);
             const showReconnect = Boolean(connection && connection.status !== "revoked");
 
             return (
               <article key={app.id} className="integration-card user-integration-card">
                 <div className="integration-card-head">
                   <span className="integration-card-title">{app.display_name}</span>
-                  {active ? (
-                    <StatusBadge tone={connectionTone(active)}>
-                      {active.status === "connected" && active.last_error ? "attention" : active.status}
+                  {connection ? (
+                    <StatusBadge tone={connectionTone(connection)}>
+                      {connection.status === "connected" && connection.last_error ? "attention" : connection.status}
                     </StatusBadge>
                   ) : (
                     <StatusBadge tone="neutral">not connected</StatusBadge>
@@ -288,67 +344,20 @@ export function UserIntegrationsPage() {
                 </div>
                 <p className="integration-card-desc">{desc}</p>
 
-                {active ? (
-                  <div className="user-integration-meta">
-                    <div className="stack-cell">
-                      <strong>Account</strong>
-                      <span>{active.display_name || active.external_email || active.external_account_ref || active.id}</span>
-                    </div>
-                    <div className="stack-cell">
-                      <strong>Connected</strong>
-                      <span>{formatDateTime(active.connected_at)}</span>
-                    </div>
-                    {active.access_token_expires_at ? (
-                      <div className="stack-cell">
-                        <strong>Access token valid until</strong>
-                        <span>
-                          {formatDateTime(active.access_token_expires_at)} ({relativeTime(active.access_token_expires_at)})
-                        </span>
-                      </div>
-                    ) : null}
-                    {active.refresh_token_expires_at ? (
-                      <div className="stack-cell">
-                        <strong>Refresh token valid until</strong>
-                        <span>{formatDateTime(active.refresh_token_expires_at)}</span>
-                      </div>
-                    ) : null}
-                    <div className="stack-cell">
-                      <strong>Last token update</strong>
-                      <span>
-                        {active.token_material_updated_at ? formatDateTime(active.token_material_updated_at) : "Not recorded"}
-                      </span>
-                    </div>
-                    <div className="stack-cell">
-                      <strong>Refresh possible</strong>
-                      <span>{active.refresh_token_available === true ? "Yes" : "No"}</span>
-                    </div>
-                    {active.last_error ? (
-                      <div className="stack-cell user-integration-error">
-                        <strong>Broker note</strong>
-                        <span>{friendlyBrokerMessage(active.last_error)}</span>
-                      </div>
-                    ) : null}
-                    {probeById[active.id] ? (
-                      <div className="stack-cell">
-                        <strong>Last probe</strong>
-                        <span>
-                          {probeById[active.id].ok ? "Healthy" : friendlyBrokerMessage(probeById[active.id].message)} —{" "}
-                          {formatDateTime(probeById[active.id].checked_at)}
-                        </span>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-
                 <div className="integration-card-actions user-integration-actions">
                   <button
                     type="button"
                     className="primary-button"
                     disabled={primaryDisabled || !app.is_enabled}
-                    onClick={() => void startConnect(app, connection)}
+                    onClick={() => openConnectWizard(app.id)}
                   >
                     {primaryDisabled ? "Redirecting…" : showReconnect ? "Reconnect" : "Connect"}
                   </button>
+                  {isConnected && connection ? (
+                    <button type="button" className="secondary-button" onClick={() => openDetailsWizard(connection.id)}>
+                      Details
+                    </button>
+                  ) : null}
                   {canDisconnect && connection ? (
                     <button
                       type="button"
@@ -358,26 +367,6 @@ export function UserIntegrationsPage() {
                     >
                       {busy.has(`revoke:${connection.id}`) ? "Disconnecting…" : "Disconnect"}
                     </button>
-                  ) : null}
-                  {connection && connection.status === "connected" ? (
-                    <>
-                      <button
-                        type="button"
-                        className="ghost-button"
-                        disabled={busy.has(`refresh:${connection.id}`)}
-                        onClick={() => void handleRefresh(connection.id)}
-                      >
-                        {busy.has(`refresh:${connection.id}`) ? "Refreshing…" : "Refresh token"}
-                      </button>
-                      <button
-                        type="button"
-                        className="ghost-button"
-                        disabled={busy.has(`probe:${connection.id}`)}
-                        onClick={() => void handleProbe(connection.id)}
-                      >
-                        {busy.has(`probe:${connection.id}`) ? "Probing…" : "Probe"}
-                      </button>
-                    </>
                   ) : null}
                 </div>
               </article>
@@ -394,6 +383,197 @@ export function UserIntegrationsPage() {
           title="Miro MCP handoff"
           description="Copy the broker MCP endpoint and relay token for your MCP client."
         />
+      ) : null}
+
+      {connectWizardApp ? (
+        <SetupDrawer
+          title={connectWizardApp.display_name}
+          subtitle="Provider sign-in"
+          steps={CONNECT_WIZARD_STEPS}
+          activeStepIndex={connectWizardStep}
+          onClose={closeConnectWizard}
+          wide
+          footer={
+            <div className="drawer-footer-inner">
+              <div>
+                {connectWizardStep > 0 ? (
+                  <button type="button" className="secondary-button" onClick={() => setConnectWizardStep((s) => s - 1)}>
+                    Back
+                  </button>
+                ) : null}
+              </div>
+              <div className="drawer-footer-actions">
+                {!lastConnectStep ? (
+                  <button type="button" className="primary-button" onClick={() => setConnectWizardStep((s) => s + 1)}>
+                    Next
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="primary-button"
+                    disabled={busy.has(`oauth:${connectWizardApp.id}`) || !connectWizardApp.is_enabled}
+                    onClick={() => void startConnect(connectWizardApp, connectWizardConnection)}
+                  >
+                    {busy.has(`oauth:${connectWizardApp.id}`) ? "Redirecting…" : "Continue to provider"}
+                  </button>
+                )}
+              </div>
+            </div>
+          }
+        >
+          <div className="wizard-step-body">
+            {connectWizardStep === 0 ? (
+              <>
+                <p className="lede">
+                  {connectWizardIsActive
+                    ? "You will sign in again at the provider. The broker replaces stored tokens for this integration when you finish."
+                    : "The broker sends you to the provider to sign in and approve access. When the provider finishes, you return here."}
+                </p>
+                <p className="field-hint field-hint--flush">
+                  No extra fields are required here — continue when you are ready to open the provider.
+                </p>
+              </>
+            ) : null}
+            {connectWizardStep === 1 ? (
+              <div className="summary-panel">
+                <SummaryRow label="Integration" value={connectWizardApp.display_name} />
+                <SummaryRow
+                  label="Mode"
+                  value={connectWizardIsActive ? "Reconnect existing link" : "New connection"}
+                />
+              </div>
+            ) : null}
+          </div>
+        </SetupDrawer>
+      ) : null}
+
+      {detailsConnection && detailsApp ? (
+        <SetupDrawer
+          title={detailsApp.display_name}
+          subtitle="Connection details"
+          steps={DETAILS_WIZARD_STEPS}
+          activeStepIndex={detailsWizardStep}
+          onClose={closeDetailsWizard}
+          wide
+          footer={
+            <div className="drawer-footer-inner">
+              <div>
+                {detailsWizardStep > 0 ? (
+                  <button type="button" className="secondary-button" onClick={() => setDetailsWizardStep((s) => s - 1)}>
+                    Back
+                  </button>
+                ) : null}
+              </div>
+              <div className="drawer-footer-actions">
+                {!lastDetailsStep ? (
+                  <button type="button" className="primary-button" onClick={() => setDetailsWizardStep((s) => s + 1)}>
+                    Next
+                  </button>
+                ) : (
+                  <>
+                    {detailsConnection.status === "connected" ? (
+                      <>
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          disabled={busy.has(`refresh:${detailsConnection.id}`)}
+                          onClick={() => void handleRefresh(detailsConnection.id)}
+                        >
+                          {busy.has(`refresh:${detailsConnection.id}`) ? "Refreshing…" : "Refresh token"}
+                        </button>
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          disabled={busy.has(`probe:${detailsConnection.id}`)}
+                          onClick={() => void handleProbe(detailsConnection.id)}
+                        >
+                          {busy.has(`probe:${detailsConnection.id}`) ? "Probing…" : "Probe"}
+                        </button>
+                        <button
+                          type="button"
+                          className="ghost-button"
+                          disabled={busy.has(`revoke:${detailsConnection.id}`)}
+                          onClick={() => void handleRevoke(detailsConnection.id)}
+                        >
+                          {busy.has(`revoke:${detailsConnection.id}`) ? "Disconnecting…" : "Disconnect"}
+                        </button>
+                      </>
+                    ) : null}
+                    <button type="button" className="primary-button" onClick={closeDetailsWizard}>
+                      Close
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          }
+        >
+          <div className="wizard-step-body">
+            {detailsWizardStep === 0 ? (
+              <div className="stack-list">
+                <div className="stack-cell">
+                  <strong>Account</strong>
+                  <span>
+                    {detailsConnection.display_name ||
+                      detailsConnection.external_email ||
+                      detailsConnection.external_account_ref ||
+                      detailsConnection.id}
+                  </span>
+                </div>
+                <div className="stack-cell">
+                  <strong>Connected</strong>
+                  <span>{formatDateTime(detailsConnection.connected_at)}</span>
+                </div>
+              </div>
+            ) : null}
+            {detailsWizardStep === 1 ? (
+              <div className="stack-list">
+                {detailsConnection.access_token_expires_at ? (
+                  <div className="stack-cell">
+                    <strong>Access token valid until</strong>
+                    <span>
+                      {formatDateTime(detailsConnection.access_token_expires_at)} (
+                      {relativeTime(detailsConnection.access_token_expires_at)})
+                    </span>
+                  </div>
+                ) : null}
+                {detailsConnection.refresh_token_expires_at ? (
+                  <div className="stack-cell">
+                    <strong>Refresh token valid until</strong>
+                    <span>{formatDateTime(detailsConnection.refresh_token_expires_at)}</span>
+                  </div>
+                ) : null}
+                <div className="stack-cell">
+                  <strong>Last token update</strong>
+                  <span>
+                    {detailsConnection.token_material_updated_at
+                      ? formatDateTime(detailsConnection.token_material_updated_at)
+                      : "Not recorded"}
+                  </span>
+                </div>
+                <div className="stack-cell">
+                  <strong>Refresh possible</strong>
+                  <span>{detailsConnection.refresh_token_available === true ? "Yes" : "No"}</span>
+                </div>
+                {detailsConnection.last_error ? (
+                  <div className="stack-cell user-integration-error">
+                    <strong>Broker note</strong>
+                    <span>{friendlyBrokerMessage(detailsConnection.last_error)}</span>
+                  </div>
+                ) : null}
+                {probeById[detailsConnection.id] ? (
+                  <div className="stack-cell">
+                    <strong>Last probe</strong>
+                    <span>
+                      {probeById[detailsConnection.id].ok ? "Healthy" : friendlyBrokerMessage(probeById[detailsConnection.id].message)}{" "}
+                      — {formatDateTime(probeById[detailsConnection.id].checked_at)}
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        </SetupDrawer>
       ) : null}
     </>
   );

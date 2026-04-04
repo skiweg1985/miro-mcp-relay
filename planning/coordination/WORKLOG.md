@@ -326,3 +326,26 @@
   - yes ([Unreleased] Added/Changed)
 - Follow-ups:
   - Custom-OAuth: vollständiger Connect-Flow im Backend falls gewünscht.
+
+## 2026-04-04 12:00 – Agent – Workspace Integrations UX
+
+- Done:
+  - Self-Service Integrations: Verbindungsdetails in `SetupDrawer`-Wizard (Account / Session); Connect-Flow zweistufig wie Admin-Optik; Karten ohne volle OAuth-Metadaten; nach Disconnect keine Kontodaten auf der Karte; Miro-Handoff nur bei `status === "connected"`.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign (lokal)
+  - PR: none
+- Files touched:
+  - frontend/src/UserIntegrationsPage.tsx
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build`
+  - UI path: `/workspace/integrations`
+- Changelog updated:
+  - yes ([Unreleased] Changed)
+- Follow-ups:
+  - keine

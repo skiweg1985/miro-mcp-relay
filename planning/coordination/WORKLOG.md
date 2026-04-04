@@ -684,3 +684,28 @@
   - yes ([Unreleased] Changed)
 - Follow-ups:
   - Clients, die noch `expires_in_hours` an die FastAPI senden, müssen auf `expires_in_days` umstellen
+
+## 2026-04-04 – Cursor Agent – Delegation: Standard 365 Tage
+
+- Done:
+  - `expires_in_days` Standardwert 365 in `schemas.py`, Formularvorgaben und Reset in `App.tsx` / `AccessPage.tsx`, Legacy-Tage-Fallback in `src/index.js`; `docs/CHANGELOG.md` angepasst.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - backend/app/schemas.py
+  - frontend/src/App.tsx
+  - frontend/src/admin/AccessPage.tsx
+  - src/index.js
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build`
+- Changelog updated:
+  - yes ([Unreleased] Changed)
+- Follow-ups:
+  - keine

@@ -2554,7 +2554,7 @@ function issueDelegationGrant({
   const delegatedCredential = newOpaqueSecret();
   let ttlMs;
   if (expires_in_days != null && expires_in_days !== '') {
-    const days = Math.max(1, Math.min(365, Number(expires_in_days) || 1));
+    const days = Math.max(1, Math.min(365, Number(expires_in_days) || 365));
     ttlMs = days * 24 * 60 * 60 * 1000;
   } else {
     const hours = Math.max(1, Math.min(24 * 365, Number(expires_in_hours) || 24));

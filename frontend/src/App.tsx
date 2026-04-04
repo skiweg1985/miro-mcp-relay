@@ -617,7 +617,7 @@ function GrantsPage() {
     allowed_access_modes: ["direct_token"],
     scope_ceiling_text: "",
     environment: "",
-    expires_in_days: 1,
+    expires_in_days: 365,
     capabilities_text: "",
   });
 
@@ -711,7 +711,7 @@ function GrantsPage() {
         connected_account_id: "",
         scope_ceiling_text: "",
         environment: "",
-        expires_in_days: 1,
+        expires_in_days: 365,
         capabilities_text: "",
       }));
       await load();
@@ -908,7 +908,7 @@ function GrantsPage() {
                   max={365}
                   value={form.expires_in_days}
                   onChange={(event) =>
-                    setForm((current) => ({ ...current, expires_in_days: Number(event.target.value) || 1 }))
+                    setForm((current) => ({ ...current, expires_in_days: Number(event.target.value) || 365 }))
                   }
                 />
               </Field>

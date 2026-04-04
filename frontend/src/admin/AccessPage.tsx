@@ -58,7 +58,7 @@ export function AccessPage() {
     allowed_access_modes: ["direct_token"],
     scope_ceiling_text: "",
     environment: "",
-    expires_in_days: 1,
+    expires_in_days: 365,
     capabilities_text: "",
   });
 
@@ -126,7 +126,7 @@ export function AccessPage() {
         connected_account_id: "",
         scope_ceiling_text: "",
         environment: "",
-        expires_in_days: 1,
+        expires_in_days: 365,
         capabilities_text: "",
       }));
       setGrantModalOpen(false);
@@ -300,7 +300,7 @@ export function AccessPage() {
                 <input
                   value={form.expires_in_days}
                   onChange={(event) =>
-                    setForm((current) => ({ ...current, expires_in_days: Number(event.target.value) || 1 }))
+                    setForm((current) => ({ ...current, expires_in_days: Number(event.target.value) || 365 }))
                   }
                   min={1}
                   max={365}

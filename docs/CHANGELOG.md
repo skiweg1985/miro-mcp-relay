@@ -6,6 +6,10 @@
 
 - Frontend: Self-Service **Access**-Modal **cURL** für **Direct** (z. B. Microsoft Graph, `POST …/token-issues/provider-access`): fehlender Header `X-Access-Key: <access key>` ergänzt (entspricht der API; zuvor nur Relay-Zweig).
 
+### Changed
+
+- Frontend: eingechecktes `frontend/dist` (Vite-Build: `index.html`, gebündelte JS/CSS-Hashes) mit aktuellem Build abgeglichen.
+
 ### Removed
 
 - Root-Router `legacy_miro` (`POST /miro/mcp/{profile_id}`, Redirects unter `/miro/*`, `/start`, `/healthz`, `/readyz`).

@@ -25,6 +25,30 @@
 - Follow-ups:
   - keine
 
+## 2026-04-04 – Cursor Agent – git push (dist + Branch)
+
+- Done:
+  - `frontend/dist`: `npm run build`; `index.html` und `assets/index-*.js` / `index-*.css` per `git add -f` eingecheckt; `git push` `codex/oauth-broker-redesign` → `origin`.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - frontend/dist/index.html
+  - frontend/dist/assets/index-BdXiX1Cs.js
+  - frontend/dist/assets/index-r3BwuCIG.css
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build`
+- Changelog updated:
+  - yes (Changed, dist-Abgleich)
+- Follow-ups:
+  - keine
+
 ## 2026-04-04 – Cursor Agent – cURL Direct: X-Access-Key
 
 - Done:

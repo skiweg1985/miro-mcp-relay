@@ -1392,3 +1392,21 @@
   - yes ([Unreleased] Changed)
 - Follow-ups:
   - keine
+
+## 2026-04-04 – Cursor Agent – Access-Modal Breite
+
+- Done:
+  - `App.tsx`: Modal **Access** (Grant-Details) mit `wide`; `index.css`: `.modal-panel--wide` max. 640px → 720px.
+- Next:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - frontend/src/App.tsx, frontend/src/index.css, planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build`
+- Changelog updated:
+  - no
+- Follow-ups:
+  - keine

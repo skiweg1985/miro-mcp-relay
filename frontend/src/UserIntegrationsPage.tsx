@@ -55,7 +55,8 @@ function friendlyBrokerMessage(raw: string | null | undefined): string {
   if (message === "Miro authorization was denied.") return "Miro sign-in was cancelled before your account could be connected.";
   if (message.includes("did not match expected email")) return "The Miro account did not match the expected user. Sign in with the correct Miro account.";
   if (message.startsWith("miro_token_exchange_failed")) return "Miro accepted the login but we could not finish connecting. Please try again.";
-  if (message.startsWith("miro_refresh_failed")) return "We could not refresh your Miro connection. Reconnect the account.";
+  if (message.startsWith("miro_refresh_failed") || message.startsWith("oauth_refresh_failed"))
+    return "We could not refresh your Miro connection. Reconnect the account.";
   if (message.startsWith("token_context_")) return "We reached Miro but could not verify the connection. Try again, or reconnect if it keeps happening.";
   if (message.startsWith("microsoft_graph_refresh_failed")) return "We could not refresh your Microsoft connection. Reconnect the account.";
   if (message.startsWith("graph_me_")) return "We reached Microsoft but could not verify the signed-in account.";
@@ -455,8 +456,8 @@ export function UserIntegrationsPage() {
               <div className="summary-panel">
                 <SummaryRow label="Integration" value={connectWizardApp.display_name} />
                 <SummaryRow
-                  label="Mode"
-                  value={connectWizardIsActive ? "Reconnect existing link" : "New connection"}
+                  label="Connection"
+                  value={connectWizardIsActive ? "Existing link" : "New connection"}
                 />
               </div>
             ) : null}

@@ -16,7 +16,8 @@ from app.provider_templates import (
     provider_definition_metadata,
     provider_templates,
 )
-from app.security import dumps_json, hash_secret
+from app.relay_config import sync_legacy_access_fields_from_relay, update_relay_json_allowed_types_from_legacy_columns
+from app.security import dumps_json, hash_secret, loads_json
 
 
 def init_db() -> None:
@@ -70,6 +71,7 @@ def init_db() -> None:
             microsoft_definition_id=microsoft.id,
         )
         _backfill_legacy_templates(db, organization_id=org.id, miro_definition_id=miro.id, microsoft_definition_id=microsoft.id)
+        _backfill_relay_config_json(db, organization_id=org.id)
         db.commit()
 
 
@@ -90,6 +92,7 @@ def reconcile_schema() -> None:
             "provider_apps",
             {
                 "template_key": "VARCHAR(120)",
+                "relay_config_json": "TEXT DEFAULT '{}'",
             },
         )
         _ensure_columns(
@@ -270,6 +273,16 @@ def _seed_builtin_provider_apps(
         )
         db.add(provider_app)
     db.flush()
+
+
+def _backfill_relay_config_json(db: Session, *, organization_id: str) -> None:
+    provider_apps = db.scalars(select(ProviderApp).where(ProviderApp.organization_id == organization_id)).all()
+    for provider_app in provider_apps:
+        raw = loads_json(provider_app.relay_config_json or "{}", {})
+        if raw.get("allowed_connection_types"):
+            continue
+        update_relay_json_allowed_types_from_legacy_columns(provider_app)
+        sync_legacy_access_fields_from_relay(provider_app)
 
 
 def _backfill_legacy_templates(db: Session, *, organization_id: str, miro_definition_id: str, microsoft_definition_id: str) -> None:

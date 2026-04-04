@@ -94,6 +94,12 @@ function statusLabel(
   return { label: "Active", tone: "success" };
 }
 
+function defaultConnectionTypesForTemplate(templateKey: string): string[] {
+  if (templateKey === TEMPLATE_MIRO) return ["relay"];
+  if (templateKey === TEMPLATE_MS_GRAPH) return ["direct_token", "relay"];
+  return ["direct_token"];
+}
+
 function cardMeta(app: ProviderAppOut | undefined, instance: ProviderInstanceOut | undefined, needsTenant: boolean): string {
   if (!app || !instance) return "No application record yet.";
   const st = statusLabel(app, instance, needsTenant);
@@ -132,6 +138,8 @@ export function IntegrationsPage() {
   const [customClientId, setCustomClientId] = useState("");
   const [customSecret, setCustomSecret] = useState("");
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [connectionTypes, setConnectionTypes] = useState<string[]>(["relay"]);
+  const [relayDraft, setRelayDraft] = useState<Record<string, unknown>>({});
   const [pending, setPending] = useState(false);
 
   const load = useCallback(async () => {
@@ -166,6 +174,10 @@ export function IntegrationsPage() {
     setWizardStep(0);
   };
 
+  const toggleConnectionType = (mode: string) => {
+    setConnectionTypes((prev) => (prev.includes(mode) ? prev.filter((m) => m !== mode) : [...prev, mode]));
+  };
+
   const openEditor = (id: EditorId) => {
     setWizardStep(0);
     if (id === "custom") {
@@ -194,6 +206,20 @@ export function IntegrationsPage() {
     } else {
       setGraphClaims(new Set());
     }
+    const rc = (app?.relay_config as Record<string, unknown>) || {};
+    setRelayDraft({
+      upstream_base_url: typeof rc.upstream_base_url === "string" ? rc.upstream_base_url : "",
+      relay_type:
+        typeof rc.relay_type === "string"
+          ? rc.relay_type
+          : templateKey === TEMPLATE_MIRO
+            ? "streamable_http"
+            : "rest_proxy",
+      token_transport: typeof rc.token_transport === "string" ? rc.token_transport : "authorization_bearer",
+    });
+    setConnectionTypes(
+      app?.allowed_connection_types?.length ? app.allowed_connection_types : defaultConnectionTypesForTemplate(templateKey),
+    );
     setModal(id);
   };
 
@@ -239,6 +265,12 @@ export function IntegrationsPage() {
         allow_relay: app.allow_relay,
         allow_direct_token_return: app.allow_direct_token_return,
         relay_protocol: app.relay_protocol,
+        allowed_connection_types: connectionTypes,
+        relay_config: {
+          relay_type: relayDraft.relay_type,
+          upstream_base_url: relayDraft.upstream_base_url || undefined,
+          token_transport: relayDraft.token_transport,
+        },
         is_enabled: app.is_enabled,
       });
 
@@ -276,6 +308,12 @@ export function IntegrationsPage() {
         allow_relay: app.allow_relay,
         allow_direct_token_return: app.allow_direct_token_return,
         relay_protocol: app.relay_protocol,
+        allowed_connection_types: connectionTypes,
+        relay_config: {
+          relay_type: relayDraft.relay_type,
+          upstream_base_url: relayDraft.upstream_base_url || undefined,
+          token_transport: relayDraft.token_transport,
+        },
         is_enabled: app.is_enabled,
       });
       notify({ tone: "success", title: "Settings saved", description: "Miro was updated." });
@@ -343,6 +381,8 @@ export function IntegrationsPage() {
         allow_relay: true,
         allow_direct_token_return: false,
         relay_protocol: "mcp_streamable_http",
+        allowed_connection_types: ["relay"],
+        relay_config: { relay_type: "generic_http", token_transport: "authorization_bearer" },
         is_enabled: true,
       });
       notify({ tone: "success", title: "Integration created", description: "It is available for access rules and user connections." });
@@ -570,6 +610,21 @@ export function IntegrationsPage() {
                 <Field label="Client secret" hint="Leave blank to keep the current secret.">
                   <input type="password" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} autoComplete="new-password" />
                 </Field>
+                <div className="field">
+                  <span className="field-label">Available connection types</span>
+                  <label className="check-option">
+                    <input
+                      type="checkbox"
+                      checked={connectionTypes.includes("direct_token")}
+                      onChange={() => toggleConnectionType("direct_token")}
+                    />
+                    <span>Direct connection</span>
+                  </label>
+                  <label className="check-option">
+                    <input type="checkbox" checked={connectionTypes.includes("relay")} onChange={() => toggleConnectionType("relay")} />
+                    <span>Relay through broker</span>
+                  </label>
+                </div>
               </>
             ) : null}
             {wizardStep === 1 ? <ReadOnlyCopyField label="Redirect URI" value={urls.microsoft_login} /> : null}
@@ -652,6 +707,53 @@ export function IntegrationsPage() {
                 <Field label="Client secret" hint="Leave blank to keep the current secret.">
                   <input type="password" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} autoComplete="new-password" />
                 </Field>
+                <div className="field">
+                  <span className="field-label">Available connection types</span>
+                  <label className="check-option">
+                    <input
+                      type="checkbox"
+                      checked={connectionTypes.includes("direct_token")}
+                      onChange={() => toggleConnectionType("direct_token")}
+                    />
+                    <span>Direct connection</span>
+                  </label>
+                  <label className="check-option">
+                    <input type="checkbox" checked={connectionTypes.includes("relay")} onChange={() => toggleConnectionType("relay")} />
+                    <span>Relay through broker</span>
+                  </label>
+                </div>
+                {connectionTypes.includes("relay") ? (
+                  <>
+                    <Field label="Relay type">
+                      <select
+                        value={String(relayDraft.relay_type ?? "rest_proxy")}
+                        onChange={(e) => setRelayDraft((d) => ({ ...d, relay_type: e.target.value }))}
+                      >
+                        <option value="rest_proxy">REST proxy</option>
+                        <option value="streamable_http">Streamable HTTP</option>
+                        <option value="generic_http">Generic HTTP</option>
+                      </select>
+                    </Field>
+                    <Field label="Upstream URL">
+                      <input
+                        value={String(relayDraft.upstream_base_url ?? "")}
+                        onChange={(e) => setRelayDraft((d) => ({ ...d, upstream_base_url: e.target.value }))}
+                        placeholder="https://graph.microsoft.com"
+                        autoComplete="off"
+                      />
+                    </Field>
+                    <Field label="Authorization">
+                      <select
+                        value={String(relayDraft.token_transport ?? "authorization_bearer")}
+                        onChange={(e) => setRelayDraft((d) => ({ ...d, token_transport: e.target.value }))}
+                      >
+                        <option value="authorization_bearer">Bearer</option>
+                        <option value="header">Header</option>
+                        <option value="query">Query</option>
+                      </select>
+                    </Field>
+                  </>
+                ) : null}
               </>
             ) : null}
             {wizardStep === 1 ? (
@@ -733,6 +835,34 @@ export function IntegrationsPage() {
                 </Field>
                 <Field label="Client secret" hint="Leave blank to keep the current secret.">
                   <input type="password" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} autoComplete="new-password" />
+                </Field>
+                <Field label="Relay type">
+                  <select
+                    value={String(relayDraft.relay_type ?? "streamable_http")}
+                    onChange={(e) => setRelayDraft((d) => ({ ...d, relay_type: e.target.value }))}
+                  >
+                    <option value="streamable_http">Streamable HTTP</option>
+                    <option value="rest_proxy">REST proxy</option>
+                    <option value="generic_http">Generic HTTP</option>
+                  </select>
+                </Field>
+                <Field label="Upstream URL">
+                  <input
+                    value={String(relayDraft.upstream_base_url ?? "")}
+                    onChange={(e) => setRelayDraft((d) => ({ ...d, upstream_base_url: e.target.value }))}
+                    placeholder="https://mcp.miro.com"
+                    autoComplete="off"
+                  />
+                </Field>
+                <Field label="Authorization">
+                  <select
+                    value={String(relayDraft.token_transport ?? "authorization_bearer")}
+                    onChange={(e) => setRelayDraft((d) => ({ ...d, token_transport: e.target.value }))}
+                  >
+                    <option value="authorization_bearer">Bearer</option>
+                    <option value="header">Header</option>
+                    <option value="query">Query</option>
+                  </select>
                 </Field>
               </>
             ) : null}

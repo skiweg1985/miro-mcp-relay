@@ -124,6 +124,7 @@ class ProviderApp(Base):
     allow_relay: Mapped[bool] = mapped_column(Boolean, default=True)
     allow_direct_token_return: Mapped[bool] = mapped_column(Boolean, default=False)
     relay_protocol: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    relay_config_json: Mapped[str] = mapped_column(Text, default="{}")
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)

@@ -139,6 +139,8 @@ export type ProviderAppOut = {
   redirect_uris: string[];
   default_scopes: string[];
   scope_ceiling: string[];
+  allowed_connection_types: string[];
+  relay_config: Record<string, unknown>;
   is_enabled: boolean;
 };
 
@@ -336,7 +338,6 @@ export type DelegationGrantFormValues = {
   service_client_key: string;
   provider_app_key: string;
   connected_account_id: string;
-  allowed_access_modes: string[];
   scope_ceiling_text: string;
   environment: string;
   expires_in_days: number;
@@ -347,7 +348,6 @@ export type SelfServiceDelegationGrantFormValues = {
   service_client_key: string;
   provider_app_key: string;
   connected_account_id: string;
-  allowed_access_modes: string[];
   scope_ceiling_text: string;
   environment: string;
   expires_in_days: number;
@@ -358,6 +358,7 @@ export type RouteMatch =
   | { name: "login"; path: "/login" }
   | { name: "dashboard"; path: "/app" }
   | { name: "integrations"; path: "/app/integrations" }
+  | { name: "integrationDetail"; path: `/app/integrations/${string}`; params: { appId: string } }
   | { name: "users"; path: "/app/users" }
   | { name: "services"; path: "/app/services" }
   | { name: "access"; path: "/app/access" }

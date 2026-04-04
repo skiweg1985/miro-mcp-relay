@@ -955,3 +955,33 @@
   - yes
 - Follow-ups:
   - keine
+
+## 2026-04-04 – Cursor Agent – Generische Relay-Engine
+
+- Done:
+  - `backend/app/relay_engine.py`, `relay_config.py`, `oauth_connection_tokens.py`: `execute_relay_request`, Presets (Miro / Graph), OAuth-Refresh vereinheitlicht.
+  - `backend/app/models.py`: `relay_config_json`; `seed.py` Spalte + Backfill; Anpassungen in `miro.py`, `legacy_miro.py`, `connections.py`, `deps.py`, `admin.py`, `user.py`, `microsoft_graph.py`.
+  - Frontend: `types.ts`, `IntegrationsPage.tsx`, `App.tsx`, `AccessPage.tsx`, `UserIntegrationsPage.tsx`.
+  - `docs/CHANGELOG.md` [Unreleased]; `test_welle1_smoke.py` Mock auf `execute_relay_request`.
+- Next:
+  - Optional: Relay-Config-UI (Header-Allowlist, Forwarding-Regeln).
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - backend/app/relay_engine.py, relay_config.py, oauth_connection_tokens.py, models.py, seed.py, miro.py, routers/legacy_miro.py, routers/connections.py, routers/admin.py, routers/user.py, deps.py, microsoft_graph.py, schemas.py
+  - backend/test_welle1_smoke.py
+  - frontend/src/types.ts, admin/IntegrationsPage.tsx, App.tsx, admin/AccessPage.tsx, UserIntegrationsPage.tsx
+  - docs/CHANGELOG.md, planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `python3 -m py_compile backend/app/*.py backend/app/routers/*.py`, `cd frontend && npm run build`, `npm test`, `cd backend && pytest test_welle1_smoke.py -q`
+- Endpoints:
+  - `/miro/mcp/{profile_id}`, `/api/v1/broker-proxy/miro/{connected_account_id}`, Provider-App-Admin-APIs
+- UI path:
+  - Admin → Integrations; Workspace → App access; Admin → Access
+- Changelog updated:
+  - yes ([Unreleased] Added / Changed)
+- Follow-ups:
+  - keine

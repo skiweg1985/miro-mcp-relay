@@ -4,12 +4,20 @@
 
 ### Added
 
+- Backend: generische Relay-Engine `execute_relay_request` (`relay_engine.py`) mit konfigurierbarem Upstream, Headern, Token-Transport, Retry und Circuit Breaker; OAuth-Refresh über `oauth_connection_tokens.refresh_oauth_tokens` (verbundenes Konto vs. Provider-App je nach `oauth_refresh_client_credential_source`).
+- Datenmodell: `provider_apps.relay_config_json` (JSON) für Relay-/Verbindungskonfiguration; Presets pro Template in `relay_config.effective_relay_config` (u. a. Miro `streamable_http`, Microsoft Graph `rest_proxy`).
+- API: `ProviderAppOut` um `allowed_connection_types` und `relay_config`; Create/Update optional `allowed_connection_types` / `relay_config`; Legacy-Felder `access_mode` / `allow_relay` werden aus `relay_config` synchron gehalten (`sync_legacy_access_fields_from_relay`).
 - API: `DELETE /api/v1/admin/service-clients/{service_client_id}` entfernt einen Service der Organisation; **409**, solange noch **aktive** Access-Regeln (`delegation_grants` mit `revoked_at IS NULL`) diesen Service referenzieren; sonst werden verknüpfte (widerrufene) Grants und `token_issue_events` von der FK entkoppelt (`service_client_id` → `NULL`), Audit `admin.service_client.deleted`.
 - Frontend: Admin **Services** – **Remove** pro Zeile mit Bestätigung; Fehlermeldung der API bei blockierenden Regeln.
 - Frontend: Self-Service **App access** (`/grants`): Hilfe-Button (**?**) an der Karte „Your app access“ mit Erklärung zu Delegated Credential; im Modal **Access details** Abschnitt **Use in your application** mit kopierbaren HTTP-Beispielen (Direct connection, Miro-Relay, Hinweis Profil-URL/`X-Relay-Key` vs. Credential); `Card` unterstützt `headerActions`.
 
 ### Changed
 
+- Relay-Pfade (`/miro/mcp/…`, `/api/v1/broker-proxy/miro/…`) nutzen die generische Engine; Miro-spezifische Upstream-Hardcodes in den Handlern entfernt.
+- Service-Zugriff (`diagnose_service_access`): Erlaubnis „relay“ / „direct_token“ aus `effective_allowed_connection_types` statt nur Legacy-Spalten.
+- Delegation-Grants (Self-Service und Admin): `allowed_access_modes` im Grant werden aus der Integrationskonfiguration abgeleitet, nicht mehr aus Formular-Modi.
+- Admin **Integrations**: Verbindungstypen (Direct / Relay) und Relay-Felder (Typ, Upstream-URL, Authorization) statt getrennter „Access mode“/„allow relay“-Semantik in der Oberfläche.
+- Self-Service **App access** / Admin **Access**: Modus-Checkboxen bei neuen Grants entfallen.
 - Frontend: Admin **Access**, **People → Connections**, **Integrations**, **Services**: ruhigere Copy (ohne Grant-/OAuth-Jargon wo möglich), Tabellen fokussieren auf Aktives (Connections-Filter standard **Connected**; Access-Regeln mit **Show inactive** wie Self-Service); kürzere Ablauf-Spalte mit Tooltip; Integrations-Karten ohne Directory-GUID, **Apps**-Liste nur Anzeigenamen (interner Key im `title`); manueller Import und Service-Einmalwerte neutral benannt.
 
 - Frontend: Self-Service **Access** (`/grants`): Tabellenliste standardmäßig nur **aktive** Einträge; ein Umschalter **Show expired and paused** / **Active only** blendet alle weiteren Status ein bzw. aus; inaktive Zeilen optisch abgeschwächt (`data-table-row--grant-muted`); `DataTable` mit `rowClassName` und `wrapKey` beim Wechsel.

@@ -46,6 +46,12 @@ from app.schemas import (
     TokenIssueEventOut,
     UserOut,
 )
+from app.relay_config import (
+    effective_allowed_connection_types,
+    relay_config_from_storage,
+    sync_legacy_access_fields_from_relay,
+    update_relay_json_allowed_types_from_legacy_columns,
+)
 from app.security import dumps_json, encrypt_text, hash_secret, issue_plain_secret, loads_json, lookup_secret_hash, utcnow
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -84,6 +90,8 @@ def _provider_app_out(provider_app: ProviderApp, provider_instance: ProviderInst
         redirect_uris=loads_json(provider_app.redirect_uris_json, []),
         default_scopes=loads_json(provider_app.default_scopes_json, []),
         scope_ceiling=loads_json(provider_app.scope_ceiling_json, []),
+        allowed_connection_types=effective_allowed_connection_types(provider_app),
+        relay_config=relay_config_from_storage(provider_app),
         is_enabled=provider_app.is_enabled,
     )
 
@@ -143,6 +151,24 @@ def _apply_provider_app_payload(
     provider_app.allow_direct_token_return = allow_direct_token_return
     provider_app.relay_protocol = relay_protocol
     provider_app.is_enabled = is_enabled
+
+
+def _finalize_provider_app_relay(
+    provider_app: ProviderApp,
+    *,
+    allowed_connection_types: list[str] | None,
+    relay_config: dict | None,
+) -> None:
+    if allowed_connection_types is not None or relay_config is not None:
+        raw = loads_json(provider_app.relay_config_json or "{}", {})
+        if relay_config:
+            raw.update(relay_config)
+        if allowed_connection_types is not None:
+            raw["allowed_connection_types"] = allowed_connection_types
+        provider_app.relay_config_json = dumps_json(raw)
+    else:
+        update_relay_json_allowed_types_from_legacy_columns(provider_app)
+    sync_legacy_access_fields_from_relay(provider_app)
 
 
 @router.get("/users", response_model=list[UserOut], dependencies=[Depends(require_csrf)])
@@ -284,6 +310,11 @@ def create_provider_app(payload: ProviderAppCreate, admin: User = Depends(requir
         relay_protocol=payload.relay_protocol,
         is_enabled=payload.is_enabled,
     )
+    _finalize_provider_app_relay(
+        provider_app,
+        allowed_connection_types=payload.allowed_connection_types,
+        relay_config=payload.relay_config,
+    )
     db.add(provider_app)
     record_audit(db, action="admin.provider_app.created", actor_type="user", actor_id=admin.id, organization_id=admin.organization_id, metadata={"key": payload.key})
     db.commit()
@@ -328,6 +359,11 @@ def update_provider_app(
         allow_direct_token_return=payload.allow_direct_token_return,
         relay_protocol=payload.relay_protocol,
         is_enabled=payload.is_enabled,
+    )
+    _finalize_provider_app_relay(
+        provider_app,
+        allowed_connection_types=payload.allowed_connection_types,
+        relay_config=payload.relay_config,
     )
     record_audit(
         db,
@@ -539,6 +575,10 @@ def create_delegation_grant(payload: DelegationGrantCreate, admin: User = Depend
     if not provider_app:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider app not found")
 
+    grant_modes = [m for m in effective_allowed_connection_types(provider_app) if m in {"relay", "direct_token"}]
+    if not grant_modes:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Provider app has no access modes configured")
+
     connected_account_id = payload.connected_account_id
     if connected_account_id:
         connected_account = db.get(ConnectedAccount, connected_account_id)
@@ -559,7 +599,7 @@ def create_delegation_grant(payload: DelegationGrantCreate, admin: User = Depend
         connected_account_id=connected_account_id,
         credential_hash=hash_secret(delegated_credential),
         credential_lookup_hash=lookup_secret_hash(delegated_credential),
-        allowed_access_modes_json=dumps_json(payload.allowed_access_modes),
+        allowed_access_modes_json=dumps_json(grant_modes),
         scope_ceiling_json=dumps_json(payload.scope_ceiling),
         environment=payload.environment,
         expires_at=utcnow() + timedelta(days=payload.expires_in_days),

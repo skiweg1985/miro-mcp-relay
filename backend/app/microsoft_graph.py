@@ -267,49 +267,20 @@ async def finalize_microsoft_graph_callback(db: Session, state: str, code: str) 
 
 
 async def refresh_microsoft_graph_connection(db: Session, connected_account: ConnectedAccount) -> TokenMaterial:
+    from app.oauth_connection_tokens import refresh_oauth_tokens
+
     provider_app = db.get(ProviderApp, connected_account.provider_app_id)
     if not provider_app or not provider_app.client_id:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Microsoft Graph provider app not found")
     provider_instance = db.get(ProviderInstance, provider_app.provider_instance_id)
     if not provider_instance or not provider_instance.token_endpoint:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Microsoft Graph provider instance not found")
-    token_material = db.scalar(select(TokenMaterial).where(TokenMaterial.connected_account_id == connected_account.id))
-    if not token_material or not token_material.encrypted_refresh_token:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No refresh token stored")
-
-    client_secret = decrypt_text(connected_account.encrypted_oauth_client_secret or provider_app.encrypted_client_secret)
-    refresh_token = decrypt_text(token_material.encrypted_refresh_token)
-    if not client_secret or not refresh_token:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Stored Microsoft Graph credentials are incomplete")
-
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        response = await client.post(
-            provider_instance.token_endpoint,
-            data={
-                "grant_type": "refresh_token",
-                "client_id": connected_account.oauth_client_id or provider_app.client_id,
-                "client_secret": client_secret,
-                "refresh_token": refresh_token,
-            },
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
-        )
-    if response.status_code >= 400:
-        connected_account.last_error = f"microsoft_graph_refresh_failed:{response.status_code}"
-        db.commit()
-        raise HTTPException(status_code=502, detail=connected_account.last_error)
-
-    token_data = response.json()
-    token_material.encrypted_access_token = encrypt_text(str(token_data.get("access_token") or ""))
-    if token_data.get("refresh_token"):
-        token_material.encrypted_refresh_token = encrypt_text(str(token_data.get("refresh_token") or ""))
-    token_material.token_type = str(token_data.get("token_type") or token_material.token_type or "Bearer")
-    token_material.scopes_json = dumps_json(str(token_data.get("scope") or "").split())
-    token_material.expires_at = _expires_at_from_token_data(token_data)
-    connected_account.status = "connected"
-    connected_account.last_error = None
-    db.commit()
-    db.refresh(token_material)
-    return token_material
+    return await refresh_oauth_tokens(
+        db,
+        provider_app=provider_app,
+        provider_instance=provider_instance,
+        connected_account=connected_account,
+    )
 
 
 async def fetch_graph_me(access_token: str) -> dict[str, Any]:

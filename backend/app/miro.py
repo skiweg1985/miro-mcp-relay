@@ -12,16 +12,16 @@ from typing import Any
 from urllib.parse import quote
 
 import httpx
-from fastapi import HTTPException, Request, status
+from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from starlette.background import BackgroundTask
-from starlette.responses import RedirectResponse, StreamingResponse
+from starlette.responses import RedirectResponse
 
 from app.core.config import get_settings
 from app.oauth_pending_store import pop_oauth_pending_payload, put_oauth_pending
-from app.models import AccessMode, ConnectedAccount, Organization, ProviderApp, TokenMaterial, User
+from app.models import AccessMode, ConnectedAccount, Organization, ProviderApp, ProviderInstance, TokenMaterial, User
 from app.provider_templates import MIRO_RELAY_TEMPLATE, get_provider_app_by_template
+from app.oauth_connection_tokens import ensure_access_token, refresh_oauth_tokens
 from app.security import decrypt_text, dumps_json, encrypt_text, ensure_utc, loads_json, lookup_secret_hash, utcnow, verify_lookup_secret
 
 
@@ -35,9 +35,6 @@ class PendingMiroAuth:
     oauth_client_id: str
     oauth_client_secret: str
     redirect_uri: str
-
-
-BREAKER = {"consecutive_fails": 0, "open_until": 0.0}
 
 
 def b64url(raw: bytes) -> str:
@@ -72,16 +69,6 @@ def miro_token_url() -> str:
 def miro_register_url() -> str:
     settings = get_settings()
     return f"{settings.miro_mcp_base.rstrip('/')}/register"
-
-
-def miro_proxy_url() -> str:
-    settings = get_settings()
-    return f"{settings.miro_mcp_base.rstrip('/')}/"
-
-
-def miro_ready_url() -> str:
-    settings = get_settings()
-    return f"{settings.miro_mcp_base.rstrip('/')}/.well-known/oauth-protected-resource"
 
 
 def callback_url() -> str:
@@ -464,135 +451,33 @@ async def finalize_miro_callback(db: Session, state: str, code: str) -> Redirect
 
 
 async def refresh_connected_account(db: Session, connected_account: ConnectedAccount) -> TokenMaterial:
-    token_material = db.scalar(select(TokenMaterial).where(TokenMaterial.connected_account_id == connected_account.id))
-    if not token_material or not token_material.encrypted_refresh_token:
-        raise HTTPException(status_code=400, detail="Refresh token not available")
-    if not connected_account.oauth_client_id or not connected_account.encrypted_oauth_client_secret:
-        raise HTTPException(status_code=400, detail="OAuth client credentials missing for connected account")
-    refresh_token = decrypt_text(token_material.encrypted_refresh_token)
-    client_secret = decrypt_text(connected_account.encrypted_oauth_client_secret)
-    if not refresh_token or not client_secret:
-        raise HTTPException(status_code=400, detail="Refresh secret material unavailable")
-
-    form = {
-        "grant_type": "refresh_token",
-        "refresh_token": refresh_token,
-        "client_id": connected_account.oauth_client_id,
-        "client_secret": client_secret,
-    }
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        response = await client.post(miro_token_url(), data=form, headers={"Content-Type": "application/x-www-form-urlencoded"})
-    if response.status_code >= 400:
-        connected_account.last_error = f"refresh_failed:{response.status_code}"
-        db.commit()
-        raise HTTPException(status_code=502, detail=f"miro_refresh_failed:{response.status_code}")
-    data = response.json()
-    token_material.encrypted_access_token = encrypt_text(data.get("access_token"))
-    token_material.encrypted_refresh_token = encrypt_text(data.get("refresh_token") or refresh_token)
-    token_material.token_type = data.get("token_type")
-    token_material.scopes_json = dumps_json(str(data.get("scope") or "").split())
-    token_material.expires_at = utcnow().replace(microsecond=0) + timedelta(seconds=int(data.get("expires_in") or 3600))
-    connected_account.status = "connected"
-    connected_account.last_error = None
-    db.commit()
-    db.refresh(token_material)
-    return token_material
+    provider_app = db.get(ProviderApp, connected_account.provider_app_id)
+    if not provider_app:
+        raise HTTPException(status_code=404, detail="Provider app not found")
+    provider_instance = db.get(ProviderInstance, provider_app.provider_instance_id)
+    if not provider_instance:
+        raise HTTPException(status_code=503, detail="Provider instance not found")
+    return await refresh_oauth_tokens(
+        db,
+        provider_app=provider_app,
+        provider_instance=provider_instance,
+        connected_account=connected_account,
+    )
 
 
 async def current_access_token(db: Session, connected_account: ConnectedAccount) -> str:
-    token_material = db.scalar(select(TokenMaterial).where(TokenMaterial.connected_account_id == connected_account.id))
-    if not token_material or not token_material.encrypted_access_token:
-        raise HTTPException(status_code=404, detail="Connected account has no access token")
-    exp = ensure_utc(token_material.expires_at)
-    if exp is not None and exp <= utcnow():
-        token_material = await refresh_connected_account(db, connected_account)
-    token = decrypt_text(token_material.encrypted_access_token)
-    if not token:
-        raise HTTPException(status_code=500, detail="Unable to decrypt access token")
-    return token
-
-
-def breaker_open() -> bool:
-    return time.time() * 1000 < BREAKER["open_until"]
-
-
-def breaker_mark_success() -> None:
-    BREAKER["consecutive_fails"] = 0
-
-
-def breaker_mark_failure() -> None:
-    settings = get_settings()
-    BREAKER["consecutive_fails"] += 1
-    if BREAKER["consecutive_fails"] >= settings.miro_breaker_fail_threshold:
-        BREAKER["open_until"] = time.time() * 1000 + settings.miro_breaker_open_ms
-        BREAKER["consecutive_fails"] = 0
-
-
-async def relay_miro_request(db: Session, connected_account: ConnectedAccount, request: Request) -> StreamingResponse:
-    if breaker_open():
-        raise HTTPException(status_code=503, detail="Miro upstream circuit is open")
-
-    settings = get_settings()
-    request_body = await request.body()
-    access_token = await current_access_token(db, connected_account)
-    last_response: httpx.Response | None = None
-    client: httpx.AsyncClient | None = None
-
-    try:
-        for attempt in range(settings.miro_retry_count + 1):
-            client = httpx.AsyncClient(timeout=None)
-            upstream_request = client.build_request(
-                "POST",
-                miro_proxy_url(),
-                content=request_body,
-                headers={
-                    "Authorization": f"Bearer {access_token}",
-                    "Content-Type": request.headers.get("content-type", "application/json"),
-                    "Accept": "application/json, text/event-stream",
-                },
-            )
-            response = await client.send(upstream_request, stream=True)
-            if response.status_code == 401:
-                await response.aclose()
-                await client.aclose()
-                refreshed = await refresh_connected_account(db, connected_account)
-                access_token = decrypt_text(refreshed.encrypted_access_token) or access_token
-                continue
-            if response.status_code < 500 or attempt == settings.miro_retry_count:
-                last_response = response
-                break
-            await response.aclose()
-            await client.aclose()
-
-        if last_response is None or client is None:
-            raise HTTPException(status_code=502, detail="No response from Miro relay upstream")
-
-        if last_response.status_code >= 500:
-            breaker_mark_failure()
-        else:
-            breaker_mark_success()
-
-        async def iterator():
-            try:
-                async for chunk in last_response.aiter_bytes():
-                    yield chunk
-            finally:
-                await last_response.aclose()
-                await client.aclose()
-
-        return StreamingResponse(
-            iterator(),
-            status_code=last_response.status_code,
-            media_type=last_response.headers.get("content-type", "application/json"),
-            background=BackgroundTask(lambda: None),
-        )
-    except HTTPException:
-        raise
-    except Exception as exc:
-        breaker_mark_failure()
-        connected_account.last_error = str(exc)
-        db.commit()
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    provider_app = db.get(ProviderApp, connected_account.provider_app_id)
+    if not provider_app:
+        raise HTTPException(status_code=404, detail="Provider app not found")
+    provider_instance = db.get(ProviderInstance, provider_app.provider_instance_id)
+    if not provider_instance:
+        raise HTTPException(status_code=503, detail="Provider instance not found")
+    return await ensure_access_token(
+        db,
+        provider_app=provider_app,
+        provider_instance=provider_instance,
+        connected_account=connected_account,
+    )
 
 
 def read_legacy_json(path: Path) -> dict[str, Any]:

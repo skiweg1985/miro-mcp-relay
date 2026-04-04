@@ -7,7 +7,10 @@ from starlette.responses import RedirectResponse
 
 from app.core.config import get_settings
 from app.database import get_db
-from app.miro import breaker_open, miro_ready_url, relay_miro_request, resolve_legacy_miro_connection, validate_relay_token
+from app.miro import get_miro_provider_app, resolve_legacy_miro_connection, validate_relay_token
+from app.models import ProviderApp, ProviderInstance
+from app.relay_config import effective_relay_config, relay_health_check_url
+from app.relay_engine import breaker_open_for, execute_relay_request
 from app.security import utcnow
 
 router = APIRouter(tags=["legacy-miro"])
@@ -63,7 +66,19 @@ async def legacy_miro_mcp_proxy(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Profile is not connected")
     if not validate_relay_token(connection, supplied_token):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid relay token")
-    return await relay_miro_request(db, connection, request)
+    provider_app = db.get(ProviderApp, connection.provider_app_id)
+    if not provider_app:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider app not found")
+    provider_instance = db.get(ProviderInstance, provider_app.provider_instance_id)
+    if not provider_instance:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Provider instance not found")
+    return await execute_relay_request(
+        db,
+        provider_app=provider_app,
+        provider_instance=provider_instance,
+        connected_account=connection,
+        request=request,
+    )
 
 
 @router.get("/healthz")
@@ -72,12 +87,17 @@ def legacy_healthz():
 
 
 @router.get("/readyz")
-async def legacy_readyz():
-    if breaker_open():
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Miro upstream circuit is open")
+async def legacy_readyz(db: Session = Depends(get_db)):
+    provider_app = get_miro_provider_app(db)
+    config = effective_relay_config(provider_app)
+    if breaker_open_for(provider_app.id, config):
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Upstream circuit is open")
+    health_url = relay_health_check_url(provider_app, config)
+    if not health_url:
+        return {"ok": True, "service": "oauth-broker-backend", "time": utcnow().isoformat()}
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
-            response = await client.get(miro_ready_url())
+            response = await client.get(health_url)
     except Exception as exc:  # pragma: no cover - network failure path
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=f"Upstream unreachable: {exc}") from exc
 

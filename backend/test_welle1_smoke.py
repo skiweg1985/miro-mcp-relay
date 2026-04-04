@@ -311,7 +311,7 @@ class Welle1SmokeTest(unittest.TestCase):
         )
         self.assertEqual(expired.status_code, 404)
 
-        with patch("app.routers.legacy_miro.relay_miro_request") as relay_mock:
+        with patch("app.routers.legacy_miro.execute_relay_request") as relay_mock:
             relay_mock.return_value = JSONResponse({"ok": True, "channel": "fastapi-legacy"})
             relayed = client.post(
                 "/miro/mcp/person_example.com",

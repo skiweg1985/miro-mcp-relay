@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.database import get_db
 from app.models import AccessMode, AuditEvent, ConnectedAccount, DelegationGrant, ProviderApp, ServiceClient, Session as SessionModel, TokenIssueEvent, TokenMaterial, User
+from app.relay_config import effective_allowed_connection_types
 from app.security import dumps_json, hash_secret, issue_plain_secret, loads_json, lookup_secret_hash, utcnow, verify_secret
 
 
@@ -181,11 +182,12 @@ def diagnose_service_access(
     if not auth_context.provider_app or auth_context.provider_app.key != provider_app_key or not auth_context.provider_app.is_enabled:
         return auth_context, HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Provider app not allowed")
 
+    allowed = set(effective_allowed_connection_types(auth_context.provider_app))
     if required_mode == AccessMode.DIRECT_TOKEN.value:
-        if not auth_context.provider_app.allow_direct_token_return or auth_context.provider_app.access_mode not in {AccessMode.DIRECT_TOKEN.value, AccessMode.HYBRID.value}:
+        if "direct_token" not in allowed:
             return auth_context, HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Provider app does not allow direct token return")
     elif required_mode == AccessMode.RELAY.value:
-        if not auth_context.provider_app.allow_relay or auth_context.provider_app.access_mode not in {AccessMode.RELAY.value, AccessMode.HYBRID.value}:
+        if "relay" not in allowed:
             return auth_context, HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Provider app does not allow relay access")
     else:
         return auth_context, HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported access mode")

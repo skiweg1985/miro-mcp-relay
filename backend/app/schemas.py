@@ -113,6 +113,8 @@ class ProviderAppCreate(BaseModel):
     allow_relay: bool = True
     allow_direct_token_return: bool = False
     relay_protocol: str | None = None
+    allowed_connection_types: list[str] | None = None
+    relay_config: dict[str, Any] | None = None
     is_enabled: bool = True
 
 
@@ -139,6 +141,8 @@ class ProviderAppUpdate(BaseModel):
     allow_relay: bool = True
     allow_direct_token_return: bool = False
     relay_protocol: str | None = None
+    allowed_connection_types: list[str] | None = None
+    relay_config: dict[str, Any] | None = None
     is_enabled: bool = True
 
 
@@ -160,6 +164,8 @@ class ProviderAppOut(BaseModel):
     redirect_uris: list[str] = Field(default_factory=list)
     default_scopes: list[str] = Field(default_factory=list)
     scope_ceiling: list[str] = Field(default_factory=list)
+    allowed_connection_types: list[str] = Field(default_factory=list)
+    relay_config: dict[str, Any] = Field(default_factory=dict)
     is_enabled: bool
 
 

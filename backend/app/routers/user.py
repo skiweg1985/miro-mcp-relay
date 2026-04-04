@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.deps import get_current_user, record_audit, require_csrf
 from app.models import ConnectedAccount, DelegationGrant, GrantedCapability, ProviderApp, ServiceClient, TokenIssueEvent, User
+from app.relay_config import effective_allowed_connection_types
 from app.schemas import (
     SelfServiceDelegationGrantCreate,
     SelfServiceDelegationGrantOut,
@@ -134,9 +135,9 @@ def create_my_delegation_grant(
         if allowed_provider_app_keys and provider_app.key not in allowed_provider_app_keys:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Service client is not allowed for this provider app")
 
-    allowed_access_modes = [mode for mode in payload.allowed_access_modes if mode in {"relay", "direct_token"}]
+    allowed_access_modes = [m for m in effective_allowed_connection_types(provider_app) if m in {"relay", "direct_token"}]
     if not allowed_access_modes:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="At least one supported access mode is required")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Provider app has no access modes configured")
 
     connected_account = None
     if payload.connected_account_id:

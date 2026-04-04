@@ -26,9 +26,10 @@ from app.miro import (
     get_miro_provider_app,
     issue_relay_token,
     refresh_connected_account,
-    relay_miro_request,
     start_miro_connection,
 )
+from app.relay_config import effective_allowed_connection_types, relay_config_from_storage
+from app.relay_engine import execute_relay_request
 from app.connection_serializers import serialize_connected_account
 from app.models import AccessMode, ConnectedAccount, ProviderApp, ProviderInstance, TokenMaterial, User
 from app.provider_templates import (
@@ -69,6 +70,8 @@ def _provider_app_out(provider_app: ProviderApp, provider_instance: ProviderInst
         redirect_uris=loads_json(provider_app.redirect_uris_json, []),
         default_scopes=loads_json(provider_app.default_scopes_json, []),
         scope_ceiling=loads_json(provider_app.scope_ceiling_json, []),
+        allowed_connection_types=effective_allowed_connection_types(provider_app),
+        relay_config=relay_config_from_storage(provider_app),
         is_enabled=provider_app.is_enabled,
     )
 
@@ -517,8 +520,17 @@ async def broker_proxy_miro(
             db.commit()
         raise auth_error
 
+    provider_instance = db.get(ProviderInstance, provider_app.provider_instance_id)
+    if not provider_instance:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Provider instance not found")
     try:
-        response = await relay_miro_request(db, connected_account, request)
+        response = await execute_relay_request(
+            db,
+            provider_app=provider_app,
+            provider_instance=provider_instance,
+            connected_account=connected_account,
+            request=request,
+        )
     except HTTPException as exc:
         event = record_service_access_decision(
             db,

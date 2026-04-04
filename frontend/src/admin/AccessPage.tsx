@@ -32,13 +32,6 @@ function adminGrantLabel(grant: DelegationGrantOut): string {
   return "Active";
 }
 
-function accessModeLabel(mode: string): string {
-  if (mode === "relay") return "Relay";
-  if (mode === "direct_token") return "Direct";
-  if (mode === "hybrid") return "Hybrid";
-  return mode;
-}
-
 function adminGrantTone(grant: DelegationGrantOut): "neutral" | "success" | "warn" | "danger" {
   const s = adminGrantUiState(grant);
   if (s === "active") return "success";
@@ -66,7 +59,6 @@ export function AccessPage() {
     service_client_key: "",
     provider_app_key: "",
     connected_account_id: "",
-    allowed_access_modes: ["direct_token"],
     scope_ceiling_text: "",
     environment: "",
     expires_in_days: 365,
@@ -104,15 +96,6 @@ export function AccessPage() {
     );
   }, [notify, session]);
 
-  const toggleMode = (mode: string) => {
-    setForm((current) => ({
-      ...current,
-      allowed_access_modes: current.allowed_access_modes.includes(mode)
-        ? current.allowed_access_modes.filter((entry) => entry !== mode)
-        : [...current.allowed_access_modes, mode],
-    }));
-  };
-
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (session.status !== "authenticated") return;
@@ -124,7 +107,7 @@ export function AccessPage() {
         ...(scKey ? { service_client_key: scKey } : {}),
         provider_app_key: form.provider_app_key,
         connected_account_id: form.connected_account_id || null,
-        allowed_access_modes: form.allowed_access_modes,
+        allowed_access_modes: [],
         scope_ceiling: parseLines(form.scope_ceiling_text),
         environment: form.environment || null,
         expires_in_days: form.expires_in_days,
@@ -334,20 +317,6 @@ export function AccessPage() {
                     </option>
                   ))}
                 </select>
-              </Field>
-              <Field label="Connection type">
-                <div className="check-grid compact">
-                  {["relay", "direct_token", "hybrid"].map((mode) => (
-                    <label key={mode} className="check-option">
-                      <input
-                        type="checkbox"
-                        checked={form.allowed_access_modes.includes(mode)}
-                        onChange={() => toggleMode(mode)}
-                      />
-                      <span>{accessModeLabel(mode)}</span>
-                    </label>
-                  ))}
-                </div>
               </Field>
               <Field label="Expiry (days)">
                 <input

@@ -414,16 +414,20 @@ function NavLink({
   href,
   label,
   onNavigate,
+  matchNested,
 }: {
   currentPath: string;
   href: string;
   label: string;
   onNavigate: (path: string) => void;
+  matchNested?: boolean;
 }) {
+  const active =
+    currentPath === href || (matchNested === true && currentPath.startsWith(`${href}/`));
   return (
     <button
       type="button"
-      className={currentPath === href ? "nav-link active" : "nav-link"}
+      className={active ? "nav-link active" : "nav-link"}
       onClick={() => onNavigate(href)}
     >
       {label}
@@ -617,6 +621,7 @@ function Shell({
               href={item.href}
               label={item.label}
               onNavigate={onNavigate}
+              matchNested={item.href === "/app/integrations"}
             />
           ))}
         </nav>
@@ -720,7 +725,6 @@ function GrantsPage() {
     service_client_key: "",
     provider_app_key: "",
     connected_account_id: "",
-    allowed_access_modes: ["direct_token"],
     scope_ceiling_text: "",
     environment: "",
     expires_in_days: 365,
@@ -801,15 +805,6 @@ function GrantsPage() {
         ? "Connect an integration or add access. Use the button below to show expired or paused entries."
         : "";
 
-  const toggleMode = (mode: string) => {
-    setForm((current) => ({
-      ...current,
-      allowed_access_modes: current.allowed_access_modes.includes(mode)
-        ? current.allowed_access_modes.filter((entry) => entry !== mode)
-        : [...current.allowed_access_modes, mode],
-    }));
-  };
-
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (session.status !== "authenticated") return;
@@ -820,7 +815,7 @@ function GrantsPage() {
         ...(scKey ? { service_client_key: scKey } : {}),
         provider_app_key: form.provider_app_key,
         connected_account_id: form.connected_account_id || null,
-        allowed_access_modes: form.allowed_access_modes,
+        allowed_access_modes: [],
         scope_ceiling: parseLines(form.scope_ceiling_text),
         environment: form.environment || null,
         expires_in_days: form.expires_in_days,
@@ -1045,20 +1040,6 @@ function GrantsPage() {
                     </option>
                   ))}
                 </select>
-              </Field>
-              <Field label="Connection type">
-                <div className="check-grid compact">
-                  {["relay", "direct_token"].map((mode) => (
-                    <label key={mode} className="check-option">
-                      <input
-                        type="checkbox"
-                        checked={form.allowed_access_modes.includes(mode)}
-                        onChange={() => toggleMode(mode)}
-                      />
-                      <span>{userAccessModeLabel(mode)}</span>
-                    </label>
-                  ))}
-                </div>
               </Field>
               <Field label="Scope limits" hint="One per line or comma-separated">
                 <textarea
@@ -1624,7 +1605,12 @@ function AuthenticatedApp() {
         subtitle="Organization"
       >
         {route.name === "dashboard" ? <DashboardPage /> : null}
-        {route.name === "integrations" ? <IntegrationsPage /> : null}
+        {route.name === "integrations" || route.name === "integrationDetail" ? (
+          <IntegrationsPage
+            navigate={navigate}
+            detailAppId={route.name === "integrationDetail" ? route.params.appId : null}
+          />
+        ) : null}
         {route.name === "users" ? <UsersPage /> : null}
         {route.name === "services" ? <ServicesPage /> : null}
         {route.name === "access" ? <AccessPage /> : null}

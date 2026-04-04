@@ -19,7 +19,9 @@
 
 ### Changed
 
-- Frontend: Self-Service **Access** (`/grants`): Detailmodal auf Verbindungsnutzung fokussiert (Connection, Endpoint, Access key mit Show/Copy); **Usage example** und **Developer details** einklappbar; App-Zugangsschlüssel und technische Referenz nur unter **Developer details**; bei „automatischer“ Verbindung weiter Auflösung per `GET /api/v1/connections`.
+- Frontend: **Access**-Detailmodal: Access-Key-Zeile mit Icon-Buttons (Auge ein/aus, Kopieren) neben dem Wert; **Replace key** (App-Zugang) darunter.
+
+- Frontend: Self-Service **Access** (`/grants`): Detailmodal auf Verbindungsnutzung fokussiert (Connection, Endpoint, Access key mit Toggle/Kopieren); **Usage example** und **Developer details** einklappbar; App-Zugangsschlüssel und technische Referenz nur unter **Developer details**; bei „automatischer“ Verbindung weiter Auflösung per `GET /api/v1/connections`.
 
 - Frontend: **Connection details** Key-Zeile ohne doppelte Bullet-Anzeige; getrennte Kurztexte für rotierbaren Relay-Key vs. OAuth; Graph-Label **OAuth token**.
 

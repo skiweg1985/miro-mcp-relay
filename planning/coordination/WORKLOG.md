@@ -1,3 +1,30 @@
+## 2026-04-04 – Cursor Agent – Access-Key Icons im Modal
+
+- Done:
+  - `frontend/src/App.tsx`: `GrantAppAccessKeySection` und `AccessConnectionTool` – Access Key in `.access-modal-secret-line` mit `AccessKeyIconActions` (Auge/Kopieren); **Replace key** getrennt.
+  - `frontend/src/index.css`: `.access-modal-secret-line`, `.access-key-icon-group`, `.access-key-icon-btn`, `.access-modal-replace-key`, `.access-modal-key-box--grow`.
+  - `docs/CHANGELOG.md` [Unreleased] Changed.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - frontend/src/App.tsx
+  - frontend/src/index.css
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - `cd frontend && npm run build`
+- UI path:
+  - `/grants` → Zeile → **Access** (App-Zugang + Verbindung)
+- Changelog updated:
+  - yes (Changed)
+- Follow-ups:
+  - keine
+
 ## 2026-04-04 – Cursor Agent – Access-Modal vereinfacht
 
 - Done:

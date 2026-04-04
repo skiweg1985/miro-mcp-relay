@@ -213,6 +213,83 @@ function brokerPublicOrigin(): string {
   return window.location.origin;
 }
 
+function IconEye({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" width="20" height="20" aria-hidden>
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"
+      />
+      <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="2" />
+    </svg>
+  );
+}
+
+function IconEyeOff({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" width="20" height="20" aria-hidden>
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24M1 1l22 22"
+      />
+    </svg>
+  );
+}
+
+function IconCopy({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" width="20" height="20" aria-hidden>
+      <path
+        fill="currentColor"
+        d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"
+      />
+    </svg>
+  );
+}
+
+function AccessKeyIconActions({
+  reveal,
+  onToggleReveal,
+  onCopy,
+  copyDisabled,
+}: {
+  reveal: boolean;
+  onToggleReveal: () => void;
+  onCopy: () => void;
+  copyDisabled?: boolean;
+}) {
+  return (
+    <div className="access-key-icon-group">
+      <button
+        type="button"
+        className="access-key-icon-btn"
+        onClick={onToggleReveal}
+        aria-pressed={reveal}
+        aria-label={reveal ? "Hide access key" : "Show access key"}
+      >
+        {reveal ? <IconEyeOff /> : <IconEye />}
+      </button>
+      <button
+        type="button"
+        className="access-key-icon-btn"
+        onClick={() => void onCopy()}
+        disabled={copyDisabled}
+        aria-label="Copy access key"
+      >
+        <IconCopy />
+      </button>
+    </div>
+  );
+}
+
 function GrantCodeCopy({
   label,
   text,
@@ -359,22 +436,24 @@ function GrantAppAccessKeySection({ grantId, canUse }: { grantId: string; canUse
         {loadState === "error" ? <p className="muted access-modal-dev-lede">Could not load. Try again later.</p> : null}
         {loadState === "ready" && credential ? (
           <div className="grant-delegated-credential-block">
-            <div className="grant-delegated-credential-value">
-              {reveal ? (
-                <code className="grant-credential-code">{credential}</code>
-              ) : (
-                <span className="grant-credential-masked" aria-hidden>
-                  ••••••••••••••••
-                </span>
-              )}
+            <div className="access-modal-secret-line">
+              <div className="grant-delegated-credential-value access-modal-key-box access-modal-key-box--grow">
+                {reveal ? (
+                  <code className="grant-credential-code">{credential}</code>
+                ) : (
+                  <span className="grant-credential-masked" aria-hidden>
+                    ••••••••••••••••
+                  </span>
+                )}
+              </div>
+              <AccessKeyIconActions
+                reveal={reveal}
+                onToggleReveal={() => setReveal((v) => !v)}
+                onCopy={() => void handleCopy()}
+                copyDisabled={!credential}
+              />
             </div>
-            <div className="grant-delegated-credential-buttons">
-              <button type="button" className="ghost-button" onClick={() => setReveal((v) => !v)}>
-                {reveal ? "Hide" : "Show"}
-              </button>
-              <button type="button" className="ghost-button" onClick={() => void handleCopy()}>
-                Copy
-              </button>
+            <div className="access-modal-replace-key">
               <button type="button" className="ghost-button" onClick={() => setRotateConfirm(true)}>
                 Replace key
               </button>
@@ -473,8 +552,8 @@ function AccessConnectionTool({
         <span className="access-modal-label">Access key</span>
         <div className="access-modal-value-wrap access-modal-value-wrap--key">
           {keyReady && keyPlaintext ? (
-            <>
-              <div className="grant-delegated-credential-value access-modal-key-box">
+            <div className="access-modal-secret-line">
+              <div className="grant-delegated-credential-value access-modal-key-box access-modal-key-box--grow">
                 {keyReveal ? (
                   <code className="grant-credential-code">{keyPlaintext}</code>
                 ) : (
@@ -483,15 +562,13 @@ function AccessConnectionTool({
                   </span>
                 )}
               </div>
-              <div className="grant-delegated-credential-buttons">
-                <button type="button" className="ghost-button" onClick={() => setKeyReveal((v) => !v)}>
-                  {keyReveal ? "Hide" : "Show"}
-                </button>
-                <button type="button" className="ghost-button" onClick={() => void copyKey(keyPlaintext)}>
-                  Copy
-                </button>
-              </div>
-            </>
+              <AccessKeyIconActions
+                reveal={keyReveal}
+                onToggleReveal={() => setKeyReveal((v) => !v)}
+                onCopy={() => void copyKey(keyPlaintext)}
+                copyDisabled={!keyPlaintext}
+              />
+            </div>
           ) : keyStored ? (
             <>
               <span className="grant-credential-masked" aria-hidden>

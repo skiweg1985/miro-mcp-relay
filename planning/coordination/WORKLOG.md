@@ -1,3 +1,29 @@
+## 2026-04-04 – Cursor Agent – Docker Compose: Zeitzone, Legacy-Volume
+
+- Done:
+  - `docker-compose.yml`: `/etc/localtime` read-only gemountet; `./data:/legacy-data` entfernt; `SESSION_SECURE_COOKIE` aus den Compose-Env-Variablen des Backends entfernt.
+  - `docs/CHANGELOG.md` [Unreleased] Changed ergänzt.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - docker-compose.yml
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: keine (Compose-Änderung)
+  - endpoints: keine
+- UI path:
+  - keine
+- Changelog updated:
+  - yes ([Unreleased] Changed)
+- Follow-ups:
+  - `SESSION_SECURE_COOKIE` bei HTTPS-Betrieb weiterhin per `.env`/Runtime setzen.
+
 ## 2026-04-04 – Cursor Agent – Shell: Hauptspalte oben bündig
 
 - Done:

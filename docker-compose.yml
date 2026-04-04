@@ -51,9 +51,8 @@ services:
       BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-admin@example.com}
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-change-me-admin-password}
       SESSION_SECRET: ${SESSION_SECRET:-change-me-broker-session-secret}
-      SESSION_SECURE_COOKIE: ${SESSION_SECURE_COOKIE:-false}
     volumes:
-      - ./data:/legacy-data
+      - /etc/localtime:/etc/localtime:ro
     depends_on:
       postgres:
         condition: service_healthy

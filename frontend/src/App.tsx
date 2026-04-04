@@ -67,6 +67,11 @@ import {
   toIsoDateTime,
 } from "./utils";
 
+/** Bash single-quoted fragment for curl `-d` / URLs (paste-safe for Postman import). */
+function shellSingleQuoted(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
 function connectionTone(connection: ConnectedAccountOut): "neutral" | "success" | "warn" | "danger" {
   if (connection.status === "revoked") return "warn";
   if (connection.last_error) return "danger";
@@ -454,12 +459,12 @@ function GrantAppAccessKeySection({ grantId, canUse }: { grantId: string; canUse
       {loadState === "error" ? <span className="muted access-modal-inline-status">Could not load.</span> : null}
       {loadState === "ready" && credential ? (
         <div className="grant-access-credential-block">
-          <div className="access-modal-secret-line">
-            <div className="grant-access-credential-value access-modal-key-box access-modal-key-box--grow">
+          <div className="access-modal-secret-line access-modal-secret-line--key">
+            <div className="access-modal-key-scroll" tabIndex={0}>
               {reveal ? (
-                <code className="grant-credential-code">{credential}</code>
+                <code className="grant-credential-code access-modal-key-text">{credential}</code>
               ) : (
-                <span className="grant-credential-masked" aria-hidden>
+                <span className="grant-credential-masked access-modal-key-text" aria-hidden>
                   ••••••••••••••••
                 </span>
               )}
@@ -478,8 +483,10 @@ function GrantAppAccessKeySection({ grantId, canUse }: { grantId: string; canUse
       ) : null}
       {loadState === "missing" ? (
         <div className="grant-access-credential-block grant-access-credential-block--empty">
-          <div className="access-modal-secret-line access-modal-missing-key-row">
-            <p className="muted access-modal-missing-inline">Not stored. Replace once to enable Show and Copy.</p>
+          <div className="access-modal-secret-line access-modal-secret-line--key access-modal-missing-key-row">
+            <div className="access-modal-key-scroll access-modal-key-scroll--missing">
+              <p className="muted access-modal-missing-inline">Not stored. Replace once to enable Show and Copy.</p>
+            </div>
             <AccessKeyIconActions
               showRevealCopy={false}
               reveal={false}
@@ -497,13 +504,11 @@ function GrantAppAccessKeySection({ grantId, canUse }: { grantId: string; canUse
 
   return (
     <>
-      <div className="access-modal-grid-cell access-modal-grid-cell--access-key">
-        <div className="access-modal-field-row">
-          <span className="access-modal-label" title="Use this key where the broker expects the access credential.">
-            Access key
-          </span>
-          <div className="access-modal-field-main">{accessKeyBody}</div>
-        </div>
+      <div className="access-modal-field-stack access-modal-field-stack--primary">
+        <span className="access-modal-label" title="Use this key where the broker expects the access credential.">
+          Access key
+        </span>
+        <div className="access-modal-field-main access-modal-field-main--flush">{accessKeyBody}</div>
       </div>
 
       {rotateConfirm
@@ -525,13 +530,7 @@ function GrantAppAccessKeySection({ grantId, canUse }: { grantId: string; canUse
   );
 }
 
-function ConnectionEndpointGridCells({
-  accessDetails,
-  connectionName,
-}: {
-  accessDetails: ConnectionAccessDetails;
-  connectionName: string;
-}) {
+function AccessModalEndpoint({ accessDetails }: { accessDetails: ConnectionAccessDetails }) {
   const { notify } = useAppContext();
 
   const endpointUrl =
@@ -548,33 +547,34 @@ function ConnectionEndpointGridCells({
   };
 
   return (
-    <>
-      <div className="access-modal-grid-cell access-modal-grid-cell--connection-name">
-        <div className="access-modal-field-row">
-          <span className="access-modal-label">Connection name</span>
-          <span className="access-modal-value">{connectionName || "—"}</span>
-        </div>
-      </div>
-      <div className="access-modal-grid-cell access-modal-grid-cell--endpoint">
-        <div className="access-modal-field-row">
-          <span className="access-modal-label">Endpoint</span>
-          <div className="access-modal-field-main">
-            {endpointUrl ? (
-              <div className="access-modal-secret-line access-modal-endpoint-line">
-                <code className="access-modal-code access-modal-code--endpoint" title={endpointUrl}>
-                  {endpointUrl}
-                </code>
-                <button type="button" className="ghost-button access-modal-inline-btn" onClick={() => void copyEndpoint()}>
-                  Copy
-                </button>
-              </div>
-            ) : (
-              <span className="access-modal-value">—</span>
-            )}
+    <div className="access-modal-field-stack access-modal-field-stack--secondary">
+      <span className="access-modal-label">Endpoint</span>
+      <div className="access-modal-field-main access-modal-field-main--flush">
+        {endpointUrl ? (
+          <div className="access-modal-secret-line access-modal-endpoint-line">
+            <div className="access-modal-key-scroll access-modal-endpoint-scroll" tabIndex={0}>
+              <code className="access-modal-code access-modal-code--endpoint access-modal-key-text" title={endpointUrl}>
+                {endpointUrl}
+              </code>
+            </div>
+            <button type="button" className="ghost-button access-modal-inline-btn" onClick={() => void copyEndpoint()}>
+              Copy
+            </button>
           </div>
-        </div>
+        ) : (
+          <span className="access-modal-value">—</span>
+        )}
       </div>
-    </>
+    </div>
+  );
+}
+
+function AccessModalConnection({ connectionName }: { connectionName: string }) {
+  return (
+    <div className="access-modal-field-stack access-modal-field-stack--context">
+      <span className="access-modal-label">Connection</span>
+      <p className="access-modal-connection-value">{connectionName || "—"}</p>
+    </div>
   );
 }
 
@@ -645,23 +645,24 @@ function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
   const usageExampleText = useMemo(() => {
     const endpointFromRows = accessDetails?.rows.find((r) => r.label === "Relay endpoint" || r.label === "Endpoint")?.value;
     if (directAllowed) {
+      const body = JSON.stringify({
+        provider_app_key: grant.provider_app_key,
+        connected_account_id: grant.connected_account_id ?? resolvedConnectionId ?? null,
+        requested_scopes: [] as string[],
+      });
       return [
-        `POST ${origin}/api/v1/token-issues/provider-access`,
-        `Content-Type: application/json`,
-        ``,
-        JSON.stringify(
-          {
-            provider_app_key: grant.provider_app_key,
-            connected_account_id: grant.connected_account_id ?? resolvedConnectionId ?? null,
-            requested_scopes: [] as string[],
-          },
-          null,
-          2,
-        ),
+        `curl -sS -X POST ${shellSingleQuoted(`${origin}/api/v1/token-issues/provider-access`)} \\`,
+        `  -H ${shellSingleQuoted("Content-Type: application/json")} \\`,
+        `  -d ${shellSingleQuoted(body)}`,
       ].join("\n");
     }
     const ep = endpointFromRows ?? "<endpoint>";
-    return [`POST ${ep}`, `Content-Type: application/json`, ``, `{ }`].join("\n");
+    return [
+      `curl -sS -X POST ${shellSingleQuoted(ep)} \\`,
+      `  -H ${shellSingleQuoted("Content-Type: application/json")} \\`,
+      `  -H ${shellSingleQuoted("X-Access-Key: <access key>")} \\`,
+      `  -d ${shellSingleQuoted("{}")}`,
+    ].join("\n");
   }, [accessDetails, directAllowed, grant.connected_account_id, grant.provider_app_key, origin, resolvedConnectionId]);
 
   const developerHeadersExample = useMemo(() => {
@@ -680,8 +681,7 @@ function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
   const grantCanUseCredential = grantUiState(grant) !== "ended";
   const showConnectionBlock = !summaryLoading && showConnectionAccess && Boolean(accessDetails?.supported);
 
-  const credentialsGridMode =
-    grantCanUseCredential && showConnectionBlock ? "paired" : grantCanUseCredential ? "accessOnly" : showConnectionBlock ? "connectionOnly" : null;
+  const showCredentialsBlock = grantCanUseCredential || showConnectionBlock;
 
   const extraAccessRows = accessDetails?.supported
     ? accessDetails.rows.filter(
@@ -704,14 +704,17 @@ function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
         <p className="muted access-modal-hint">Add a connection under Integrations to use this access.</p>
       ) : null}
 
-      {credentialsGridMode ? (
+      {showCredentialsBlock ? (
         <section className="access-modal-section access-modal-section--credentials access-modal-section--compact" aria-label="Credentials">
-          <div
-            className={`access-modal-credentials-grid access-modal-credentials-grid--${credentialsGridMode}`}
-          >
-            {grantCanUseCredential ? <GrantAppAccessKeySection grantId={grant.id} canUse={grantCanUseCredential} /> : null}
+          <div className="access-modal-credentials-card">
+            <div className="access-modal-credentials-bundle">
+              {grantCanUseCredential ? <GrantAppAccessKeySection grantId={grant.id} canUse={grantCanUseCredential} /> : null}
+              {showConnectionBlock && accessDetails ? <AccessModalEndpoint accessDetails={accessDetails} /> : null}
+            </div>
             {showConnectionBlock && accessDetails ? (
-              <ConnectionEndpointGridCells accessDetails={accessDetails} connectionName={connectionName} />
+              <div className="access-modal-credentials-context">
+                <AccessModalConnection connectionName={connectionName} />
+              </div>
             ) : null}
           </div>
         </section>
@@ -724,15 +727,15 @@ function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
       ) : null}
 
       <details className="grant-disclosure grant-disclosure--after-tool grant-disclosure--compact">
+        <summary className="grant-disclosure-summary grant-disclosure-summary--compact">cURL</summary>
+        <div className="grant-detail-disclosure-body access-modal-dev-nested">
+          <GrantCodeCopy label="Copy" text={usageExampleText} />
+        </div>
+      </details>
+
+      <details className="grant-disclosure grant-disclosure--compact">
         <summary className="grant-disclosure-summary grant-disclosure-summary--compact">Developer details</summary>
         <div className="grant-detail-disclosure-body access-modal-dev">
-          <details className="grant-disclosure grant-disclosure--nested">
-            <summary className="grant-disclosure-summary grant-disclosure-summary--sub">Usage example</summary>
-            <div className="grant-detail-disclosure-body access-modal-dev-nested">
-              <GrantCodeCopy label="Copy" text={usageExampleText} />
-            </div>
-          </details>
-
           {grant.service_client_key ? (
             <p className="muted access-modal-dev-lede">
               Named apps may require <code className="grant-inline-code">X-Service-Secret</code> from the service settings.

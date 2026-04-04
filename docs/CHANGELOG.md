@@ -10,6 +10,8 @@
 
 ### Changed
 
+- Frontend: Self-Service **Access**-Detailmodal: ausklappbarer Block **cURL** mit kopierbarem `curl`-Befehl (Direct: `POST …/token-issues/provider-access`; Relay: Endpoint, `X-Access-Key: <access key>`, `-d '{}'`) für Import in Postman o. Ä.
+
 - Miro-Relay: nur noch `POST /api/v1/broker-proxy/miro/{connected_account_id}` mit Delegation-Grant (`X-Access-Key`); `GET .../access-details` liefert Relay-URL und Authentifizierungshinweis (Grant-Access-Key), ohne separaten Verbindungs-Key.
 - HAProxy: Backend nur noch für `/api` (kein Routing mehr von `/miro`, `/start`, `/healthz`, `/readyz` zum API-Backend).
 
@@ -31,7 +33,7 @@
 
 ### Changed
 
-- Frontend: Self-Service **Access**-Detailmodal: **Access key**, Verbindungsname, Endpoint und **Connection key** im **2-Spalten-Raster** mit Label und Wert in einer Zeile, Steuerung (Anzeigen, Kopieren, Ersetzen) in einer Zeile mit dem Schlüsselfeld; volle Modalbreite; **Developer details** mit geringerem Abstand; **Usage example** und **Headers (reference)** zusätzlich einklappbar; Platzhalter in der Header-Referenz `<connection key>`; Hinweis zum Access key präzisiert. `AccessCredentialSummary` / Mapper: Verbindungsschlüssel einheitlich **Connection key**.
+- Frontend: Self-Service **Access**-Detailmodal: **Access key**, Verbindungsname, Endpoint und **Connection key** im **2-Spalten-Raster** mit Label und Wert in einer Zeile, Steuerung (Anzeigen, Kopieren, Ersetzen) in einer Zeile mit dem Schlüsselfeld; volle Modalbreite; **Developer details** mit geringerem Abstand; **cURL** und **Headers (reference)** zusätzlich einklappbar; Platzhalter in der Header-Referenz `<connection key>`; Hinweis zum Access key präzisiert. `AccessCredentialSummary` / Mapper: Verbindungsschlüssel einheitlich **Connection key**.
 - HTTP: Kanonischer Header `X-Access-Key` für Service-APIs (`/api/v1/token-issues/provider-access`, `/api/v1/broker-proxy/miro/…`) und Legacy-MCP (`POST /miro/mcp/…`); Abwärtskompatibilität `X-Delegated-Credential` bzw. `X-Relay-Key` (Priorität jeweils `X-Access-Key`). JSON: `access_credential`; Endpoint `GET /api/v1/delegation-grants/{id}/access-credential` (Legacy-Pfad `…/delegated-credential`); Fehlercode `access_credential_not_stored`. Typ `AccessCredential` / `AccessCredentialRotateOut` im Backend; MCP-Config-JSON nutzt `X-Access-Key`.
 - UI/Doku: einheitliche Bezeichnung **Access key**; README, technische Referenz, Funktionsübersicht, Legacy-`src/index.js` angepasst.
 

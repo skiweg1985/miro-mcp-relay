@@ -1,3 +1,27 @@
+## 2026-04-04 – Cursor Agent – Access-Modal cURL-Beispiel
+
+- Done:
+  - `frontend/src/App.tsx`: **Usage example** → **cURL**; Inhalt als `curl -sS …` mit `-H` / `-d`, Relay inkl. `X-Access-Key: <access key>`; `shellSingleQuoted` für sichere Quotes im kopierten Befehl.
+  - `docs/CHANGELOG.md`: Eintrag unter [Unreleased] / Changed.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - frontend/src/App.tsx
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build`
+  - UI path: Self-Service App access → Zeile → Modal **Access** → **cURL** aufklappen → **Copy**
+- Changelog updated:
+  - yes (Changed)
+- Follow-ups:
+  - keine
+
 ## 2026-04-04 – Cursor Agent – Access-Modal Layout (kompakt)
 
 - Done:

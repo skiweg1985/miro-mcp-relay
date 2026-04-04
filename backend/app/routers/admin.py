@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.deps import record_audit, require_admin, require_csrf
 from app.miro import import_legacy_miro_data, migration_status
+from app.connection_serializers import serialize_connected_account
 from app.models import AuditEvent, ConnectedAccount, DelegationGrant, GrantedCapability, ProviderApp, ProviderDefinition, ProviderInstance, ServiceClient, TokenIssueEvent, TokenMaterial, User
 from app.provider_templates import (
     MICROSOFT_BROKER_LOGIN_TEMPLATE,
@@ -391,7 +392,8 @@ def list_connected_accounts(
         query = query.where(ConnectedAccount.provider_app_id == provider_app.id)
     if status:
         query = query.where(ConnectedAccount.status == status)
-    return db.scalars(query.order_by(ConnectedAccount.connected_at.desc()).limit(limit)).all()
+    connections = db.scalars(query.order_by(ConnectedAccount.connected_at.desc()).limit(limit)).all()
+    return [serialize_connected_account(db, connection) for connection in connections]
 
 
 @router.post("/connected-accounts/manual", response_model=ConnectedAccountOut, dependencies=[Depends(require_csrf)])
@@ -445,7 +447,7 @@ def create_connected_account(payload: ConnectedAccountCreate, admin: User = Depe
     )
     db.commit()
     db.refresh(connected_account)
-    return connected_account
+    return serialize_connected_account(db, connected_account)
 
 
 @router.get("/delegation-grants", response_model=list[DelegationGrantOut], dependencies=[Depends(require_csrf)])

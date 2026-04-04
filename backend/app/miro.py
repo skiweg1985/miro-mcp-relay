@@ -456,7 +456,7 @@ async def finalize_miro_callback(db: Session, state: str, code: str) -> Redirect
         metadata=metadata,
     )
     db.commit()
-    redirect_url = f"{settings.frontend_base_url.rstrip('/')}/connect/miro?miro_status=connected&connected_account_id={connected_account.id}"
+    redirect_url = f"{settings.frontend_base_url.rstrip('/')}/workspace/integrations?miro_status=connected&connected_account_id={connected_account.id}"
     if relay_token:
         setup_token = issue_miro_setup_token(db=db, connected_account_id=connected_account.id, relay_token=relay_token)
         redirect_url = f"{redirect_url}&miro_setup={quote(setup_token, safe='')}"

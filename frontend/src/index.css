@@ -1174,6 +1174,48 @@ select option {
   margin-top: auto;
 }
 
+.user-integration-grid {
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+}
+
+.user-integration-card {
+  min-height: 0;
+}
+
+.user-integration-meta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  font-size: var(--font-caption);
+  color: var(--muted);
+  margin-top: var(--space-1);
+}
+
+.user-integration-meta .stack-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.user-integration-meta .stack-cell strong {
+  color: var(--ink-secondary);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.user-integration-error span {
+  color: var(--danger);
+}
+
+.user-integration-actions {
+  margin-top: var(--space-3);
+}
+
+.workspace-metric-grid {
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+}
+
 .integration-card-cta {
   margin-top: auto;
   font-weight: 600;

@@ -1,6 +1,7 @@
 import { type FormEvent, type ReactNode, useEffect, useId, useMemo, useState } from "react";
 
 import { useAppContext } from "./app-context";
+import type { MiroRelayAccess } from "./types";
 import { classNames, copyToClipboard } from "./utils";
 
 export function LoadingScreen({ label }: { label: string }) {
@@ -294,5 +295,102 @@ export function ToastViewport() {
         </button>
       ))}
     </div>
+  );
+}
+
+export function MiroAccessCard({
+  access,
+  pending,
+  onIssueToken,
+  title = "Miro MCP access",
+  description = "Use this broker-managed endpoint and relay token in your MCP client.",
+}: {
+  access: MiroRelayAccess | null;
+  pending: boolean;
+  onIssueToken?: () => void;
+  title?: string;
+  description?: string;
+}) {
+  if (!access) {
+    return (
+      <Card title={title} description={description}>
+        <EmptyState
+          title="No Miro relay access yet"
+          body="Connect Miro first. Once the broker has a connected account, this panel will show the MCP endpoint and let you mint a new relay token."
+        />
+      </Card>
+    );
+  }
+
+  const tokenState = access.relay_token
+    ? "New one-time relay token ready"
+    : access.has_relay_token
+      ? "A relay token exists but cannot be shown again"
+      : "No relay token exists yet";
+
+  return (
+    <Card title={title} description={description}>
+      <div className="stack-list">
+        <div className="stack-cell">
+          <strong>Connection</strong>
+          <span>{access.display_name || access.external_email || access.connected_account_id}</span>
+        </div>
+        <div className="stack-cell">
+          <strong>Profile ID</strong>
+          <code className="inline-code">{access.profile_id}</code>
+        </div>
+        <div className="stack-cell">
+          <strong>MCP endpoint</strong>
+          <code className="inline-code">{access.mcp_url}</code>
+        </div>
+        <div className="stack-cell">
+          <strong>Relay token state</strong>
+          <span>{tokenState}</span>
+        </div>
+        <div className="stack-cell">
+          <strong>Broker status</strong>
+          <span>{access.connection_status}</span>
+        </div>
+      </div>
+
+      {onIssueToken ? (
+        <div className="inline-actions">
+          <button type="button" className="primary-button" disabled={pending} onClick={onIssueToken}>
+            {pending ? "Generating..." : access.has_relay_token ? "Generate new relay token" : "Create relay token"}
+          </button>
+        </div>
+      ) : null}
+
+      {!access.relay_token && access.has_relay_token ? (
+        <p className="lede">
+          Existing MCP clients can keep using the current token, but the broker cannot reveal it again. Generate a new token
+          when you want to copy a fresh config from the UI.
+        </p>
+      ) : null}
+
+      {access.relay_token ? (
+        <>
+          <SecretPanel
+            title="Relay token"
+            body="This token is shown only for this issuance. Store it in your MCP client before leaving the page."
+            value={access.relay_token}
+          />
+          {access.mcp_config_json ? (
+            <SecretPanel
+              title="Ready-to-paste MCP config"
+              body="Paste this JSON into your MCP client configuration to use the brokered Miro endpoint."
+              value={access.mcp_config_json}
+            />
+          ) : null}
+          {access.credentials_bundle_json ? (
+            <SecretPanel
+              title="Backup credentials bundle"
+              body="This compact bundle mirrors the old flow and is useful when you need profile ID plus relay token together."
+              value={access.credentials_bundle_json}
+            />
+          ) : null}
+        </>
+      ) : null}
+    </Card>
   );
 }

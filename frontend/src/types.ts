@@ -168,6 +168,10 @@ export type ConnectedAccountOut = {
   status: string;
   last_error: string | null;
   connected_at: string;
+  access_token_expires_at?: string | null;
+  refresh_token_expires_at?: string | null;
+  refresh_token_available?: boolean;
+  token_material_updated_at?: string | null;
 };
 
 export type DelegationGrantOut = {
@@ -359,6 +363,7 @@ export type RouteMatch =
   | { name: "access"; path: "/app/access" }
   | { name: "logs"; path: "/app/logs" }
   | { name: "workspace"; path: "/workspace" }
+  | { name: "workspaceIntegrations"; path: "/workspace/integrations" }
   | { name: "grants"; path: "/grants" }
   | { name: "connect"; path: `/connect/${string}`; params: { providerKey: string } }
   | { name: "tokenAccess"; path: "/token-access" }

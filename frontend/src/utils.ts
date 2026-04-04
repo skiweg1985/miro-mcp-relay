@@ -88,7 +88,7 @@ export function matchesRoute(pathname: string): RouteMatch {
   const path = LEGACY_ADMIN_PATHS[raw] ?? raw;
   if (path === "/" || path === "/login") return { name: "login", path: "/login" };
   if (path === "/miro" || path === "/start" || path === "/miro/start") {
-    return { name: "connect", path: "/connect/miro", params: { providerKey: "miro" } };
+    return { name: "workspaceIntegrations", path: "/workspace/integrations" };
   }
   if (path === "/miro/workspace") return { name: "workspace", path: "/workspace" };
   if (path === "/miro/admin") return { name: "dashboard", path: "/app" };
@@ -99,6 +99,7 @@ export function matchesRoute(pathname: string): RouteMatch {
   if (path === "/app/access") return { name: "access", path: "/app/access" };
   if (path === "/app/logs") return { name: "logs", path: "/app/logs" };
   if (path === "/workspace") return { name: "workspace", path: "/workspace" };
+  if (path === "/workspace/integrations") return { name: "workspaceIntegrations", path: "/workspace/integrations" };
   if (path === "/grants") return { name: "grants", path: "/grants" };
   if (path === "/token-access") return { name: "tokenAccess", path: "/token-access" };
   if (path.startsWith("/connect/")) {

@@ -146,20 +146,20 @@ async def finalize_microsoft_graph_callback(db: Session, state: str, code: str) 
     settings = get_settings()
     if not raw:
         return RedirectResponse(
-            url=f"{settings.frontend_base_url.rstrip('/')}/connect/microsoft-graph?provider_status=error&message={quote('Invalid or expired Microsoft Graph state')}",
+            url=f"{settings.frontend_base_url.rstrip('/')}/workspace/integrations?provider_status=error&message={quote('Invalid or expired Microsoft Graph state')}",
             status_code=302,
         )
     pending = PendingMicrosoftGraphAuth(**raw)
     provider_app = db.get(ProviderApp, pending.provider_app_id)
     if not provider_app or not provider_app.client_id or not provider_app.encrypted_client_secret:
         return RedirectResponse(
-            url=f"{settings.frontend_base_url.rstrip('/')}/connect/microsoft-graph?provider_status=error&message={quote('Microsoft Graph is not configured')}",
+            url=f"{settings.frontend_base_url.rstrip('/')}/workspace/integrations?provider_status=error&message={quote('Microsoft Graph is not configured')}",
             status_code=302,
         )
     provider_instance = db.get(ProviderInstance, provider_app.provider_instance_id)
     if not provider_instance or not provider_instance.token_endpoint:
         return RedirectResponse(
-            url=f"{settings.frontend_base_url.rstrip('/')}/connect/microsoft-graph?provider_status=error&message={quote('Microsoft Graph is not configured')}",
+            url=f"{settings.frontend_base_url.rstrip('/')}/workspace/integrations?provider_status=error&message={quote('Microsoft Graph is not configured')}",
             status_code=302,
         )
 
@@ -179,7 +179,7 @@ async def finalize_microsoft_graph_callback(db: Session, state: str, code: str) 
         )
     if response.status_code >= 400:
         return RedirectResponse(
-            url=f"{settings.frontend_base_url.rstrip('/')}/connect/microsoft-graph?provider_status=error&message={quote(f'Microsoft Graph token exchange failed ({response.status_code})')}",
+            url=f"{settings.frontend_base_url.rstrip('/')}/workspace/integrations?provider_status=error&message={quote(f'Microsoft Graph token exchange failed ({response.status_code})')}",
             status_code=302,
         )
 
@@ -188,14 +188,14 @@ async def finalize_microsoft_graph_callback(db: Session, state: str, code: str) 
     nonce = str(claims.get("nonce") or "").strip()
     if not nonce or nonce != pending.nonce:
         return RedirectResponse(
-            url=f"{settings.frontend_base_url.rstrip('/')}/connect/microsoft-graph?provider_status=error&message={quote('Microsoft Graph nonce validation failed')}",
+            url=f"{settings.frontend_base_url.rstrip('/')}/workspace/integrations?provider_status=error&message={quote('Microsoft Graph nonce validation failed')}",
             status_code=302,
         )
 
     user = db.get(User, pending.user_id)
     if not user:
         return RedirectResponse(
-            url=f"{settings.frontend_base_url.rstrip('/')}/connect/microsoft-graph?provider_status=error&message={quote('User not found')}",
+            url=f"{settings.frontend_base_url.rstrip('/')}/workspace/integrations?provider_status=error&message={quote('User not found')}",
             status_code=302,
         )
 
@@ -261,7 +261,7 @@ async def finalize_microsoft_graph_callback(db: Session, state: str, code: str) 
 
     db.commit()
     return RedirectResponse(
-        url=f"{settings.frontend_base_url.rstrip('/')}/connect/microsoft-graph?provider_status=connected&connected_account_id={connected_account.id}",
+        url=f"{settings.frontend_base_url.rstrip('/')}/workspace/integrations?provider_status=connected&connected_account_id={connected_account.id}",
         status_code=302,
     )
 

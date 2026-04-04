@@ -217,6 +217,10 @@ class ConnectedAccountOut(BaseModel):
     status: str
     last_error: str | None = None
     connected_at: datetime
+    access_token_expires_at: datetime | None = None
+    refresh_token_expires_at: datetime | None = None
+    refresh_token_available: bool = False
+    token_material_updated_at: datetime | None = None
 
 
 class MiroConnectStartRequest(BaseModel):

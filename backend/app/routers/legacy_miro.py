@@ -20,17 +20,17 @@ def frontend_redirect(path: str) -> RedirectResponse:
 
 @router.get("/miro")
 def miro_root_redirect():
-    return frontend_redirect("/connect/miro")
+    return frontend_redirect("/workspace/integrations")
 
 
 @router.get("/start")
 def start_redirect():
-    return frontend_redirect("/connect/miro")
+    return frontend_redirect("/workspace/integrations")
 
 
 @router.get("/miro/start")
 def miro_start_redirect():
-    return frontend_redirect("/connect/miro")
+    return frontend_redirect("/workspace/integrations")
 
 
 @router.get("/miro/workspace")

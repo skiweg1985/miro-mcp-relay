@@ -35,7 +35,6 @@ import type {
   DelegationGrantCreateResult,
   DelegationGrantFormValues,
   DelegationGrantOut,
-  MiroRelayAccess,
   ProviderAppOut,
   ProviderInstanceOut,
   RouteMatch,
@@ -49,6 +48,7 @@ import type {
   UserOut,
   VisibleServiceClientOut,
 } from "./types";
+import { UserIntegrationsPage } from "./UserIntegrationsPage";
 import { isApiError } from "./errors";
 import {
   formatDateTime,
@@ -104,25 +104,6 @@ function friendlyBrokerMessage(raw: string | null | undefined): string {
   return message;
 }
 
-function findMiroConnection(
-  connections: ConnectedAccountOut[],
-  providerAppById: Record<string, ProviderAppOut>,
-): ConnectedAccountOut | undefined {
-  return connections.find((connection) => providerAppById[connection.provider_app_id]?.template_key === "miro-relay");
-}
-
-function findProviderAppByTemplate(providerApps: ProviderAppOut[], templateKey: string): ProviderAppOut | undefined {
-  return providerApps.find((providerApp) => providerApp.template_key === templateKey);
-}
-
-function findConnectionByTemplate(
-  connections: ConnectedAccountOut[],
-  providerAppById: Record<string, ProviderAppOut>,
-  templateKey: string,
-): ConnectedAccountOut | undefined {
-  return connections.find((connection) => providerAppById[connection.provider_app_id]?.template_key === templateKey);
-}
-
 function templateKeyForRoute(providerKey: string): string | null {
   if (providerKey === "miro") return "miro-relay";
   if (providerKey === "microsoft-graph") return "microsoft-graph-direct";
@@ -135,24 +116,25 @@ function providerRouteLabel(providerKey: string): string {
   return providerKey;
 }
 
+function isWorkspaceSelfServiceRoute(route: RouteMatch): boolean {
+  if (
+    route.name === "workspace" ||
+    route.name === "workspaceIntegrations" ||
+    route.name === "grants" ||
+    route.name === "tokenAccess"
+  ) {
+    return true;
+  }
+  if (route.name === "connect" && templateKeyForRoute(route.params.providerKey)) {
+    return true;
+  }
+  return false;
+}
+
 function userAccessModeLabel(mode: string): string {
   if (mode === "relay") return "Proxy path";
   if (mode === "direct_token") return "Direct token";
   return mode;
-}
-
-function replaceCurrentSearchParams(removals: string[]) {
-  const url = new URL(window.location.href);
-  let changed = false;
-  removals.forEach((key) => {
-    if (url.searchParams.has(key)) {
-      url.searchParams.delete(key);
-      changed = true;
-    }
-  });
-  if (!changed) return;
-  const search = url.searchParams.toString();
-  window.history.replaceState({}, "", `${url.pathname}${search ? `?${search}` : ""}`);
 }
 
 function usePathname() {
@@ -429,518 +411,56 @@ function MetricCard({ label, value, caption }: { label: string; value: string; c
   );
 }
 
-function MiroAccessCard({
-  access,
-  pending,
-  onIssueToken,
-  title = "Miro MCP access",
-  description = "Use this broker-managed endpoint and relay token in your MCP client.",
-}: {
-  access: MiroRelayAccess | null;
-  pending: boolean;
-  onIssueToken?: () => void;
-  title?: string;
-  description?: string;
-}) {
-  if (!access) {
-    return (
-      <Card title={title} description={description}>
-        <EmptyState
-          title="No Miro relay access yet"
-          body="Connect Miro first. Once the broker has a connected account, this panel will show the MCP endpoint and let you mint a new relay token."
-        />
-      </Card>
-    );
-  }
-
-  const tokenState = access.relay_token
-    ? "New one-time relay token ready"
-    : access.has_relay_token
-      ? "A relay token exists but cannot be shown again"
-      : "No relay token exists yet";
-
-  return (
-    <Card title={title} description={description}>
-      <div className="stack-list">
-        <div className="stack-cell">
-          <strong>Connection</strong>
-          <span>{access.display_name || access.external_email || access.connected_account_id}</span>
-        </div>
-        <div className="stack-cell">
-          <strong>Profile ID</strong>
-          <code className="inline-code">{access.profile_id}</code>
-        </div>
-        <div className="stack-cell">
-          <strong>MCP endpoint</strong>
-          <code className="inline-code">{access.mcp_url}</code>
-        </div>
-        <div className="stack-cell">
-          <strong>Relay token state</strong>
-          <span>{tokenState}</span>
-        </div>
-        <div className="stack-cell">
-          <strong>Broker status</strong>
-          <span>{access.connection_status}</span>
-        </div>
-      </div>
-
-      {onIssueToken ? (
-        <div className="inline-actions">
-          <button type="button" className="primary-button" disabled={pending} onClick={onIssueToken}>
-            {pending ? "Generating..." : access.has_relay_token ? "Generate new relay token" : "Create relay token"}
-          </button>
-        </div>
-      ) : null}
-
-      {!access.relay_token && access.has_relay_token ? (
-        <p className="lede">
-          Existing MCP clients can keep using the current token, but the broker cannot reveal it again. Generate a new token
-          when you want to copy a fresh config from the UI.
-        </p>
-      ) : null}
-
-      {access.relay_token ? (
-        <>
-          <SecretPanel
-            title="Relay token"
-            body="This token is shown only for this issuance. Store it in your MCP client before leaving the page."
-            value={access.relay_token}
-          />
-          {access.mcp_config_json ? (
-            <SecretPanel
-              title="Ready-to-paste MCP config"
-              body="Paste this JSON into your MCP client configuration to use the brokered Miro endpoint."
-              value={access.mcp_config_json}
-            />
-          ) : null}
-          {access.credentials_bundle_json ? (
-            <SecretPanel
-              title="Backup credentials bundle"
-              body="This compact bundle mirrors the old flow and is useful when you need profile ID plus relay token together."
-              value={access.credentials_bundle_json}
-            />
-          ) : null}
-        </>
-      ) : null}
-    </Card>
-  );
-}
-
-
 function WorkspacePage() {
   const { notify, session } = useAppContext();
   const [providerApps, setProviderApps] = useState<ProviderAppOut[]>([]);
   const [connections, setConnections] = useState<ConnectedAccountOut[]>([]);
-  const [miroAccess, setMiroAccess] = useState<MiroRelayAccess | null>(null);
   const [loading, setLoading] = useState(true);
-  const [probeResult, setProbeResult] = useState<ConnectionProbeResult | null>(null);
-  const [busyActions, setBusyActions] = useState<Set<string>>(() => new Set());
-  const [tokenPending, setTokenPending] = useState(false);
-
-  const load = async () => {
-    setLoading(true);
-    try {
-      const [providerAppData, connectionData] = await Promise.all([api.providerAppsForUser(), api.myConnections()]);
-      setProviderApps(providerAppData);
-      setConnections(connectionData);
-      const providerMap = Object.fromEntries(providerAppData.map((app) => [app.id, app]));
-      const existingMiro = findMiroConnection(connectionData, providerMap);
-      if (existingMiro) {
-        setMiroAccess(await api.miroAccess(existingMiro.id));
-      } else {
-        setMiroAccess(null);
-      }
-    } catch (error) {
-      notify({
-        tone: "error",
-        title: "Failed to load workspace",
-        description: isApiError(error) ? error.message : "Unexpected workspace loading error.",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   useEffect(() => {
     if (session.status !== "authenticated") return;
-    void load();
+    setLoading(true);
+    void Promise.all([api.providerAppsForUser(), api.myConnections()])
+      .then(([providerAppData, connectionData]) => {
+        setProviderApps(providerAppData);
+        setConnections(connectionData);
+      })
+      .catch((error) =>
+        notify({
+          tone: "error",
+          title: "Failed to load workspace",
+          description: isApiError(error) ? error.message : "Unexpected workspace loading error.",
+        }),
+      )
+      .finally(() => setLoading(false));
   }, [notify, session]);
 
-  const providerAppById = useMemo(
-    () => Object.fromEntries(providerApps.map((app) => [app.id, app])),
-    [providerApps],
-  );
-  const existingMiro = findMiroConnection(connections, providerAppById);
-
-  const runAction = async (actionKey: string, fn: () => Promise<void>) => {
-    setBusyActions((prev) => new Set(prev).add(actionKey));
-    try {
-      await fn();
-    } catch (error) {
-      notify({
-        tone: "error",
-        title: "Action failed",
-        description: isApiError(error) ? error.message : "Unexpected error.",
-      });
-    } finally {
-      setBusyActions((prev) => {
-        const next = new Set(prev);
-        next.delete(actionKey);
-        return next;
-      });
-    }
-  };
-
-  const handleRefresh = async (connectionId: string) => {
-    if (session.status !== "authenticated") return;
-    await runAction(`refresh:${connectionId}`, async () => {
-      await api.refreshConnection(session.csrfToken, connectionId);
-      notify({ tone: "success", title: "Connection refreshed" });
-      await load();
-    });
-  };
-
-  const handleProbe = async (connectionId: string) => {
-    if (session.status !== "authenticated") return;
-    await runAction(`probe:${connectionId}`, async () => {
-      const result = await api.probeConnection(session.csrfToken, connectionId);
-      setProbeResult(result);
-      notify({
-        tone: result.ok ? "success" : "error",
-        title: result.ok ? "Connection probe succeeded" : "Connection probe failed",
-        description: result.ok ? "The broker could reach the provider with the stored credentials." : friendlyBrokerMessage(result.message),
-      });
-      await load();
-    });
-  };
-
-  const handleRevoke = async (connectionId: string) => {
-    if (session.status !== "authenticated") return;
-    await runAction(`revoke:${connectionId}`, async () => {
-      await api.revokeConnection(session.csrfToken, connectionId);
-      notify({ tone: "info", title: "Connection revoked" });
-      await load();
-    });
-  };
-
-  const handleRotateMiroToken = async () => {
-    if (session.status !== "authenticated" || !existingMiro) return;
-    setTokenPending(true);
-    try {
-      const result = await api.resetMiroAccess(session.csrfToken, existingMiro.id);
-      setMiroAccess(result);
-      notify({
-        tone: "success",
-        title: "New Miro relay token ready",
-        description: "Copy the MCP config now. The previous relay token is no longer valid.",
-      });
-    } catch (error) {
-      notify({
-        tone: "error",
-        title: "Could not issue a new relay token",
-        description: isApiError(error) ? error.message : "Unexpected Miro access error.",
-      });
-    } finally {
-      setTokenPending(false);
-    }
-  };
-
   if (loading) return <LoadingScreen label="Loading your workspace..." />;
+
+  const connectableCount = providerApps.filter((app) => app.template_key && app.template_key !== "microsoft-broker-login").length;
 
   return (
     <>
       <PageIntro
         eyebrow="Workspace"
-        title="Manage your provider access"
-        description="See your broker-held provider connections, refresh or revoke them, and run a safe connectivity probe before downstream consumers request access."
+        title="Your broker workspace"
+        description="Review connection health at a glance. Use Integrations to connect or disconnect provider accounts."
       />
 
-      <div className="metric-grid">
-        <MetricCard label="Active connections" value={String(connections.filter((connection) => connection.status === "connected").length)} caption="Currently usable accounts" />
-        <MetricCard label="Provider apps" value={String(providerApps.length)} caption="Visible self-service targets" />
+      <div className="metric-grid workspace-metric-grid">
         <MetricCard
-          label="Last probe"
-          value={probeResult ? (probeResult.ok ? "Healthy" : "Needs attention") : "Not run"}
-          caption={probeResult ? formatDateTime(probeResult.checked_at) : "Run a probe from a connection row"}
+          label="Active connections"
+          value={String(connections.filter((c) => c.status === "connected").length)}
+          caption="Currently usable accounts"
         />
+        <MetricCard label="Integrations available" value={String(connectableCount)} caption="Published provider apps" />
         <MetricCard
-          label="Errors"
-          value={String(connections.filter((connection) => Boolean(connection.last_error)).length)}
+          label="Attention"
+          value={String(connections.filter((c) => Boolean(c.last_error)).length)}
           caption="Connections with stored issues"
         />
-        <MetricCard label="Workspace status" value="Ready" caption="User self-service is active" />
+        <MetricCard label="Workspace status" value="Ready" caption="Self-service is active" />
       </div>
-
-      {probeResult ? (
-        <Card title="Latest probe result" description="The probe uses the broker backend and never returns raw provider tokens.">
-          <div className="stack-list">
-            <div className="stack-cell">
-              <strong>Status</strong>
-              <span>{probeResult.ok ? "Connected successfully" : probeResult.message ?? "Probe failed"}</span>
-            </div>
-            <div className="stack-cell">
-              <strong>Checked</strong>
-              <span>{formatDateTime(probeResult.checked_at)}</span>
-            </div>
-            <div className="stack-cell">
-              <strong>Provider identity</strong>
-              <span>{probeResult.external_user_name || probeResult.external_user_id || "Not returned"}</span>
-            </div>
-          </div>
-        </Card>
-      ) : null}
-
-      <MiroAccessCard
-        access={miroAccess}
-        pending={tokenPending}
-        onIssueToken={existingMiro ? () => void handleRotateMiroToken() : undefined}
-        description="This is the new-app replacement for the old Miro relay handoff. Use it to copy the broker MCP config whenever you need a fresh token."
-      />
-
-      <Card title="Your connections" description="Refresh keeps credentials current, probe checks connectivity, and revoke removes access from the broker.">
-          <DataTable
-            columns={["Provider", "Account", "Connected", "Status", "Last error", "Actions"]}
-            rows={connections.map((connection) => [
-              providerAppById[connection.provider_app_id]?.display_name ?? connection.provider_app_id,
-              connection.display_name || connection.external_email || connection.external_account_ref || connection.id,
-              formatDateTime(connection.connected_at),
-              <StatusBadge
-                key={connection.id}
-                tone={connectionTone(connection)}
-              >
-                {connection.status === "connected" && connection.last_error ? "attention" : connection.status}
-              </StatusBadge>,
-              connection.last_error ? friendlyBrokerMessage(connection.last_error) : "No recent error",
-              <div className="inline-actions" key={`${connection.id}-actions`}>
-              <button
-                type="button"
-                className="ghost-button"
-                disabled={busyActions.has(`refresh:${connection.id}`)}
-                onClick={() => void handleRefresh(connection.id)}
-              >
-                {busyActions.has(`refresh:${connection.id}`) ? "Refreshing..." : "Refresh"}
-              </button>
-              <button
-                type="button"
-                className="ghost-button"
-                disabled={busyActions.has(`probe:${connection.id}`)}
-                onClick={() => void handleProbe(connection.id)}
-              >
-                {busyActions.has(`probe:${connection.id}`) ? "Probing..." : "Probe"}
-              </button>
-              <button
-                type="button"
-                className="ghost-button"
-                disabled={busyActions.has(`revoke:${connection.id}`)}
-                onClick={() => void handleRevoke(connection.id)}
-              >
-                {busyActions.has(`revoke:${connection.id}`) ? "Revoking..." : "Revoke"}
-              </button>
-            </div>,
-          ])}
-          emptyTitle="No provider connections yet"
-          emptyBody="Start by connecting one of the configured provider apps so the broker can refresh, relay, or issue delegated access for your account."
-        />
-      </Card>
-    </>
-  );
-}
-
-function ConnectProviderPage({ onNavigate, providerKey }: { onNavigate: (path: string) => void; providerKey: string }) {
-  const { notify, session } = useAppContext();
-  const [providerApps, setProviderApps] = useState<ProviderAppOut[]>([]);
-  const [connections, setConnections] = useState<ConnectedAccountOut[]>([]);
-  const [miroAccess, setMiroAccess] = useState<MiroRelayAccess | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [pending, setPending] = useState(false);
-  const [setupPending, setSetupPending] = useState(false);
-  const [tokenPending, setTokenPending] = useState(false);
-  const templateKey = templateKeyForRoute(providerKey);
-
-  useEffect(() => {
-    if (session.status !== "authenticated") return;
-    setLoading(true);
-    Promise.all([api.providerAppsForUser(), api.myConnections()])
-      .then(([providerAppData, connectionData]) => {
-        setProviderApps(providerAppData);
-        setConnections(connectionData);
-        const providerMap = Object.fromEntries(providerAppData.map((app) => [app.id, app]));
-        const existingMiroConnection = templateKey === "miro-relay" ? findMiroConnection(connectionData, providerMap) : undefined;
-        if (existingMiroConnection && templateKey === "miro-relay") {
-          void api
-            .miroAccess(existingMiroConnection.id)
-            .then((result) => setMiroAccess(result))
-            .catch(() => setMiroAccess(null));
-        } else {
-          setMiroAccess(null);
-        }
-      })
-      .catch((error) =>
-        notify({
-          tone: "error",
-          title: "Failed to load connect flow",
-          description: isApiError(error) ? error.message : "Unexpected connect loading error.",
-        }),
-      )
-      .finally(() => setLoading(false));
-  }, [notify, session, templateKey]);
-
-  const providerAppById = useMemo(
-    () => Object.fromEntries(providerApps.map((app) => [app.id, app])),
-    [providerApps],
-  );
-  const selectedProviderApp = templateKey ? findProviderAppByTemplate(providerApps, templateKey) : undefined;
-  const existingConnection = templateKey ? findConnectionByTemplate(connections, providerAppById, templateKey) : undefined;
-  const existingMiro = templateKey === "miro-relay" ? existingConnection : undefined;
-
-  useEffect(() => {
-    if (session.status !== "authenticated" || templateKey !== "miro-relay") return;
-    const setupToken = new URLSearchParams(window.location.search).get("miro_setup");
-    if (!setupToken) return;
-
-    setSetupPending(true);
-    void api
-      .exchangeMiroSetup(session.csrfToken, setupToken)
-      .then((result) => {
-        setMiroAccess(result);
-        notify({
-          tone: "success",
-          title: "Miro MCP config ready",
-          description: "Copy the relay token or the full MCP config before leaving this page.",
-        });
-      })
-      .catch((error) => {
-        notify({
-          tone: "error",
-          title: "Could not load the one-time Miro setup bundle",
-          description: isApiError(error) ? friendlyBrokerMessage(error.message) : "Unexpected setup exchange error.",
-        });
-      })
-      .finally(() => {
-        setSetupPending(false);
-        replaceCurrentSearchParams(["miro_setup", "miro_status", "connected_account_id", "message"]);
-      });
-  }, [notify, session, templateKey]);
-
-  const startConnect = async () => {
-    if (session.status !== "authenticated" || !selectedProviderApp) return;
-    setPending(true);
-    try {
-      const result = await api.startProviderConnection(session.csrfToken, selectedProviderApp.key, existingConnection?.id);
-      window.location.assign(result.auth_url);
-    } catch (error) {
-      setPending(false);
-      notify({
-        tone: "error",
-        title: `Could not start ${providerRouteLabel(providerKey)} connect`,
-        description: isApiError(error) ? friendlyBrokerMessage(error.message) : "Unexpected provider connect error.",
-      });
-    }
-  };
-
-  const handleRotateMiroToken = async () => {
-    if (session.status !== "authenticated" || !existingMiro) return;
-    setTokenPending(true);
-    try {
-      const result = await api.resetMiroAccess(session.csrfToken, existingMiro.id);
-      setMiroAccess(result);
-      notify({
-        tone: "success",
-        title: "Fresh Miro relay token issued",
-        description: "The previous relay token is now invalid. Copy the new MCP config before you leave.",
-      });
-    } catch (error) {
-      notify({
-        tone: "error",
-        title: "Could not mint a new Miro relay token",
-        description: isApiError(error) ? friendlyBrokerMessage(error.message) : "Unexpected Miro token error.",
-      });
-    } finally {
-      setTokenPending(false);
-    }
-  };
-
-  if (loading) return <LoadingScreen label={`Preparing ${providerRouteLabel(providerKey)} connect...`} />;
-  if (!templateKey || !selectedProviderApp) {
-    return (
-      <EmptyState
-        title="Provider not configured"
-        body="This connect target has not been created by an admin yet. Ask an admin to create it from a template in the Providers section."
-      />
-    );
-  }
-
-  return (
-    <>
-      <PageIntro
-        eyebrow="Connect"
-        title={`Connect your ${providerRouteLabel(providerKey)} account`}
-        description="The broker stores provider token material server-side, then returns you to the workspace with a verified connection state."
-        actions={
-          <div className="inline-actions">
-            <button type="button" className="ghost-button" onClick={() => onNavigate("/workspace")}>
-              Back to workspace
-            </button>
-          </div>
-        }
-      />
-
-      <Card title={`${providerRouteLabel(providerKey)} connection`} description="This flow uses the broker backend callback and returns you to the workspace automatically.">
-        {existingConnection ? (
-          <div className="stack-list">
-            <div className="stack-cell">
-              <strong>Account</strong>
-              <span>{existingConnection.display_name || existingConnection.external_email || existingConnection.id}</span>
-            </div>
-            <div className="stack-cell">
-              <strong>Status</strong>
-              <span>{existingConnection.status === "connected" && existingConnection.last_error ? "Connected with attention needed" : existingConnection.status}</span>
-            </div>
-            <div className="stack-cell">
-              <strong>Connected</strong>
-              <span>{formatDateTime(existingConnection.connected_at)}</span>
-            </div>
-            <div className="stack-cell">
-              <strong>Last broker note</strong>
-              <span>{existingConnection.last_error ? friendlyBrokerMessage(existingConnection.last_error) : "No recent issue recorded"}</span>
-            </div>
-          </div>
-        ) : (
-          <EmptyState
-            title={`No ${providerRouteLabel(providerKey)} connection yet`}
-            body={`Start the authorization flow to create a broker-managed ${providerRouteLabel(providerKey)} connection for your workspace.`}
-          />
-        )}
-        <p className="lede">
-          {existingConnection
-            ? `Reconnect to refresh stored credentials and keep the same broker-side identity.`
-            : `Start the flow to create your first broker-held account.`}
-        </p>
-        <div className="inline-actions">
-          <button type="button" className="primary-button" disabled={pending} onClick={() => void startConnect()}>
-            {pending ? "Redirecting…" : existingConnection ? `Reconnect ${providerRouteLabel(providerKey)}` : `Connect ${providerRouteLabel(providerKey)}`}
-          </button>
-        </div>
-      </Card>
-
-      {templateKey === "miro-relay" ? (
-        <>
-          {setupPending ? <LoadingScreen label="Preparing your one-time Miro MCP config..." /> : null}
-          <MiroAccessCard
-            access={miroAccess}
-            pending={tokenPending}
-            onIssueToken={existingMiro ? () => void handleRotateMiroToken() : undefined}
-            title="Miro MCP handoff"
-            description="This replaces the old relay success page. You can copy the ready-to-paste MCP config directly from here."
-          />
-        </>
-      ) : (
-        <Card title="Direct token readiness" description="After this connection exists, you can create grants that let approved service clients request current tokens for your account.">
-          <p className="lede">
-            This provider is configured for direct-token use. Once connected, the broker stores and refreshes tokens server-side so your approved agents can request delegated access through a grant.
-          </p>
-        </Card>
-      )}
     </>
   );
 }
@@ -1489,9 +1009,23 @@ function NotFoundPage({ onNavigate, fallbackPath }: { onNavigate: (path: string)
   );
 }
 
+const USER_WORKSPACE_NAV = [
+  { href: "/workspace", label: "Workspace" },
+  { href: "/workspace/integrations", label: "Integrations" },
+  { href: "/grants", label: "My Grants" },
+  { href: "/token-access", label: "Token Access" },
+];
+
 function AuthenticatedApp() {
   const { route, navigate } = usePathname();
   const { notify, session } = useAppContext();
+
+  useEffect(() => {
+    if (session.status !== "authenticated") return;
+    if (route.name !== "connect") return;
+    if (!templateKeyForRoute(route.params.providerKey)) return;
+    navigate(`/workspace/integrations${window.location.search}`);
+  }, [session.status, route, navigate]);
 
   useEffect(() => {
     if (session.status === "booting") return;
@@ -1538,18 +1072,27 @@ function AuthenticatedApp() {
       });
     }
 
-    if (providerStatus === "connected" && route.name === "connect") {
+    const onIntegrationsReturn =
+      route.name === "workspaceIntegrations" || route.name === "connect" || route.name === "workspace";
+
+    if (providerStatus === "connected" && onIntegrationsReturn) {
       notify({
         tone: "success",
-        title: `${providerRouteLabel(route.params.providerKey)} connected`,
+        title:
+          route.name === "connect"
+            ? `${providerRouteLabel(route.params.providerKey)} connected`
+            : "Provider connected",
         description: connectedAccountId ? `Connection ${connectedAccountId} is now available in your workspace.` : "Your provider account is now connected.",
       });
     }
 
-    if (providerStatus === "error" && route.name === "connect") {
+    if (providerStatus === "error" && onIntegrationsReturn) {
       notify({
         tone: "error",
-        title: `${providerRouteLabel(route.params.providerKey)} connect failed`,
+        title:
+          route.name === "connect"
+            ? `${providerRouteLabel(route.params.providerKey)} connect failed`
+            : "Provider connect failed",
         description: friendlyMessage,
       });
     }
@@ -1557,7 +1100,7 @@ function AuthenticatedApp() {
     if (!miroSetup) {
       window.history.replaceState({}, "", window.location.pathname);
     }
-  }, [notify, route.path, session.status]);
+  }, [notify, route.path, route.name, session.status]);
 
   useEffect(() => {
     if (session.status !== "authenticated") return;
@@ -1594,6 +1137,38 @@ function AuthenticatedApp() {
     return <LoadingScreen label="Redirecting to your workspace..." />;
   }
 
+  if (route.name === "connect" && templateKeyForRoute(route.params.providerKey)) {
+    return <LoadingScreen label="Opening integrations…" />;
+  }
+
+  const userWorkspaceMain = (
+    <>
+      {route.name === "workspace" ? <WorkspacePage /> : null}
+      {route.name === "workspaceIntegrations" ? <UserIntegrationsPage /> : null}
+      {route.name === "grants" ? <GrantsPage /> : null}
+      {route.name === "tokenAccess" ? <TokenAccessPage /> : null}
+    </>
+  );
+
+  if (session.user.is_admin && isWorkspaceSelfServiceRoute(route)) {
+    if (route.name === "notFound") {
+      return <NotFoundPage onNavigate={navigate} fallbackPath="/workspace" />;
+    }
+
+    return (
+      <Shell
+        currentPath={route.path}
+        navItems={USER_WORKSPACE_NAV}
+        onNavigate={navigate}
+        kicker="Broker Workspace"
+        title="Self-service suite"
+        subtitle="Connections, grants, and diagnostics"
+      >
+        {userWorkspaceMain}
+      </Shell>
+    );
+  }
+
   if (session.user.is_admin) {
     if (route.name === "notFound") {
       return <NotFoundPage onNavigate={navigate} fallbackPath="/app" />;
@@ -1603,6 +1178,7 @@ function AuthenticatedApp() {
       <Shell
         currentPath={route.path}
         navItems={[
+          { href: "/workspace", label: "Workspace" },
           { href: "/app", label: "Dashboard" },
           { href: "/app/integrations", label: "Integrations" },
           { href: "/app/users", label: "Users" },
@@ -1647,22 +1223,13 @@ function AuthenticatedApp() {
   return (
     <Shell
       currentPath={route.path}
-      navItems={[
-        { href: "/workspace", label: "Workspace" },
-        { href: "/connect/miro", label: "Connect Miro" },
-        { href: "/connect/microsoft-graph", label: "Connect Microsoft Graph" },
-        { href: "/grants", label: "My Grants" },
-        { href: "/token-access", label: "Token Access" },
-      ]}
+      navItems={USER_WORKSPACE_NAV}
       onNavigate={navigate}
       kicker="Broker Workspace"
       title="Self-service suite"
       subtitle="Connections, grants, and diagnostics"
     >
-      {route.name === "workspace" ? <WorkspacePage /> : null}
-      {route.name === "connect" ? <ConnectProviderPage onNavigate={navigate} providerKey={route.params.providerKey} /> : null}
-      {route.name === "grants" ? <GrantsPage /> : null}
-      {route.name === "tokenAccess" ? <TokenAccessPage /> : null}
+      {userWorkspaceMain}
     </Shell>
   );
 }

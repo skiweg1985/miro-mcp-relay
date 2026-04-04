@@ -29,6 +29,7 @@ from app.miro import (
     relay_miro_request,
     start_miro_connection,
 )
+from app.connection_serializers import serialize_connected_account
 from app.models import AccessMode, ConnectedAccount, ProviderApp, ProviderInstance, TokenMaterial, User
 from app.provider_templates import (
     MICROSOFT_GRAPH_DIRECT_TEMPLATE,
@@ -91,7 +92,8 @@ def list_provider_apps(db: Session = Depends(get_db), current_user: User = Depen
 
 @router.get("/connections", response_model=list[ConnectedAccountOut])
 def list_connections(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    return db.scalars(select(ConnectedAccount).where(ConnectedAccount.user_id == current_user.id).order_by(ConnectedAccount.connected_at.desc())).all()
+    connections = db.scalars(select(ConnectedAccount).where(ConnectedAccount.user_id == current_user.id).order_by(ConnectedAccount.connected_at.desc())).all()
+    return [serialize_connected_account(db, connection) for connection in connections]
 
 
 def _load_user_connection(db: Session, current_user: User, connection_id: str) -> ConnectedAccount:
@@ -201,7 +203,7 @@ async def start_miro(
 def provider_oauth_callback():
     settings = get_settings()
     return RedirectResponse(
-        url=f"{settings.frontend_base_url.rstrip('/')}/app/integrations?oauth_callback=unsupported",
+        url=f"{settings.frontend_base_url.rstrip('/')}/workspace/integrations?oauth_callback=unsupported",
         status_code=302,
     )
 
@@ -220,19 +222,19 @@ async def miro_callback(
     if error:
         message = "Miro authorization was denied." if error == "access_denied" else (error_description or "Miro returned an authorization error.")
         return RedirectResponse(
-            url=f"{settings.frontend_base_url.rstrip('/')}/connect/miro?miro_status=error&message={quote(message)}",
+            url=f"{settings.frontend_base_url.rstrip('/')}/workspace/integrations?miro_status=error&message={quote(message)}",
             status_code=302,
         )
     if not code or not state:
         return RedirectResponse(
-            url=f"{settings.frontend_base_url.rstrip('/')}/connect/miro?miro_status=error&message={quote('Missing or expired Miro callback parameters')}",
+            url=f"{settings.frontend_base_url.rstrip('/')}/workspace/integrations?miro_status=error&message={quote('Missing or expired Miro callback parameters')}",
             status_code=302,
         )
     try:
         return await finalize_miro_callback(db, state, code)
     except HTTPException as exc:
         return RedirectResponse(
-            url=f"{settings.frontend_base_url.rstrip('/')}/connect/miro?miro_status=error&message={quote(str(exc.detail))}",
+            url=f"{settings.frontend_base_url.rstrip('/')}/workspace/integrations?miro_status=error&message={quote(str(exc.detail))}",
             status_code=302,
         )
 
@@ -251,19 +253,19 @@ async def microsoft_graph_callback(
     if error:
         message = "Microsoft Graph authorization was denied." if error == "access_denied" else (error_description or "Microsoft Graph returned an authorization error.")
         return RedirectResponse(
-            url=f"{settings.frontend_base_url.rstrip('/')}/connect/microsoft-graph?provider_status=error&message={quote(message)}",
+            url=f"{settings.frontend_base_url.rstrip('/')}/workspace/integrations?provider_status=error&message={quote(message)}",
             status_code=302,
         )
     if not code or not state:
         return RedirectResponse(
-            url=f"{settings.frontend_base_url.rstrip('/')}/connect/microsoft-graph?provider_status=error&message={quote('Missing or expired Microsoft Graph callback parameters')}",
+            url=f"{settings.frontend_base_url.rstrip('/')}/workspace/integrations?provider_status=error&message={quote('Missing or expired Microsoft Graph callback parameters')}",
             status_code=302,
         )
     try:
         return await finalize_microsoft_graph_callback(db, state, code)
     except HTTPException as exc:
         return RedirectResponse(
-            url=f"{settings.frontend_base_url.rstrip('/')}/connect/microsoft-graph?provider_status=error&message={quote(str(exc.detail))}",
+            url=f"{settings.frontend_base_url.rstrip('/')}/workspace/integrations?provider_status=error&message={quote(str(exc.detail))}",
             status_code=302,
         )
 
@@ -294,7 +296,7 @@ async def refresh_connection(
         metadata={"connected_account_id": connection.id},
     )
     db.refresh(connection)
-    return connection
+    return serialize_connected_account(db, connection)
 
 
 @router.post("/connections/{connection_id}/revoke", response_model=ConnectedAccountOut)
@@ -312,7 +314,7 @@ def revoke_connection(connection_id: str, current_user: User = Depends(get_curre
     )
     db.commit()
     db.refresh(connection)
-    return connection
+    return serialize_connected_account(db, connection)
 
 
 @router.post("/connections/{connection_id}/probe", response_model=ConnectionProbeResponse)

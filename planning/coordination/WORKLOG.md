@@ -1,3 +1,31 @@
+## 2026-04-04 18:30 – Cursor Agent – Self-Service Navigation: zentrale Integrations-Seite
+
+- Done:
+  - Frontend: Route `/workspace/integrations`, `UserIntegrationsPage` (Karten pro Provider-App, Connect/Reconnect/Disconnect, Refresh/Probe, Miro MCP-Handoff); Sidebar nur noch ein Eintrag „Integrations“ statt pro Provider; Workspace-Dashboard auf Kennzahlen reduziert.
+  - Routing: Admins nutzen für Self-Service dieselbe Shell (Nav inkl. „Workspace“ in der Admin-Sidebar); `/connect/*` leitet clientseitig auf `/workspace/integrations` um.
+  - Backend: OAuth-Redirects (Miro, Microsoft Graph, Legacy `/miro`) auf `/workspace/integrations`; `ConnectedAccountOut` um Token-Metadaten; Serialisierung in `connection_serializers.py`; `list_connections`, Refresh/Revoke, Admin-Liste/Manual angepasst.
+  - `docs/CHANGELOG.md` [Unreleased] Changed ergänzt.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - backend/app/schemas.py, connection_serializers.py, routers/connections.py, routers/admin.py, miro.py, microsoft_graph.py, routers/legacy_miro.py
+  - frontend/src/App.tsx, UserIntegrationsPage.tsx, components.tsx, types.ts, utils.ts, index.css
+  - docs/CHANGELOG.md, planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `npm run build` (frontend); `python3 -m py_compile` (geänderte Backend-Dateien)
+  - endpoints: `GET /api/v1/connections` (neue Felder), OAuth-Callback-Redirects
+- UI path:
+  - `/workspace/integrations` (Self-Service), Admin: Sidebar „Workspace“
+- Changelog updated:
+  - yes ([Unreleased] Changed)
+- Follow-ups:
+  - keine
+
 ## 2026-04-04 – Cursor Agent – `data/` aus Repo und Git-Historie entfernt
 
 - Done:

@@ -1,7 +1,7 @@
 import { type FormEvent, useEffect, useState } from "react";
 
 import { api } from "../api";
-import { Card, DataTable, Field, Modal, PageIntro, SecretPanel } from "../components";
+import { Card, ConfirmModal, DataTable, Field, Modal, PageIntro, SecretPanel } from "../components";
 import { useAppContext } from "../app-context";
 import { isApiError } from "../errors";
 import type { ProviderAppOut, ServiceClientCreateResult, ServiceClientFormValues, ServiceClientOut } from "../types";
@@ -13,6 +13,8 @@ export function ServicesPage() {
   const [clients, setClients] = useState<ServiceClientOut[]>([]);
   const [pending, setPending] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [removeId, setRemoveId] = useState<string | null>(null);
+  const [removeBusy, setRemoveBusy] = useState(false);
   const [createdResult, setCreatedResult] = useState<ServiceClientCreateResult | null>(null);
   const [form, setForm] = useState<ServiceClientFormValues>({
     key: "",
@@ -77,6 +79,27 @@ export function ServicesPage() {
     }
   };
 
+  const performRemove = async () => {
+    if (!removeId || session.status !== "authenticated") return;
+    setRemoveBusy(true);
+    try {
+      await api.deleteServiceClient(session.csrfToken, removeId);
+      notify({ tone: "success", title: "Service removed" });
+      setRemoveId(null);
+      await load();
+    } catch (error) {
+      notify({
+        tone: "error",
+        title: "Could not remove service",
+        description: isApiError(error) ? error.message : "Unexpected error.",
+      });
+    } finally {
+      setRemoveBusy(false);
+    }
+  };
+
+  const removeTarget = clients.find((c) => c.id === removeId) ?? null;
+
   return (
     <>
       <PageIntro
@@ -98,12 +121,16 @@ export function ServicesPage() {
 
       <Card title="All services">
         <DataTable
-          columns={["Name", "Key", "Environment", "Created"]}
+          columns={["Name", "Key", "Environment", "Created", ""]}
+          rowKey={(rowIndex) => clients[rowIndex]?.id ?? rowIndex}
           rows={clients.map((client) => [
             client.display_name,
             client.key,
             client.environment ?? "—",
             formatDateTime(client.created_at),
+            <button key={`${client.id}-rm`} type="button" className="ghost-button grants-inline-btn" onClick={() => setRemoveId(client.id)}>
+              Remove
+            </button>,
           ])}
           emptyTitle="No services"
           emptyBody="Create a service to receive API access."
@@ -161,6 +188,27 @@ export function ServicesPage() {
             </div>
           </form>
         </Modal>
+      ) : null}
+
+      {removeId ? (
+        <ConfirmModal
+          title="Remove service"
+          confirmLabel="Remove"
+          confirmBusy={removeBusy}
+          onCancel={() => setRemoveId(null)}
+          onConfirm={() => void performRemove()}
+        >
+          <p className="lede">
+            {removeTarget ? (
+              <>
+                <strong>{removeTarget.display_name}</strong> ({removeTarget.key}) will stop working for API calls. This cannot be undone.
+              </>
+            ) : (
+              "This service will stop working for API calls."
+            )}
+          </p>
+          <p className="confirm-modal-hint muted">If Access still shows active rules for this service, remove them on Access first.</p>
+        </ConfirmModal>
       ) : null}
     </>
   );

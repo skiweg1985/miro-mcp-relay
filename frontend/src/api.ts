@@ -24,7 +24,7 @@ import type {
   VisibleServiceClientOut,
 } from "./types";
 
-type HttpMethod = "GET" | "POST" | "PATCH";
+type HttpMethod = "GET" | "POST" | "PATCH" | "DELETE";
 
 type RequestOptions = {
   method?: HttpMethod;
@@ -276,6 +276,12 @@ export const api = {
       method: "POST",
       csrfToken,
       body,
+    });
+  },
+  deleteServiceClient(csrfToken: string, serviceClientId: string) {
+    return request<void>(`/api/v1/admin/service-clients/${encodeURIComponent(serviceClientId)}`, {
+      method: "DELETE",
+      csrfToken,
     });
   },
   delegationGrants(csrfToken: string) {

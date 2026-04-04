@@ -1,3 +1,34 @@
+## 2026-04-04 – Cursor Agent – Admin Services löschen
+
+- Done:
+  - `backend/app/routers/admin.py`: `DELETE /api/v1/admin/service-clients/{id}` mit 409 bei aktiven Delegation-Grants; FK-Entkopplung Grants/TokenIssueEvents; Audit.
+  - `frontend/src/api.ts`: `deleteServiceClient`, `DELETE` in HttpMethod.
+  - `frontend/src/admin/ServicesPage.tsx`: Remove + `ConfirmModal`.
+  - `frontend/src/index.css`: `.confirm-modal-hint`.
+  - `docs/CHANGELOG.md` [Unreleased] Added.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - backend/app/routers/admin.py
+  - frontend/src/api.ts
+  - frontend/src/admin/ServicesPage.tsx
+  - frontend/src/index.css
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `python3 -m py_compile backend/app/routers/admin.py`, `cd frontend && npm run build`
+- UI path:
+  - Admin → Services → **Remove**
+- Changelog updated:
+  - yes ([Unreleased] Added)
+- Follow-ups:
+  - keine
+
 ## 2026-04-04 – Cursor Agent – Admin UI Design-System
 
 - Done:

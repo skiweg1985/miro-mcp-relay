@@ -1721,6 +1721,12 @@ html.dark .integration-card:hover {
   margin-top: var(--space-4);
 }
 
+.confirm-modal-hint {
+  margin-top: var(--space-3);
+  font-size: var(--font-caption);
+  line-height: var(--line-relaxed);
+}
+
 .user-integration-grid {
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
 }

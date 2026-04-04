@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Added
+
+- API: `DELETE /api/v1/admin/service-clients/{service_client_id}` entfernt einen Service der Organisation; **409**, solange noch **aktive** Access-Regeln (`delegation_grants` mit `revoked_at IS NULL`) diesen Service referenzieren; sonst werden verknüpfte (widerrufene) Grants und `token_issue_events` von der FK entkoppelt (`service_client_id` → `NULL`), Audit `admin.service_client.deleted`.
+- Frontend: Admin **Services** – **Remove** pro Zeile mit Bestätigung; Fehlermeldung der API bei blockierenden Regeln.
+- Frontend: Self-Service **App access** (`/grants`): Hilfe-Button (**?**) an der Karte „Your app access“ mit Erklärung zu Delegated Credential; im Modal **Access details** Abschnitt **Use in your application** mit kopierbaren HTTP-Beispielen (Direct connection, Miro-Relay, Hinweis Profil-URL/`X-Relay-Key` vs. Credential); `Card` unterstützt `headerActions`.
+
 ### Changed
 
 - Frontend: Admin **Access**, **People → Connections**, **Integrations**, **Services**: ruhigere Copy (ohne Grant-/OAuth-Jargon wo möglich), Tabellen fokussieren auf Aktives (Connections-Filter standard **Connected**; Access-Regeln mit **Show inactive** wie Self-Service); kürzere Ablauf-Spalte mit Tooltip; Integrations-Karten ohne Directory-GUID, **Apps**-Liste nur Anzeigenamen (interner Key im `title`); manueller Import und Service-Einmalwerte neutral benannt.
@@ -11,10 +17,6 @@
 - Frontend: durchgängiges Layout (Spacing-Skala, Typografie, weniger Rahmen, Milchglas-Modals mit kurzer Einblendanimation, vereinheitlichte Buttons und Tabellenzeilen); Navigation und Seitenkopf gestrafft (Workspace/Admin); Aktivität und Admin-Übersicht/Logs: Tabellen ohne JSON in Zellen, Details in Modals; Grants-Tabelle auf sechs Spalten (Limits nur im Detailmodal); `Modal` mit optionalem Kurztext (`description`), `PageIntro` mit optionalem Eyebrow; Login- und Integrations-Texte sachlich vereinfacht.
 
 - Frontend: Self-Service **App access** (`/grants`): gesamte Tabellenzeile öffnet **Access details**; **View** in der Spalte Limits entfällt; **Remove access** löst die Zeilenaktion nicht aus (`DataTable`: `onRowClick`, `getRowAriaLabel`, klickbare Zeile per Tastatur).
-
-### Added
-
-- Frontend: Self-Service **App access** (`/grants`): Hilfe-Button (**?**) an der Karte „Your app access“ mit Erklärung zu Delegated Credential; im Modal **Access details** Abschnitt **Use in your application** mit kopierbaren HTTP-Beispielen (Direct connection, Miro-Relay, Hinweis Profil-URL/`X-Relay-Key` vs. Credential); `Card` unterstützt `headerActions`.
 
 ### Fixed
 

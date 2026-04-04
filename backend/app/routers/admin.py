@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -366,6 +366,62 @@ def create_service_client(payload: ServiceClientCreate, admin: User = Depends(re
     db.commit()
     db.refresh(service_client)
     return ServiceClientSecretResponse(service_client=ServiceClientOut.model_validate(service_client), client_secret=secret)
+
+
+@router.delete("/service-clients/{service_client_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_csrf)])
+def delete_service_client(service_client_id: str, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    service_client = db.scalar(
+        select(ServiceClient).where(
+            ServiceClient.id == service_client_id,
+            ServiceClient.organization_id == admin.organization_id,
+        )
+    )
+    if not service_client:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Service not found")
+
+    active_access = db.scalar(
+        select(func.count())
+        .select_from(DelegationGrant)
+        .where(
+            DelegationGrant.organization_id == admin.organization_id,
+            DelegationGrant.service_client_id == service_client_id,
+            DelegationGrant.revoked_at.is_(None),
+        )
+    )
+    active_access = int(active_access or 0)
+    if active_access > 0:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Remove access rules for this service on Access first ({active_access} active).",
+        )
+
+    db.execute(
+        update(DelegationGrant)
+        .where(
+            DelegationGrant.organization_id == admin.organization_id,
+            DelegationGrant.service_client_id == service_client_id,
+        )
+        .values(service_client_id=None)
+    )
+    db.execute(
+        update(TokenIssueEvent)
+        .where(
+            TokenIssueEvent.organization_id == admin.organization_id,
+            TokenIssueEvent.service_client_id == service_client_id,
+        )
+        .values(service_client_id=None)
+    )
+    record_audit(
+        db,
+        action="admin.service_client.deleted",
+        actor_type="user",
+        actor_id=admin.id,
+        organization_id=admin.organization_id,
+        metadata={"key": service_client.key, "service_client_id": service_client_id},
+    )
+    db.delete(service_client)
+    db.commit()
+    return None
 
 
 @router.get("/connected-accounts", response_model=list[ConnectedAccountOut], dependencies=[Depends(require_csrf)])

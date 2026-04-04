@@ -20,7 +20,7 @@
 
 ### Changed
 
-- Frontend: **Access**-Detailmodal: zwei Abschnitte **Access** (Delegated **Access key** mit Kurzhinweis) und **Connection** (Name, Endpoint, **Connection key** mit Kurzhinweis); Verbindungs- und Grant-Schlüssel nicht mehr doppelt als „Access key“; technische Blöcke unter einem einklappbaren **Developer details** (inkl. Usage example); Platzhalter in Header-Referenz `<connection key>`. `AccessCredentialSummary` / Mapper: Verbindungsschlüssel einheitlich **Connection key**.
+- Frontend: Self-Service **Access**-Detailmodal: **Access key**, Verbindungsname, Endpoint und **Connection key** im **2-Spalten-Raster** mit Label und Wert in einer Zeile, Steuerung (Anzeigen, Kopieren, Ersetzen) in einer Zeile mit dem Schlüsselfeld; volle Modalbreite; **Developer details** mit geringerem Abstand; **Usage example** und **Headers (reference)** zusätzlich einklappbar; Platzhalter in der Header-Referenz `<connection key>`; Hinweis zum Access key präzisiert. `AccessCredentialSummary` / Mapper: Verbindungsschlüssel einheitlich **Connection key**.
 - HTTP: Kanonischer Header `X-Access-Key` für Service-APIs (`/api/v1/token-issues/provider-access`, `/api/v1/broker-proxy/miro/…`) und Legacy-MCP (`POST /miro/mcp/…`); Abwärtskompatibilität `X-Delegated-Credential` bzw. `X-Relay-Key` (Priorität jeweils `X-Access-Key`). JSON: `access_credential`; Endpoint `GET /api/v1/delegation-grants/{id}/access-credential` (Legacy-Pfad `…/delegated-credential`); Fehlercode `access_credential_not_stored`. Typ `AccessCredential` / `AccessCredentialRotateOut` im Backend; MCP-Config-JSON nutzt `X-Access-Key`.
 - UI/Doku: einheitliche Bezeichnung **Access key**; README, technische Referenz, Funktionsübersicht, Legacy-`src/index.js` angepasst.
 
@@ -28,9 +28,7 @@
 
 - Miro-Verbindungen: Relay-Key ist nach Session-Authentifizierung aus `GET /api/v1/connections/{id}/miro-access` und `GET /api/v1/connections/{id}/access-details` anzeig- und kopierbar, sobald der verschlüsselte Wert in der DB liegt (Erstausstellung, Rotation oder Erzeugung in `ensure_legacy_miro_identity`).
 
-- Frontend: **Access**-Detailmodal: Access-Key-Zeile mit Icon-Buttons (Auge ein/aus, Kopieren) neben dem Wert; **Replace key** (App-Zugang) darunter.
-
-- Frontend: Self-Service **Access** (`/grants`): Detailmodal auf Verbindungsnutzung fokussiert (Connection, Endpoint, Verbindungs-Access-Key mit Toggle/Kopieren); **Delegated** App-Zugangsschlüssel (Reveal, Copy, Replace) oben im Modal; **Usage example** und **Developer details** einklappbar (technische Referenz, Metadaten); bei „automatischer“ Verbindung weiter Auflösung per `GET /api/v1/connections`.
+- Frontend: Self-Service **Access** (`/grants`): Detailmodal auf Verbindungsnutzung fokussiert; bei „automatischer“ Verbindung weiter Auflösung per `GET /api/v1/connections`.
 
 - Frontend: **Connection details** Key-Zeile ohne doppelte Bullet-Anzeige; getrennte Kurztexte für rotierbaren Relay-Key vs. OAuth; Graph-Label **OAuth token**.
 

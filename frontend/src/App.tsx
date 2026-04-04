@@ -7,6 +7,7 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 
 import { AppProvider, useAppContext } from "./app-context";
 import { ThemeToggle } from "./theme-toggle";
@@ -474,77 +475,84 @@ function GrantAppAccessKeySection({ grantId, canUse }: { grantId: string; canUse
     return null;
   }
 
+  const accessKeyBody = (
+    <>
+      {loadState === "loading" ? <span className="muted access-modal-inline-status">Loading…</span> : null}
+      {loadState === "error" ? <span className="muted access-modal-inline-status">Could not load.</span> : null}
+      {loadState === "ready" && credential ? (
+        <div className="grant-access-credential-block">
+          <div className="access-modal-secret-line">
+            <div className="grant-access-credential-value access-modal-key-box access-modal-key-box--grow">
+              {reveal ? (
+                <code className="grant-credential-code">{credential}</code>
+              ) : (
+                <span className="grant-credential-masked" aria-hidden>
+                  ••••••••••••••••
+                </span>
+              )}
+            </div>
+            <AccessKeyIconActions
+              reveal={reveal}
+              onToggleReveal={() => setReveal((v) => !v)}
+              onCopy={() => void handleCopy()}
+              copyDisabled={!credential}
+              keyVariant="access"
+              onReplace={() => setRotateConfirm(true)}
+              replaceBusy={rotatePending}
+            />
+          </div>
+        </div>
+      ) : null}
+      {loadState === "missing" ? (
+        <div className="grant-access-credential-block grant-access-credential-block--empty">
+          <div className="access-modal-secret-line access-modal-missing-key-row">
+            <p className="muted access-modal-missing-inline">Not stored. Replace once to enable Show and Copy.</p>
+            <AccessKeyIconActions
+              showRevealCopy={false}
+              reveal={false}
+              onToggleReveal={() => {}}
+              onCopy={() => {}}
+              keyVariant="access"
+              onReplace={() => setRotateConfirm(true)}
+              replaceBusy={rotatePending}
+            />
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
+
   return (
     <>
-      <section className="access-modal-section access-modal-section--access" aria-labelledby="access-modal-access-heading">
-        <h3 id="access-modal-access-heading" className="access-modal-section-heading">
-          Access
-        </h3>
-        <div className="access-modal-row access-modal-row--key">
-          <span className="access-modal-label">Access key</span>
-          <p className="access-modal-section-hint muted">Use this key to access this app access.</p>
-          {loadState === "loading" ? <p className="muted access-modal-section-hint">Loading…</p> : null}
-          {loadState === "error" ? <p className="muted access-modal-section-hint">Could not load. Try again later.</p> : null}
-          {loadState === "ready" && credential ? (
-            <div className="grant-access-credential-block">
-              <div className="access-modal-secret-line">
-                <div className="grant-access-credential-value access-modal-key-box access-modal-key-box--grow">
-                  {reveal ? (
-                    <code className="grant-credential-code">{credential}</code>
-                  ) : (
-                    <span className="grant-credential-masked" aria-hidden>
-                      ••••••••••••••••
-                    </span>
-                  )}
-                </div>
-                <AccessKeyIconActions
-                  reveal={reveal}
-                  onToggleReveal={() => setReveal((v) => !v)}
-                  onCopy={() => void handleCopy()}
-                  copyDisabled={!credential}
-                  keyVariant="access"
-                  onReplace={() => setRotateConfirm(true)}
-                  replaceBusy={rotatePending}
-                />
-              </div>
-            </div>
-          ) : null}
-          {loadState === "missing" ? (
-            <div className="grant-access-credential-block grant-access-credential-block--empty">
-              <div className="access-modal-secret-line access-modal-missing-key-row">
-                <p className="muted access-modal-section-hint">Not stored for this entry. Replace once to enable Show and Copy.</p>
-                <AccessKeyIconActions
-                  showRevealCopy={false}
-                  reveal={false}
-                  onToggleReveal={() => {}}
-                  onCopy={() => {}}
-                  keyVariant="access"
-                  onReplace={() => setRotateConfirm(true)}
-                  replaceBusy={rotatePending}
-                />
-              </div>
-            </div>
-          ) : null}
+      <div className="access-modal-grid-cell access-modal-grid-cell--access-key">
+        <div className="access-modal-field-row">
+          <span className="access-modal-label" title="Use this key where the broker expects the access credential.">
+            Access key
+          </span>
+          <div className="access-modal-field-main">{accessKeyBody}</div>
         </div>
-      </section>
+      </div>
 
-      {rotateConfirm ? (
-        <ConfirmModal
-          title="Replace access key?"
-          confirmLabel="Replace access key"
-          cancelLabel="Cancel"
-          confirmBusy={rotatePending}
-          onCancel={() => setRotateConfirm(false)}
-          onConfirm={() => void handleRotate()}
-        >
-          <p className="lede">The current key stops working everywhere it is used.</p>
-        </ConfirmModal>
-      ) : null}
+      {rotateConfirm
+        ? createPortal(
+            <ConfirmModal
+              title="Replace access key?"
+              confirmLabel="Replace access key"
+              cancelLabel="Cancel"
+              confirmBusy={rotatePending}
+              onCancel={() => setRotateConfirm(false)}
+              onConfirm={() => void handleRotate()}
+            >
+              <p className="lede">The current key stops working everywhere it is used.</p>
+            </ConfirmModal>,
+            document.body,
+          )
+        : null}
     </>
   );
 }
 
-function AccessConnectionTool({
+function ConnectionCredentialGridCells({
   accessDetails,
   connectionName,
   onReplaceConnectionKey,
@@ -585,82 +593,90 @@ function AccessConnectionTool({
   const keyReady = key?.status === "ready" && keyPlaintext;
   const keyStored = key?.status === "stored";
 
+  const connectionKeyMain = (
+    <>
+      {keyReady && keyPlaintext ? (
+        <div className="access-modal-secret-line">
+          <div className="grant-access-credential-value access-modal-key-box access-modal-key-box--grow">
+            {keyReveal ? (
+              <code className="grant-credential-code">{keyPlaintext}</code>
+            ) : (
+              <span className="grant-credential-masked" aria-hidden>
+                ••••••••••••••••
+              </span>
+            )}
+          </div>
+          <AccessKeyIconActions
+            reveal={keyReveal}
+            onToggleReveal={() => setKeyReveal((v) => !v)}
+            onCopy={() => void copyKey(keyPlaintext)}
+            copyDisabled={!keyPlaintext}
+            keyVariant="connection"
+          />
+        </div>
+      ) : keyStored ? (
+        <div className="access-modal-secret-line">
+          <div className="grant-access-credential-value access-modal-key-box access-modal-key-box--grow">
+            <span className="grant-credential-masked" aria-hidden>
+              ••••••••••••••••
+            </span>
+          </div>
+          {canRotateConnection && onReplaceConnectionKey ? (
+            <AccessKeyIconActions
+              showRevealCopy={false}
+              reveal={false}
+              onToggleReveal={() => {}}
+              onCopy={() => {}}
+              keyVariant="connection"
+              onReplace={onReplaceConnectionKey}
+              replaceBusy={replaceConnectionKeyPending}
+            />
+          ) : (
+            <span className="muted access-modal-muted-inline access-modal-key-inline-hint">Not shown here</span>
+          )}
+        </div>
+      ) : (
+        <span className="muted">—</span>
+      )}
+    </>
+  );
+
   return (
-    <section className="access-modal-section access-modal-section--connection" aria-labelledby="access-modal-connection-heading">
-      <h3 id="access-modal-connection-heading" className="access-modal-section-heading">
-        Connection
-      </h3>
-      <div className="access-modal-tool">
-        <div className="access-modal-row">
+    <>
+      <div className="access-modal-grid-cell access-modal-grid-cell--connection-name">
+        <div className="access-modal-field-row">
           <span className="access-modal-label">Connection name</span>
           <span className="access-modal-value">{connectionName || "—"}</span>
         </div>
-        <div className="access-modal-row access-modal-row--endpoint">
+      </div>
+      <div className="access-modal-grid-cell access-modal-grid-cell--endpoint">
+        <div className="access-modal-field-row">
           <span className="access-modal-label">Endpoint</span>
-          <div className="access-modal-value-wrap">
+          <div className="access-modal-field-main">
             {endpointUrl ? (
-              <>
-                <code className="access-modal-code">{endpointUrl}</code>
+              <div className="access-modal-secret-line access-modal-endpoint-line">
+                <code className="access-modal-code access-modal-code--endpoint" title={endpointUrl}>
+                  {endpointUrl}
+                </code>
                 <button type="button" className="ghost-button access-modal-inline-btn" onClick={() => void copyEndpoint()}>
                   Copy
                 </button>
-              </>
+              </div>
             ) : (
               <span className="access-modal-value">—</span>
             )}
           </div>
         </div>
-        <div className="access-modal-row access-modal-row--key">
-          <span className="access-modal-label">Connection key</span>
-          <div className="access-modal-value-wrap access-modal-value-wrap--key">
-            {keyReady && keyPlaintext ? (
-              <div className="access-modal-secret-line">
-                <div className="grant-access-credential-value access-modal-key-box access-modal-key-box--grow">
-                  {keyReveal ? (
-                    <code className="grant-credential-code">{keyPlaintext}</code>
-                  ) : (
-                    <span className="grant-credential-masked" aria-hidden>
-                      ••••••••••••••••
-                    </span>
-                  )}
-                </div>
-                <AccessKeyIconActions
-                  reveal={keyReveal}
-                  onToggleReveal={() => setKeyReveal((v) => !v)}
-                  onCopy={() => void copyKey(keyPlaintext)}
-                  copyDisabled={!keyPlaintext}
-                  keyVariant="connection"
-                />
-              </div>
-            ) : keyStored ? (
-              <div className="access-modal-secret-line">
-                <div className="grant-access-credential-value access-modal-key-box access-modal-key-box--grow">
-                  <span className="grant-credential-masked" aria-hidden>
-                    ••••••••••••••••
-                  </span>
-                </div>
-                {canRotateConnection && onReplaceConnectionKey ? (
-                  <AccessKeyIconActions
-                    showRevealCopy={false}
-                    reveal={false}
-                    onToggleReveal={() => {}}
-                    onCopy={() => {}}
-                    keyVariant="connection"
-                    onReplace={onReplaceConnectionKey}
-                    replaceBusy={replaceConnectionKeyPending}
-                  />
-                ) : (
-                  <span className="muted access-modal-muted-inline access-modal-key-inline-hint">Not shown here</span>
-                )}
-              </div>
-            ) : (
-              <span className="muted">—</span>
-            )}
-          </div>
-        </div>
-        <p className="access-modal-section-hint muted">Use this key with the connection endpoint below.</p>
       </div>
-    </section>
+      <div className="access-modal-grid-cell access-modal-grid-cell--connection-key">
+        <div className="access-modal-field-row">
+          <span className="access-modal-label" title="Use with the endpoint URL and required headers.">
+            Connection key
+          </span>
+          <div className="access-modal-field-main">{connectionKeyMain}</div>
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -799,6 +815,10 @@ function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
 
   const summaryLoading = accessLoading || (needsConnectionForTools && resolvingConnections && !grant.connected_account_id);
   const grantCanUseCredential = grantUiState(grant) !== "ended";
+  const showConnectionBlock = !summaryLoading && showConnectionAccess && Boolean(accessDetails?.supported);
+
+  const credentialsGridMode =
+    grantCanUseCredential && showConnectionBlock ? "paired" : grantCanUseCredential ? "accessOnly" : showConnectionBlock ? "connectionOnly" : null;
 
   const extraAccessRows = accessDetails?.supported
     ? accessDetails.rows.filter(
@@ -820,30 +840,39 @@ function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
         <p className="muted access-modal-hint">Add a connection under Integrations to use this access.</p>
       ) : null}
 
-      <GrantAppAccessKeySection grantId={grant.id} canUse={grantCanUseCredential} />
+      {credentialsGridMode ? (
+        <section className="access-modal-section access-modal-section--credentials access-modal-section--compact" aria-label="Credentials">
+          <div
+            className={`access-modal-credentials-grid access-modal-credentials-grid--${credentialsGridMode}`}
+          >
+            {grantCanUseCredential ? <GrantAppAccessKeySection grantId={grant.id} canUse={grantCanUseCredential} /> : null}
+            {showConnectionBlock && accessDetails ? (
+              <ConnectionCredentialGridCells
+                accessDetails={accessDetails}
+                connectionName={connectionName}
+                onReplaceConnectionKey={accessDetails.can_rotate ? () => void handleRotateConnectionKey() : undefined}
+                replaceConnectionKeyPending={rotatePending}
+              />
+            ) : null}
+          </div>
+        </section>
+      ) : null}
 
       {summaryLoading && showConnectionAccess ? <p className="muted access-modal-hint">Loading…</p> : null}
-
-      {!summaryLoading && showConnectionAccess && accessDetails?.supported ? (
-        <AccessConnectionTool
-          accessDetails={accessDetails}
-          connectionName={connectionName}
-          onReplaceConnectionKey={accessDetails.can_rotate ? () => void handleRotateConnectionKey() : undefined}
-          replaceConnectionKeyPending={rotatePending}
-        />
-      ) : null}
 
       {!summaryLoading && showConnectionAccess && accessDetails && !accessDetails.supported ? (
         <p className="muted access-modal-hint">Connection details are not available for this integration.</p>
       ) : null}
 
-      <details className="grant-disclosure grant-disclosure--after-tool">
-        <summary className="grant-disclosure-summary">Developer details</summary>
+      <details className="grant-disclosure grant-disclosure--after-tool grant-disclosure--compact">
+        <summary className="grant-disclosure-summary grant-disclosure-summary--compact">Developer details</summary>
         <div className="grant-detail-disclosure-body access-modal-dev">
-          <div className="access-modal-dev-block">
-            <h4 className="access-modal-dev-heading">Usage example</h4>
-            <GrantCodeCopy label="Copy" text={usageExampleText} />
-          </div>
+          <details className="grant-disclosure grant-disclosure--nested">
+            <summary className="grant-disclosure-summary grant-disclosure-summary--sub">Usage example</summary>
+            <div className="grant-detail-disclosure-body access-modal-dev-nested">
+              <GrantCodeCopy label="Copy" text={usageExampleText} />
+            </div>
+          </details>
 
           {grant.service_client_key ? (
             <p className="muted access-modal-dev-lede">
@@ -851,11 +880,13 @@ function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
             </p>
           ) : null}
 
-          <div className="access-modal-dev-block">
-            <h4 className="access-modal-dev-heading">Headers (reference)</h4>
-            <pre className="access-modal-dev-pre">{developerHeadersExample}</pre>
-            <GrantCodeCopy label="Copy" text={developerHeadersExample} />
-          </div>
+          <details className="grant-disclosure grant-disclosure--nested">
+            <summary className="grant-disclosure-summary grant-disclosure-summary--sub">Headers (reference)</summary>
+            <div className="grant-detail-disclosure-body access-modal-dev-nested">
+              <pre className="access-modal-dev-pre access-modal-dev-pre--compact">{developerHeadersExample}</pre>
+              <GrantCodeCopy label="Copy" text={developerHeadersExample} />
+            </div>
+          </details>
 
           {extraAccessRows && extraAccessRows.length > 0 ? (
             <div className="access-modal-dev-block">

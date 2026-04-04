@@ -839,6 +839,49 @@ h3 {
   font-weight: 650;
 }
 
+.grant-disclosure--compact .grant-disclosure-summary--compact {
+  padding: var(--space-2) 0;
+  font-size: var(--font-caption);
+  font-weight: 650;
+  color: var(--ink-secondary);
+}
+
+.grant-disclosure--nested {
+  margin: 0;
+  padding: 0;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-elevated);
+}
+
+.grant-disclosure--nested + .grant-disclosure--nested {
+  margin-top: var(--space-2);
+}
+
+.grant-disclosure-summary--sub {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-caption);
+  font-weight: 650;
+  color: var(--ink-secondary);
+}
+
+.grant-disclosure--nested .grant-detail-disclosure-body {
+  padding: 0 var(--space-3) var(--space-2);
+}
+
+.access-modal-dev-nested .grant-code-block {
+  margin-top: var(--space-1);
+}
+
+.access-modal-dev-nested .grant-code-block-head {
+  margin-bottom: var(--space-1);
+}
+
+.access-modal-dev-nested .grant-code-pre {
+  padding: var(--space-2);
+  font-size: 0.72rem;
+}
+
 .grant-disclosure-summary::-webkit-details-marker {
   display: none;
 }
@@ -854,8 +897,8 @@ h3 {
 .access-modal-root {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  max-width: min(440px, 100%);
+  gap: var(--space-1);
+  max-width: 100%;
 }
 
 .access-modal-section {
@@ -866,8 +909,141 @@ h3 {
 
 .access-modal-section + .access-modal-section {
   margin-top: var(--space-1);
-  padding-top: var(--space-3);
+  padding-top: var(--space-2);
   border-top: 1px solid var(--border-subtle);
+}
+
+.access-modal-section--compact {
+  gap: var(--space-1);
+}
+
+.access-modal-section--credentials {
+  padding-top: 0;
+  margin-top: 0;
+  border-top: none;
+}
+
+.access-modal-credentials-grid {
+  display: grid;
+  gap: var(--space-2) var(--space-4);
+  align-items: start;
+  width: 100%;
+}
+
+.access-modal-credentials-grid--paired {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.access-modal-credentials-grid--paired .access-modal-grid-cell--access-key {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.access-modal-credentials-grid--paired .access-modal-grid-cell--connection-name {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.access-modal-credentials-grid--paired .access-modal-grid-cell--endpoint {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.access-modal-credentials-grid--paired .access-modal-grid-cell--connection-key {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.access-modal-credentials-grid--accessOnly {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.access-modal-credentials-grid--accessOnly .access-modal-grid-cell--access-key {
+  grid-column: 1 / -1;
+}
+
+.access-modal-credentials-grid--connectionOnly {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.access-modal-credentials-grid--connectionOnly .access-modal-grid-cell--connection-name {
+  grid-column: 1 / -1;
+  grid-row: 1;
+}
+
+.access-modal-credentials-grid--connectionOnly .access-modal-grid-cell--endpoint {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.access-modal-credentials-grid--connectionOnly .access-modal-grid-cell--connection-key {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+@media (max-width: 560px) {
+  .access-modal-credentials-grid--paired,
+  .access-modal-credentials-grid--connectionOnly {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .access-modal-credentials-grid--paired .access-modal-grid-cell--access-key,
+  .access-modal-credentials-grid--paired .access-modal-grid-cell--connection-name,
+  .access-modal-credentials-grid--paired .access-modal-grid-cell--endpoint,
+  .access-modal-credentials-grid--paired .access-modal-grid-cell--connection-key,
+  .access-modal-credentials-grid--connectionOnly .access-modal-grid-cell--connection-name,
+  .access-modal-credentials-grid--connectionOnly .access-modal-grid-cell--endpoint,
+  .access-modal-credentials-grid--connectionOnly .access-modal-grid-cell--connection-key {
+    grid-column: 1 / -1;
+    grid-row: auto;
+  }
+}
+
+.access-modal-field-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.access-modal-field-row > .access-modal-label {
+  flex: 0 0 6.75rem;
+  margin-bottom: 0;
+}
+
+.access-modal-field-row > .access-modal-field-main {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.access-modal-field-row > .access-modal-value {
+  flex: 1 1 12rem;
+  min-width: 0;
+  text-align: right;
+}
+
+.access-modal-inline-status {
+  font-size: var(--font-caption);
+}
+
+.access-modal-missing-inline {
+  margin: 0;
+  font-size: var(--font-caption);
+  line-height: 1.35;
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+
+.access-modal-endpoint-line {
+  min-width: 0;
+}
+
+.access-modal-code--endpoint {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .access-modal-section-heading {
@@ -952,13 +1128,13 @@ h3 {
 .access-modal-dev {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-2);
 }
 
 .access-modal-dev-block {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-1);
 }
 
 .access-modal-dev-heading {
@@ -985,6 +1161,11 @@ h3 {
   overflow-x: auto;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.access-modal-dev-pre--compact {
+  padding: var(--space-1) var(--space-2);
+  font-size: 0.72rem;
 }
 
 .access-modal-meta .stack-cell {

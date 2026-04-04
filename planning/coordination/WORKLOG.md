@@ -1,3 +1,29 @@
+## 2026-04-04 – Cursor Agent – Access-Modal Layout (kompakt)
+
+- Done:
+  - `frontend/src/App.tsx`: Access-Detail mit 2-Spalten-Grid (`GrantAppAccessKeySection`, `ConnectionCredentialGridCells`), Endpoint + Copy in einer Zeile, `createPortal` für Replace-Confirm; Developer-Bereich mit verschachtelten `<details>` für Usage/Headers.
+  - `frontend/src/index.css`: Grid-, Feld- und Disclosure-Styles; `.access-modal-root` volle Breite.
+  - `docs/CHANGELOG.md`: Eintrag unter [Unreleased] / Changed.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - frontend/src/App.tsx
+  - frontend/src/index.css
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build`
+  - UI path: Self-Service App access → Zeile öffnen → Modal **Access**
+- Changelog updated:
+  - yes (Changed)
+- Follow-ups:
+  - keine
+
 ## 2026-04-04 – Cursor Agent – Keine Lookup-Fallbacks ohne secret_lookup_hash
 
 - Done:

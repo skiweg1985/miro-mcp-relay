@@ -774,6 +774,139 @@ h3 {
   background: var(--surface-muted);
 }
 
+.grants-table-wrap {
+  max-width: 100%;
+}
+
+.grants-table-wrap .data-table {
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.grants-table th,
+.grants-table td {
+  vertical-align: middle;
+}
+
+.grants-col--client {
+  width: 13%;
+}
+
+.grants-col--provider {
+  width: 14%;
+}
+
+.grants-col--conn {
+  width: 20%;
+}
+
+.grants-col--status {
+  width: 10%;
+}
+
+.grants-col--exp {
+  width: 14%;
+}
+
+.grants-col--policy {
+  width: 17%;
+}
+
+.grants-col--actions {
+  width: 12%;
+}
+
+.grants-cell-ellipsis {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.table-cell-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.table-cell-stack .table-cell-primary {
+  font-weight: 650;
+  color: var(--ink);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-height: 1.25;
+}
+
+.table-cell-secondary {
+  font-size: var(--font-caption);
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.grants-expires-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.grants-expires-primary {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.grants-expires-secondary {
+  font-size: var(--font-caption);
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.grants-policy-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.grants-policy-summary {
+  font-size: var(--font-caption);
+  color: var(--ink-secondary);
+  line-height: 1.25;
+}
+
+.grants-inline-btn {
+  padding: var(--space-1) var(--space-2);
+  min-height: 32px;
+  font-size: var(--font-caption);
+}
+
+.grants-actions-cell {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.grants-action-placeholder {
+  display: inline-block;
+  min-width: 1.25em;
+  text-align: center;
+}
+
+.grant-detail-panel .stack-cell span:not(.status-badge) {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .inline-code {
   display: inline-block;
   max-width: 420px;

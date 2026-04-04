@@ -58,6 +58,26 @@ export function relativeTime(value: string | null): string {
   return diff >= 0 ? `${absHours}h remaining` : `${absHours}h overdue`;
 }
 
+/** Short relative phrase for dense tables (e.g. "in 5h", "in 2d", "3h ago"). */
+export function relativeTimeCompact(value: string | null): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  const diff = date.getTime() - Date.now();
+  const abs = Math.abs(diff);
+  const absMins = Math.round(abs / 60_000);
+  const absHours = Math.round(abs / 3_600_000);
+  const absDays = Math.round(abs / 86_400_000);
+  if (diff >= 0) {
+    if (absMins < 60) return `in ${Math.max(1, absMins)}m`;
+    if (absHours < 48) return `in ${absHours}h`;
+    return `in ${absDays}d`;
+  }
+  if (absMins < 60) return `${Math.max(1, absMins)}m ago`;
+  if (absHours < 48) return `${absHours}h ago`;
+  return `${absDays}d ago`;
+}
+
 export function formatJson(value: string): string {
   try {
     return JSON.stringify(JSON.parse(value), null, 2);

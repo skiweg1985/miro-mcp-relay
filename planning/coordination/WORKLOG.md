@@ -1,3 +1,35 @@
+## 2026-04-04 – Cursor Agent – Self-Service Grants: Tabelle kompakt, Detail-Modal
+
+- Done:
+  - `frontend/src/App.tsx`: Grants-Tabelle Spalten reduziert; `GrantConnectionCell`, `GrantExpiresCell`, `GrantPolicyCell`, `GrantDetailPanel`; Modal „Grant details“; Hilfsfunktionen `splitConnectionLabel`, `grantPolicySummary`.
+  - `frontend/src/components.tsx`: `DataTable` mit `tableClassName`, `wrapClassName`, `columnClasses`, `rowKey`.
+  - `frontend/src/utils.ts`: `relativeTimeCompact`.
+  - `frontend/src/index.css`: `.grants-table*`, Zellen-Layouts.
+  - `docs/CHANGELOG.md` [Unreleased] Changed; Frontend-Build; `git add -f` für `frontend/dist/assets/*`.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - frontend/src/App.tsx
+  - frontend/src/components.tsx
+  - frontend/src/utils.ts
+  - frontend/src/index.css
+  - frontend/dist/
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build`
+- UI path:
+  - `/grants` (Your grants)
+- Changelog updated:
+  - yes ([Unreleased] Changed)
+- Follow-ups:
+  - keine
+
 ## 2026-04-04 – Cursor Agent – Frontend: Karten-Layout (gleiche Höhe, Buttons unten)
 
 - Done:

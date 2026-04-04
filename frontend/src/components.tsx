@@ -1,4 +1,4 @@
-import { type FormEvent, type ReactNode, useEffect, useId, useMemo, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useId, useMemo, useState, type Key } from "react";
 
 import { useAppContext } from "./app-context";
 import type { MiroRelayAccess } from "./types";
@@ -163,31 +163,43 @@ export function DataTable({
   rows,
   emptyTitle,
   emptyBody,
+  tableClassName,
+  wrapClassName,
+  columnClasses,
+  rowKey,
 }: {
   columns: string[];
   rows: ReactNode[][];
   emptyTitle: string;
   emptyBody: string;
+  tableClassName?: string;
+  wrapClassName?: string;
+  columnClasses?: string[];
+  rowKey?: (rowIndex: number) => Key;
 }) {
   if (!rows.length) {
     return <EmptyState title={emptyTitle} body={emptyBody} />;
   }
 
   return (
-    <div className="table-wrap">
-      <table className="data-table">
+    <div className={classNames("table-wrap", wrapClassName)}>
+      <table className={classNames("data-table", tableClassName)}>
         <thead>
           <tr>
-            {columns.map((column) => (
-              <th key={column}>{column}</th>
+            {columns.map((column, columnIndex) => (
+              <th key={columnIndex} className={columnClasses?.[columnIndex]}>
+                {column}
+              </th>
             ))}
           </tr>
         </thead>
         <tbody>
           {rows.map((row, rowIndex) => (
-            <tr key={rowIndex}>
+            <tr key={rowKey?.(rowIndex) ?? rowIndex}>
               {row.map((cell, cellIndex) => (
-                <td key={`${rowIndex}-${cellIndex}`}>{cell}</td>
+                <td key={`${rowIndex}-${cellIndex}`} className={columnClasses?.[cellIndex]}>
+                  {cell}
+                </td>
               ))}
             </tr>
           ))}

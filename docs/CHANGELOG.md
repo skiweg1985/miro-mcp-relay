@@ -19,6 +19,7 @@
 
 ### Changed
 
+- Frontend: Self-Service **Your grants** (`/grants`): Tabelle auf sieben Spalten (Client, Provider, Connection, Status, Expires, Policy, Actions); keine Modi-Spalte; Policy nur Kurztext (z. B. Inherited, Anzahl Scopes, Custom) und **View**; vollständige Policy (Scopes, Capabilities, Modi) im Modal **Grant details**; Connection zweizeilig bei ` - ` im Anzeigenamen; Ablauf mit kompakter Relativzeit und Zeitstempel in zweiter Zeile; `DataTable` um `tableClassName`, `wrapClassName`, `columnClasses`, `rowKey` erweitert; Tabellenlayout `table-layout: fixed` / `grants-table` gegen horizontales Ausbrechen.
 - Frontend: Integrations-Raster (`integration-grid`, User-Integrations-Grid): Zeilen gleich hoch (`align-items: stretch`), Karten `height: 100%`; Bereich für Titel/Status, flexibler Block `integration-card-body` (Beschreibung/Meta), Aktionszeile mit `margin-top: auto`; Beschreibung/Meta mit `line-clamp`; „Add integration“-Karte ohne vertikale Zentrierung, CTA unten wie bei den anderen Karten; Metric-Karten (`metric-grid`): Flex-Spalte, Untertitel (`small`) unten ausgerichtet.
 - Frontend: Integrations-Karten: `overflow-x` auf der Aktionszeile entfernt (Rand des letzten Buttons wurde vom Scrollport beschnitten); Raster `minmax(min(100%, 340px), 1fr)`; unter 420px Breite darf die Zeile umbrechen.
 - Frontend: sichtbare Rahmen für bisher randlose Steuerflächen (`.ghost-button`, Theme-Umschalter, Registerkarten, „Administrator sign-in“ auf der Login-Seite, Drawer-Schließen); Sidebar-Navigationslinks wieder ohne äußeren Rahmen.

@@ -58,6 +58,7 @@ import {
   replaceLegacyAdminPath,
   parseLines,
   relativeTime,
+  relativeTimeCompact,
   toIsoDateTime,
 } from "./utils";
 
@@ -136,6 +137,127 @@ function userAccessModeLabel(mode: string): string {
   if (mode === "relay") return "Proxy path";
   if (mode === "direct_token") return "Direct token";
   return mode;
+}
+
+function splitConnectionLabel(raw: string): { primary: string; secondary?: string } {
+  const t = raw.trim();
+  const idx = t.indexOf(" - ");
+  if (idx === -1) return { primary: t };
+  const primary = t.slice(0, idx).trim();
+  const secondary = t.slice(idx + 3).trim();
+  if (!secondary) return { primary };
+  return { primary, secondary };
+}
+
+function grantPolicySummary(grant: SelfServiceDelegationGrantOut): string {
+  const sc = grant.scope_ceiling.length;
+  const cap = grant.capabilities.length;
+  if (sc === 0 && cap === 0) return "Inherited";
+  if (sc > 0 && cap === 0) return sc === 1 ? "1 scope" : `${sc} scopes`;
+  if (sc === 0 && cap > 0) return "Custom";
+  return `${sc} scopes + custom`;
+}
+
+function GrantConnectionCell({ grant }: { grant: SelfServiceDelegationGrantOut }) {
+  if (!grant.connected_account_display_name) {
+    return (
+      <div className="table-cell-stack">
+        <strong className="table-cell-primary">Auto-select</strong>
+        <span className="table-cell-secondary muted">Matching connection at issue</span>
+      </div>
+    );
+  }
+  const parts = splitConnectionLabel(grant.connected_account_display_name);
+  if (!parts.secondary) {
+    return (
+      <div className="table-cell-stack">
+        <strong className="table-cell-primary">{parts.primary}</strong>
+      </div>
+    );
+  }
+  return (
+    <div className="table-cell-stack">
+      <strong className="table-cell-primary">{parts.primary}</strong>
+      <span className="table-cell-secondary muted">{parts.secondary}</span>
+    </div>
+  );
+}
+
+function GrantExpiresCell({ grant }: { grant: SelfServiceDelegationGrantOut }) {
+  return (
+    <div className="grants-expires-cell">
+      <span className="grants-expires-primary">{relativeTimeCompact(grant.expires_at)}</span>
+      <span className="grants-expires-secondary muted">
+        {grant.expires_at ? formatDateTime(grant.expires_at) : "No expiry"}
+      </span>
+    </div>
+  );
+}
+
+function GrantPolicyCell({
+  grant,
+  onView,
+}: {
+  grant: SelfServiceDelegationGrantOut;
+  onView: () => void;
+}) {
+  return (
+    <div className="grants-policy-cell">
+      <span className="grants-policy-summary">{grantPolicySummary(grant)}</span>
+      <button type="button" className="ghost-button grants-inline-btn" onClick={onView}>
+        View
+      </button>
+    </div>
+  );
+}
+
+function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
+  return (
+    <div className="grant-detail-panel stack-list">
+      <div className="stack-cell">
+        <strong>Service client</strong>
+        <span>{grant.service_client_display_name ?? "Credential only"}</span>
+      </div>
+      <div className="stack-cell">
+        <strong>Provider</strong>
+        <span>{grant.provider_app_display_name}</span>
+      </div>
+      <div className="stack-cell">
+        <strong>Connection</strong>
+        <span>{grant.connected_account_display_name ?? "Auto-select at issue time"}</span>
+      </div>
+      <div className="stack-cell">
+        <strong>Status</strong>
+        <span>
+          <StatusBadge tone={grantTone(grant)}>{grantState(grant)}</StatusBadge>
+        </span>
+      </div>
+      <div className="stack-cell">
+        <strong>Expires</strong>
+        <span>
+          {grant.expires_at ? `${formatDateTime(grant.expires_at)} (${relativeTime(grant.expires_at)})` : "No expiry"}
+        </span>
+      </div>
+      <div className="stack-cell">
+        <strong>Access modes</strong>
+        <span>{grant.allowed_access_modes.map((m) => userAccessModeLabel(m)).join(", ")}</span>
+      </div>
+      <div className="stack-cell">
+        <strong>Scope ceiling</strong>
+        <span>{grant.scope_ceiling.length ? grant.scope_ceiling.join(", ") : "Inherited from provider app"}</span>
+      </div>
+      <div className="stack-cell">
+        <strong>Capabilities</strong>
+        <span>{grant.capabilities.length ? grant.capabilities.join(", ") : "None"}</span>
+      </div>
+      {grant.environment ? (
+        <div className="stack-cell">
+          <strong>Environment</strong>
+          <span>{grant.environment}</span>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function usePathname() {
@@ -477,6 +599,7 @@ function GrantsPage() {
   const [grantModalOpen, setGrantModalOpen] = useState(false);
   const [grantRevokeConfirmId, setGrantRevokeConfirmId] = useState<string | null>(null);
   const [grantRevokePending, setGrantRevokePending] = useState(false);
+  const [grantDetailId, setGrantDetailId] = useState<string | null>(null);
   const [createdResult, setCreatedResult] = useState<SelfServiceDelegationGrantCreateResult | null>(null);
   const [form, setForm] = useState<SelfServiceDelegationGrantFormValues>({
     service_client_key: "",
@@ -540,6 +663,11 @@ function GrantsPage() {
     if (!grantRevokeConfirmId) return null;
     return grants.find((grant) => grant.id === grantRevokeConfirmId) ?? null;
   }, [grantRevokeConfirmId, grants]);
+
+  const grantDetailGrant = useMemo(() => {
+    if (!grantDetailId) return null;
+    return grants.find((grant) => grant.id === grantDetailId) ?? null;
+  }, [grantDetailId, grants]);
 
   const toggleMode = (mode: string) => {
     setForm((current) => ({
@@ -637,34 +765,56 @@ function GrantsPage() {
 
       <Card title="Your grants" description="Only your own grants appear here, and you can revoke them whenever a downstream consumer should lose access.">
         <DataTable
-          columns={["Service client", "Provider", "Connection", "Modes", "State", "Expires", "Policy", "Action"]}
-          rows={grants.map((grant) => [
-            grant.service_client_display_name ?? "Credential only",
-            grant.provider_app_display_name,
-            grant.connected_account_display_name ?? "Auto-select at issue time",
-            grant.allowed_access_modes.join(", "),
-            <StatusBadge key={`${grant.id}-state`} tone={grantTone(grant)}>
-              {grantState(grant)}
-            </StatusBadge>,
-            `${formatDateTime(grant.expires_at)} (${relativeTime(grant.expires_at)})`,
-            <div className="stack-cell" key={`${grant.id}-policy`}>
-              <strong>Scopes</strong>
-              <span>{grant.scope_ceiling.length ? grant.scope_ceiling.join(", ") : "Inherited from provider app"}</span>
-              <strong>Capabilities</strong>
-              <span>{grant.capabilities.length ? grant.capabilities.join(", ") : "No extra capabilities"}</span>
-            </div>,
-            grant.revoked_at ? (
-              "Closed"
-            ) : (
-              <button type="button" className="ghost-button" onClick={() => setGrantRevokeConfirmId(grant.id)}>
-                Revoke
-              </button>
-            ),
-          ])}
+          tableClassName="grants-table"
+          wrapClassName="grants-table-wrap"
+          columnClasses={[
+            "grants-col--client",
+            "grants-col--provider",
+            "grants-col--conn",
+            "grants-col--status",
+            "grants-col--exp",
+            "grants-col--policy",
+            "grants-col--actions",
+          ]}
+          rowKey={(rowIndex) => grants[rowIndex]?.id ?? rowIndex}
+          columns={["Client", "Provider", "Connection", "Status", "Expires", "Policy", "Actions"]}
+          rows={grants.map((grant) => {
+            const clientLabel = grant.service_client_display_name ?? "Credential only";
+            const providerLabel = grant.provider_app_display_name;
+            return [
+              <span className="grants-cell-ellipsis" title={clientLabel}>
+                {clientLabel}
+              </span>,
+              <span className="grants-cell-ellipsis" title={providerLabel}>
+                {providerLabel}
+              </span>,
+              <GrantConnectionCell grant={grant} />,
+              <StatusBadge tone={grantTone(grant)}>{grantState(grant)}</StatusBadge>,
+              <GrantExpiresCell grant={grant} />,
+              <GrantPolicyCell grant={grant} onView={() => setGrantDetailId(grant.id)} />,
+              <div className="grants-actions-cell">
+                {grant.revoked_at ? (
+                  <span className="grants-action-placeholder muted" aria-label="No action">
+                    —
+                  </span>
+                ) : (
+                  <button type="button" className="ghost-button grants-inline-btn" onClick={() => setGrantRevokeConfirmId(grant.id)}>
+                    Revoke
+                  </button>
+                )}
+              </div>,
+            ];
+          })}
           emptyTitle="No grants yet"
           emptyBody="Create a delegated credential once you have a provider connection."
         />
       </Card>
+
+      {grantDetailId && grantDetailGrant ? (
+        <Modal title="Grant details" wide onClose={() => setGrantDetailId(null)}>
+          <GrantDetailPanel grant={grantDetailGrant} />
+        </Modal>
+      ) : null}
 
       {grantModalOpen ? (
         <Modal title="New grant" wide onClose={() => setGrantModalOpen(false)}>

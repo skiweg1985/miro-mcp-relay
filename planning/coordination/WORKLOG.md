@@ -1,3 +1,31 @@
+## 2026-04-04 – Cursor Agent – Secret-UX: Modal statt Reveal
+
+- Done:
+  - `frontend/src/components.tsx`: `SecretPanel` zeigt Einmal-Geheimnisse im `Modal` mit Klartext, **Copy** und **Close**; `MiroConnectionSecretsModal` bündelt Access Key und JSON-Blöcke; `MiroAccessCard` nutzt das gebündelte Modal.
+  - `frontend/src/index.css`: Layout für `secret-modal-section` / `secret-modal-section-actions`.
+  - `docs/CHANGELOG.md` [Unreleased] Changed; `frontend/dist` neu gebaut.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - frontend/src/components.tsx
+  - frontend/src/index.css
+  - frontend/dist/
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build`
+- UI path:
+  - `/grants` nach neuem Access; Admin Services/Access nach Erstellung; Workspace Miro-Karte nach neuem Access Key
+- Changelog updated:
+  - yes ([Unreleased] Changed)
+- Follow-ups:
+  - keine
+
 ## 2026-04-04 – Cursor Agent – Grants: Hilfe und Entwicklerhinweise
 
 - Done:

@@ -1063,6 +1063,31 @@ select option {
   font-size: var(--font-caption);
 }
 
+.secret-modal-section {
+  margin-top: var(--space-4);
+}
+
+.secret-modal-section:first-of-type {
+  margin-top: 0;
+}
+
+.secret-modal-section h3 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-card-title);
+  font-weight: 650;
+  color: var(--ink);
+}
+
+.secret-modal-section > p {
+  margin: 0 0 var(--space-2);
+}
+
+.secret-modal-section-actions {
+  margin-top: var(--space-2);
+  display: flex;
+  justify-content: flex-end;
+}
+
 .empty-state,
 .capability-gate {
   border-radius: var(--radius-md);

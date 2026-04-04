@@ -1,4 +1,4 @@
-import { type FormEvent, type ReactNode, useEffect, useId, useMemo, useState, type Key } from "react";
+import { type FormEvent, type ReactNode, useEffect, useId, useState, type Key } from "react";
 
 import { useAppContext } from "./app-context";
 import type { MiroRelayAccess } from "./types";
@@ -230,9 +230,8 @@ export function SecretPanel({
   body: string;
   value: string;
 }) {
-  const [revealed, setRevealed] = useState(false);
+  const [open, setOpen] = useState(true);
   const { notify } = useAppContext();
-  const maskedValue = useMemo(() => "•".repeat(Math.max(18, value.length)), [value]);
 
   const handleCopy = async () => {
     const ok = await copyToClipboard(value);
@@ -243,25 +242,68 @@ export function SecretPanel({
     });
   };
 
+  if (!open) {
+    return null;
+  }
+
   return (
-    <div className="secret-panel">
-      <div className="secret-panel-header">
-        <div>
-          <p className="eyebrow">Private</p>
-          <h3>{title}</h3>
-          <p>{body}</p>
-        </div>
-        <div className="inline-actions">
-          <button type="button" className="ghost-button" onClick={() => setRevealed((current) => !current)}>
-            {revealed ? "Hide value" : "Reveal value"}
-          </button>
-          <button type="button" className="ghost-button" onClick={() => void handleCopy()}>
-            Copy
-          </button>
-        </div>
+    <Modal title={title} wide onClose={() => setOpen(false)}>
+      <p className="eyebrow">Private</p>
+      <p className="lede">{body}</p>
+      <pre className="secret-value">{value}</pre>
+      <div className="modal-form-actions">
+        <button type="button" className="ghost-button" onClick={() => setOpen(false)}>
+          Close
+        </button>
+        <button type="button" className="primary-button" onClick={() => void handleCopy()}>
+          Copy
+        </button>
       </div>
-      <pre className="secret-value">{revealed ? value : maskedValue}</pre>
-    </div>
+    </Modal>
+  );
+}
+
+export type SecretModalSection = { title: string; body: string; value: string };
+
+export function MiroConnectionSecretsModal({ sections }: { sections: SecretModalSection[] }) {
+  const [open, setOpen] = useState(true);
+  const { notify } = useAppContext();
+
+  const copySection = async (value: string) => {
+    const ok = await copyToClipboard(value);
+    notify({
+      tone: ok ? "success" : "error",
+      title: ok ? "Copied to clipboard" : "Clipboard unavailable",
+      description: ok ? "Store this value somewhere safe before you navigate away." : "Your browser did not allow the copy action.",
+    });
+  };
+
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <Modal title="Miro connection details" wide onClose={() => setOpen(false)}>
+      <p className="eyebrow">Private</p>
+      <p className="lede">Copy these values now. They will not be shown again.</p>
+      {sections.map((section, index) => (
+        <div key={`${section.title}-${index}`} className="secret-modal-section">
+          <h3>{section.title}</h3>
+          <p>{section.body}</p>
+          <pre className="secret-value">{section.value}</pre>
+          <div className="secret-modal-section-actions">
+            <button type="button" className="ghost-button" onClick={() => void copySection(section.value)}>
+              Copy
+            </button>
+          </div>
+        </div>
+      ))}
+      <div className="modal-form-actions">
+        <button type="button" className="primary-button" onClick={() => setOpen(false)}>
+          Done
+        </button>
+      </div>
+    </Modal>
   );
 }
 
@@ -447,27 +489,33 @@ export function MiroAccessCard({
       ) : null}
 
       {access.relay_token ? (
-        <>
-          <SecretPanel
-            title="Access key"
-            body="This value is shown only once. Save it in your app before you leave the page."
-            value={access.relay_token}
-          />
-          {access.mcp_config_json ? (
-            <SecretPanel
-              title="App configuration (JSON)"
-              body="Paste this into your app’s settings to use the Miro connection from this service."
-              value={access.mcp_config_json}
-            />
-          ) : null}
-          {access.credentials_bundle_json ? (
-            <SecretPanel
-              title="Combined setup (JSON)"
-              body="Includes workspace ID and access key together for apps that need one block to paste."
-              value={access.credentials_bundle_json}
-            />
-          ) : null}
-        </>
+        <MiroConnectionSecretsModal
+          sections={[
+            {
+              title: "Access key",
+              body: "This value is shown only once. Save it in your app before you leave the page.",
+              value: access.relay_token,
+            },
+            ...(access.mcp_config_json
+              ? [
+                  {
+                    title: "App configuration (JSON)",
+                    body: "Paste this into your app’s settings to use the Miro connection from this service.",
+                    value: access.mcp_config_json,
+                  },
+                ]
+              : []),
+            ...(access.credentials_bundle_json
+              ? [
+                  {
+                    title: "Combined setup (JSON)",
+                    body: "Includes workspace ID and access key together for apps that need one block to paste.",
+                    value: access.credentials_bundle_json,
+                  },
+                ]
+              : []),
+          ]}
+        />
       ) : null}
     </Card>
   );

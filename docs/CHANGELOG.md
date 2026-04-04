@@ -27,6 +27,8 @@
 
 ### Changed
 
+- Frontend: Einmal angezeigte Geheimnisse (Self-Service/Admin-Grants, neuer Service-Client, Admin-Grant) und Miro-Verbindungsdaten erscheinen in einem Modal mit Klartext und Kopieren; Maskierung und „Reveal“ entfallen; mehrere Miro-Blöcke (Access Key, JSON) in einem gemeinsamen Modal.
+
 - Delegation-Grants (Admin `POST /api/v1/admin/delegation-grants`, Self-Service `POST /api/v1/delegation-grants`): Request-Feld `expires_in_hours` durch `expires_in_days` ersetzt (1–365, Standard 365); Ablauf weiterhin maximal ein Jahr; Legacy-Node-Admin-Route akzeptiert `expires_in_days` bevorzugt, sonst weiterhin `expires_in_hours`.
 - Frontend: Self-Service-Texte für Endnutzer vereinfacht (Navigation, Seitenkopf, Tabellen, Modals, Toasts, Integrations-/Miro-Karten): Begriffe wie Grant, Token, OAuth, Broker, Relay und „delegiert“ in der sichtbaren Nutzer-UI vermieden; Admin-Oberfläche unverändert technischer; gebaute Assets aktualisiert.
 - Frontend: Self-Service **Your grants** (`/grants`): Tabelle auf sieben Spalten (Client, Provider, Connection, Status, Expires, Policy, Actions); keine Modi-Spalte; Policy nur Kurztext (z. B. Inherited, Anzahl Scopes, Custom) und **View**; vollständige Policy (Scopes, Capabilities, Modi) im Modal **Grant details**; Connection zweizeilig bei ` - ` im Anzeigenamen; Ablauf mit kompakter Relativzeit und Zeitstempel in zweiter Zeile; `DataTable` um `tableClassName`, `wrapClassName`, `columnClasses`, `rowKey` erweitert; Tabellenlayout `table-layout: fixed` / `grants-table` gegen horizontales Ausbrechen.

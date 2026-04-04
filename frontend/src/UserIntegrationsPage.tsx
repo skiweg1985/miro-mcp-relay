@@ -6,6 +6,7 @@ import { api } from "./api";
 import { TEMPLATE_MIRO, TEMPLATE_MS_LOGIN } from "./admin/constants";
 import {
   Card,
+  ConfirmModal,
   EmptyState,
   LoadingScreen,
   MiroAccessCard,
@@ -106,6 +107,7 @@ export function UserIntegrationsPage() {
   const [connectWizardStep, setConnectWizardStep] = useState(0);
   const [detailsConnectionId, setDetailsConnectionId] = useState<string | null>(null);
   const [detailsWizardStep, setDetailsWizardStep] = useState(0);
+  const [revokeConfirmId, setRevokeConfirmId] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -163,6 +165,13 @@ export function UserIntegrationsPage() {
     ? connections.find((c) => c.id === detailsConnectionId)
     : undefined;
   const detailsApp = detailsConnection ? providerAppById[detailsConnection.provider_app_id] : undefined;
+
+  const revokeConfirmAppName = useMemo(() => {
+    if (!revokeConfirmId) return "";
+    const row = connections.find((c) => c.id === revokeConfirmId);
+    const app = row ? providerAppById[row.provider_app_id] : undefined;
+    return app?.display_name ?? "";
+  }, [revokeConfirmId, connections, providerAppById]);
 
   useEffect(() => {
     if (session.status !== "authenticated") return;
@@ -244,12 +253,16 @@ export function UserIntegrationsPage() {
 
   const handleRevoke = async (connectionId: string) => {
     if (session.status !== "authenticated") return;
-    await runBusy(`revoke:${connectionId}`, async () => {
-      await api.revokeConnection(session.csrfToken, connectionId);
-      notify({ tone: "info", title: "Disconnected" });
-      if (detailsConnectionId === connectionId) closeDetailsWizard();
-      await load();
-    });
+    try {
+      await runBusy(`revoke:${connectionId}`, async () => {
+        await api.revokeConnection(session.csrfToken, connectionId);
+        notify({ tone: "info", title: "Disconnected" });
+        if (detailsConnectionId === connectionId) closeDetailsWizard();
+        await load();
+      });
+    } finally {
+      setRevokeConfirmId(null);
+    }
   };
 
   const handleRefresh = async (connectionId: string) => {
@@ -363,7 +376,7 @@ export function UserIntegrationsPage() {
                       type="button"
                       className="ghost-button"
                       disabled={busy.has(`revoke:${connection.id}`)}
-                      onClick={() => void handleRevoke(connection.id)}
+                      onClick={() => setRevokeConfirmId(connection.id)}
                     >
                       {busy.has(`revoke:${connection.id}`) ? "Disconnecting…" : "Disconnect"}
                     </button>
@@ -493,7 +506,7 @@ export function UserIntegrationsPage() {
                           type="button"
                           className="ghost-button"
                           disabled={busy.has(`revoke:${detailsConnection.id}`)}
-                          onClick={() => void handleRevoke(detailsConnection.id)}
+                          onClick={() => setRevokeConfirmId(detailsConnection.id)}
                         >
                           {busy.has(`revoke:${detailsConnection.id}`) ? "Disconnecting…" : "Disconnect"}
                         </button>
@@ -574,6 +587,20 @@ export function UserIntegrationsPage() {
             ) : null}
           </div>
         </SetupDrawer>
+      ) : null}
+
+      {revokeConfirmId ? (
+        <ConfirmModal
+          title="Disconnect"
+          confirmLabel="Disconnect"
+          confirmBusy={busy.has(`revoke:${revokeConfirmId}`)}
+          onCancel={() => setRevokeConfirmId(null)}
+          onConfirm={() => void handleRevoke(revokeConfirmId)}
+        >
+          <p className="lede">
+            The broker will remove stored access for <strong>{revokeConfirmAppName || "this integration"}</strong>. You can connect again later.
+          </p>
+        </ConfirmModal>
       ) : null}
     </>
   );

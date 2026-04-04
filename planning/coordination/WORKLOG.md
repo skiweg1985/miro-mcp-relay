@@ -1,3 +1,37 @@
+## 2026-04-04 – Cursor Agent – Integrations: Aktionszeile, Bestätigung bei Trennen/Widerruf
+
+- Done:
+  - `frontend/src/index.css`: `.user-integration-actions` und `.drawer-footer-actions` ohne Zeilenumbruch bei Buttons; `.confirm-modal-*`, `.primary-button--danger`.
+  - `frontend/src/components.tsx`: `ConfirmModal` (z-index über Drawer).
+  - `UserIntegrationsPage`, `GrantsPage` in `App.tsx`, `AccessPage`, `UsersPage`: Bestätigungsdialog vor Disconnect / Grant-Revoke / Admin Remove.
+  - `docs/CHANGELOG.md` [Unreleased] Changed ergänzt.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - frontend/src/components.tsx
+  - frontend/src/index.css
+  - frontend/src/UserIntegrationsPage.tsx
+  - frontend/src/App.tsx
+  - frontend/src/admin/AccessPage.tsx
+  - frontend/src/admin/UsersPage.tsx
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build`
+  - endpoints: keine
+- UI path:
+  - `/workspace/integrations` (Disconnect)
+  - My Grants / Access / Users (Revoke/Remove)
+- Changelog updated:
+  - yes ([Unreleased] Changed)
+- Follow-ups:
+  - keine
+
 ## 2026-04-04 – Cursor Agent – Docker Compose: Zeitzone, Legacy-Volume
 
 - Done:

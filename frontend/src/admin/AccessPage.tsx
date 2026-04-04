@@ -1,7 +1,7 @@
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 
 import { api } from "../api";
-import { Card, DataTable, Field, Modal, PageIntro, SecretPanel, StatusBadge } from "../components";
+import { Card, ConfirmModal, DataTable, Field, Modal, PageIntro, SecretPanel, StatusBadge } from "../components";
 import { useAppContext } from "../app-context";
 import { isApiError } from "../errors";
 import type {
@@ -45,6 +45,8 @@ export function AccessPage() {
   const [connections, setConnections] = useState<ConnectedAccountOut[]>([]);
   const [grants, setGrants] = useState<DelegationGrantOut[]>([]);
   const [pending, setPending] = useState(false);
+  const [grantRevokeConfirmId, setGrantRevokeConfirmId] = useState<string | null>(null);
+  const [grantRevokePending, setGrantRevokePending] = useState(false);
   const [grantModalOpen, setGrantModalOpen] = useState(false);
   const [createdResult, setCreatedResult] = useState<DelegationGrantCreateResult | null>(null);
   const [advanced, setAdvanced] = useState(false);
@@ -143,6 +145,7 @@ export function AccessPage() {
 
   const revokeGrant = async (grantId: string) => {
     if (session.status !== "authenticated") return;
+    setGrantRevokePending(true);
     try {
       await api.revokeDelegationGrant(session.csrfToken, grantId);
       notify({ tone: "success", title: "Access revoked" });
@@ -153,6 +156,9 @@ export function AccessPage() {
         title: "Could not revoke",
         description: isApiError(error) ? error.message : "Unexpected error.",
       });
+    } finally {
+      setGrantRevokePending(false);
+      setGrantRevokeConfirmId(null);
     }
   };
 
@@ -162,6 +168,12 @@ export function AccessPage() {
     [serviceClients],
   );
   const providerAppById = useMemo(() => Object.fromEntries(providerApps.map((app) => [app.id, app])), [providerApps]);
+
+  const grantRevokeTarget = useMemo(() => {
+    if (!grantRevokeConfirmId) return null;
+    return grants.find((grant) => grant.id === grantRevokeConfirmId) ?? null;
+  }, [grantRevokeConfirmId, grants]);
+
   const eligibleConnections = connections.filter(
     (connection) => !form.provider_app_key || providerAppById[connection.provider_app_id]?.key === form.provider_app_key,
   );
@@ -202,7 +214,7 @@ export function AccessPage() {
             grant.revoked_at ? (
               "—"
             ) : (
-              <button type="button" className="ghost-button" onClick={() => void revokeGrant(grant.id)}>
+              <button type="button" className="ghost-button" onClick={() => setGrantRevokeConfirmId(grant.id)}>
                 Revoke
               </button>
             ),
@@ -332,6 +344,26 @@ export function AccessPage() {
             </div>
           </form>
         </Modal>
+      ) : null}
+
+      {grantRevokeConfirmId ? (
+        <ConfirmModal
+          title="Revoke access"
+          confirmLabel="Revoke"
+          confirmBusy={grantRevokePending}
+          onCancel={() => setGrantRevokeConfirmId(null)}
+          onConfirm={() => void revokeGrant(grantRevokeConfirmId)}
+        >
+          <p className="lede">
+            {grantRevokeTarget ? (
+              <>
+                The service loses access for <strong>{providerAppById[grantRevokeTarget.provider_app_id]?.display_name ?? "this integration"}</strong> until you issue a new grant.
+              </>
+            ) : (
+              "The service loses access until you issue a new grant."
+            )}
+          </p>
+        </ConfirmModal>
       ) : null}
     </>
   );

@@ -19,6 +19,7 @@ import { UsersPage } from "./admin/UsersPage";
 import { api } from "./api";
 import {
   Card,
+  ConfirmModal,
   DataTable,
   EmptyState,
   Field,
@@ -474,6 +475,8 @@ function GrantsPage() {
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(false);
   const [grantModalOpen, setGrantModalOpen] = useState(false);
+  const [grantRevokeConfirmId, setGrantRevokeConfirmId] = useState<string | null>(null);
+  const [grantRevokePending, setGrantRevokePending] = useState(false);
   const [createdResult, setCreatedResult] = useState<SelfServiceDelegationGrantCreateResult | null>(null);
   const [form, setForm] = useState<SelfServiceDelegationGrantFormValues>({
     service_client_key: "",
@@ -533,6 +536,11 @@ function GrantsPage() {
     (connection) => !form.provider_app_key || providerAppById[connection.provider_app_id]?.key === form.provider_app_key,
   );
 
+  const grantRevokeTarget = useMemo(() => {
+    if (!grantRevokeConfirmId) return null;
+    return grants.find((grant) => grant.id === grantRevokeConfirmId) ?? null;
+  }, [grantRevokeConfirmId, grants]);
+
   const toggleMode = (mode: string) => {
     setForm((current) => ({
       ...current,
@@ -583,6 +591,7 @@ function GrantsPage() {
 
   const revokeGrant = async (grantId: string) => {
     if (session.status !== "authenticated") return;
+    setGrantRevokePending(true);
     try {
       await api.revokeMyDelegationGrant(session.csrfToken, grantId);
       notify({ tone: "info", title: "Grant revoked" });
@@ -593,6 +602,9 @@ function GrantsPage() {
         title: "Could not revoke grant",
         description: isApiError(error) ? error.message : "Unexpected revoke error.",
       });
+    } finally {
+      setGrantRevokePending(false);
+      setGrantRevokeConfirmId(null);
     }
   };
 
@@ -644,7 +656,7 @@ function GrantsPage() {
             grant.revoked_at ? (
               "Closed"
             ) : (
-              <button type="button" className="ghost-button" onClick={() => void revokeGrant(grant.id)}>
+              <button type="button" className="ghost-button" onClick={() => setGrantRevokeConfirmId(grant.id)}>
                 Revoke
               </button>
             ),
@@ -752,6 +764,27 @@ function GrantsPage() {
             </div>
           </form>
         </Modal>
+      ) : null}
+
+      {grantRevokeConfirmId ? (
+        <ConfirmModal
+          title="Revoke grant"
+          confirmLabel="Revoke"
+          confirmBusy={grantRevokePending}
+          onCancel={() => setGrantRevokeConfirmId(null)}
+          onConfirm={() => void revokeGrant(grantRevokeConfirmId)}
+        >
+          <p className="lede">
+            {grantRevokeTarget ? (
+              <>
+                Downstream access that uses this grant for <strong>{grantRevokeTarget.provider_app_display_name}</strong> stops until you
+                create a new grant.
+              </>
+            ) : (
+              "Downstream access that uses this grant stops until you create a new grant."
+            )}
+          </p>
+        </ConfirmModal>
       ) : null}
     </>
   );

@@ -46,6 +46,69 @@ export function Modal({
   );
 }
 
+export function ConfirmModal({
+  title,
+  children,
+  confirmLabel,
+  cancelLabel = "Cancel",
+  onConfirm,
+  onCancel,
+  confirmBusy,
+}: {
+  title: string;
+  children: ReactNode;
+  confirmLabel: string;
+  cancelLabel?: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  confirmBusy?: boolean;
+}) {
+  const titleId = useId();
+  useEffect(() => {
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !confirmBusy) onCancel();
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [onCancel, confirmBusy]);
+
+  return (
+    <div
+      className="modal-root confirm-modal-root"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      aria-busy={confirmBusy ? "true" : undefined}
+    >
+      <button
+        type="button"
+        className="modal-backdrop"
+        aria-label="Dismiss"
+        disabled={confirmBusy}
+        onClick={() => {
+          if (!confirmBusy) onCancel();
+        }}
+      />
+      <div className="modal-panel modal-panel--confirm">
+        <div className="modal-panel-header">
+          <h2 id={titleId}>{title}</h2>
+        </div>
+        <div className="modal-panel-body compact-form">
+          {children}
+          <div className="confirm-modal-actions">
+            <button type="button" className="secondary-button" disabled={confirmBusy} onClick={onCancel}>
+              {cancelLabel}
+            </button>
+            <button type="button" className="primary-button primary-button--danger" disabled={confirmBusy} onClick={onConfirm}>
+              {confirmBusy ? "…" : confirmLabel}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function PageIntro({
   eyebrow,
   title,

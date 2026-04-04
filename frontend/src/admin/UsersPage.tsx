@@ -1,7 +1,7 @@
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 
 import { api } from "../api";
-import { Card, DataTable, Field, LoadingScreen, Modal, PageIntro, StatusBadge } from "../components";
+import { Card, ConfirmModal, DataTable, Field, LoadingScreen, Modal, PageIntro, StatusBadge } from "../components";
 import { useAppContext } from "../app-context";
 import { isApiError } from "../errors";
 import type {
@@ -42,6 +42,7 @@ export function UsersPage() {
   const [pending, setPending] = useState(false);
   const [loading, setLoading] = useState(true);
   const [importModalOpen, setImportModalOpen] = useState(false);
+  const [connectionRevokeConfirmId, setConnectionRevokeConfirmId] = useState<string | null>(null);
   const [filters, setFilters] = useState({
     userEmail: "",
     providerAppKey: "",
@@ -111,6 +112,20 @@ export function UsersPage() {
     }
   };
 
+  const performRevokeConnection = async () => {
+    if (!connectionRevokeConfirmId) return;
+    const id = connectionRevokeConfirmId;
+    try {
+      await runAction(`revoke:${id}`, async () => {
+        await api.revokeConnection(session.csrfToken, id);
+        notify({ tone: "info", title: "Access removed" });
+        await load();
+      });
+    } finally {
+      setConnectionRevokeConfirmId(null);
+    }
+  };
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (session.status !== "authenticated") return;
@@ -157,6 +172,11 @@ export function UsersPage() {
 
   const userById = useMemo(() => Object.fromEntries(users.map((user) => [user.id, user])), [users]);
   const appById = useMemo(() => Object.fromEntries(providerApps.map((app) => [app.id, app])), [providerApps]);
+
+  const revokeConnectionTarget = useMemo(() => {
+    if (!connectionRevokeConfirmId) return null;
+    return connections.find((connection) => connection.id === connectionRevokeConfirmId) ?? null;
+  }, [connectionRevokeConfirmId, connections]);
 
   if (loading) return <LoadingScreen label="Loading…" />;
 
@@ -285,13 +305,7 @@ export function UsersPage() {
                     type="button"
                     className="ghost-button"
                     disabled={busyActions.has(`revoke:${connection.id}`)}
-                    onClick={() =>
-                      void runAction(`revoke:${connection.id}`, async () => {
-                        await api.revokeConnection(session.csrfToken, connection.id);
-                        notify({ tone: "info", title: "Access removed" });
-                        await load();
-                      })
-                    }
+                    onClick={() => setConnectionRevokeConfirmId(connection.id)}
                   >
                     {busyActions.has(`revoke:${connection.id}`) ? "…" : "Remove"}
                   </button>
@@ -422,6 +436,27 @@ export function UsersPage() {
           ) : null}
         </>
       )}
+
+      {connectionRevokeConfirmId ? (
+        <ConfirmModal
+          title="Remove connection"
+          confirmLabel="Remove"
+          confirmBusy={busyActions.has(`revoke:${connectionRevokeConfirmId}`)}
+          onCancel={() => setConnectionRevokeConfirmId(null)}
+          onConfirm={() => void performRevokeConnection()}
+        >
+          <p className="lede">
+            {revokeConnectionTarget ? (
+              <>
+                This removes the linked account for <strong>{appById[revokeConnectionTarget.provider_app_id]?.display_name ?? "this integration"}</strong> from the broker for{" "}
+                <strong>{userById[revokeConnectionTarget.user_id]?.email ?? revokeConnectionTarget.user_id}</strong>.
+              </>
+            ) : (
+              "This removes the linked account from the broker."
+            )}
+          </p>
+        </ConfirmModal>
+      ) : null}
     </>
   );
 }

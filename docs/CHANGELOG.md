@@ -19,6 +19,7 @@
 
 ### Changed
 
+- Frontend: Integrations-Karten und Verbindungs-Detail-Footer halten Aktions-Buttons in einer Zeile (`flex-wrap: nowrap`, horizontaler Scroll bei Bedarf); destruktive Aktionen (Verbindung trennen, Grants widerrufen, Admin: Zugriff/Verbindung entfernen) erfordern ein Bestätigungsmodal (`ConfirmModal`).
 - Docker Compose (`broker-backend`): Host-Zeitzone read-only gemountet (`/etc/localtime`); Legacy-Volume `./data:/legacy-data` entfernt; `SESSION_SECURE_COOKIE` nicht mehr über Compose-Environment gesetzt (Wert kommt aus Image/`.env` am Start).
 - Self-Service **Integrations** (`/workspace/integrations`): Navigationszeile bündelt Provider-Verbindungen; Karten mit Status und Kurzbeschreibung; technische Verbindungsdetails im Wizard-Modal (Account / Session, Refresh/Probe/Disconnect); zweistufiger Connect-Wizard (Overview → Continue to provider) im gleichen Modal-Stil wie die Admin-Integrationen; nach **Disconnect** keine Kontodaten mehr auf der Karte, Miro-MCP-Handoff nur bei aktiver Verbindung; OAuth-Callbacks leiten auf diese Seite; Legacy-Pfade `/connect/*` und `/miro` leiten dorthin um.
 - Admin-Shell: Eintrag **Workspace** öffnet dieselbe Self-Service-Oberfläche (u. a. für OAuth-Rückkehr mit Admin-Konto).

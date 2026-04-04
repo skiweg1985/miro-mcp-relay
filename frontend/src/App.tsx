@@ -21,6 +21,7 @@ import { api } from "./api";
 import {
   Card,
   ConfirmModal,
+  CredentialRevealModal,
   DataTable,
   EmptyState,
   Field,
@@ -43,6 +44,7 @@ import type {
   RouteMatch,
   SelfServiceDelegationGrantCreateResult,
   SelfServiceDelegationGrantFormValues,
+  MiroRelayAccess,
   SelfServiceDelegationGrantOut,
   ServiceClientCreateResult,
   ServiceClientFormValues,
@@ -246,30 +248,91 @@ function GrantCodeCopy({
   );
 }
 
+function miroSetupExchangeSections(m: MiroRelayAccess): { title: string; body: string; value: string }[] {
+  if (!m.relay_token) return [];
+  const sections: { title: string; body: string; value: string }[] = [
+    {
+      title: "Access key",
+      body: "This value is shown only once. Save it in your app before you leave the page.",
+      value: m.relay_token,
+    },
+  ];
+  if (m.mcp_config_json?.trim()) {
+    sections.push({
+      title: "App configuration (JSON)",
+      body: "Paste this into your app settings to use this connection from your tool.",
+      value: m.mcp_config_json,
+    });
+  }
+  if (m.credentials_bundle_json?.trim()) {
+    sections.push({
+      title: "Combined setup (JSON)",
+      body: "Workspace ID, endpoint, and key in one block for apps that accept a single paste.",
+      value: m.credentials_bundle_json,
+    });
+  }
+  return sections;
+}
+
 function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
-  const { session } = useAppContext();
+  const { notify, session } = useAppContext();
   const [accessDetails, setAccessDetails] = useState<ConnectionAccessDetails | null>(null);
   const [accessLoading, setAccessLoading] = useState(false);
+  const [rotatePending, setRotatePending] = useState(false);
+  const [connections, setConnections] = useState<ConnectedAccountOut[] | null>(null);
+
+  const directAllowed = grant.allowed_access_modes.includes("direct_token");
+  const relayAllowed = grant.allowed_access_modes.includes("relay");
+
+  const resolvedConnectionId = useMemo(() => {
+    if (grant.connected_account_id) return grant.connected_account_id;
+    const list = connections ?? [];
+    const match = list.find((c) => c.provider_app_id === grant.provider_app_id && c.status === "connected");
+    return match?.id ?? null;
+  }, [grant.connected_account_id, grant.provider_app_id, connections]);
 
   useEffect(() => {
-    if (session.status !== "authenticated" || !grant.connected_account_id) {
+    if (session.status !== "authenticated") return;
+    if (grant.connected_account_id) return;
+    let cancelled = false;
+    setConnections(null);
+    void api
+      .myConnections()
+      .then((list) => {
+        if (!cancelled) setConnections(list);
+      })
+      .catch(() => {
+        if (!cancelled) setConnections([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [grant.connected_account_id, grant.id, session.status]);
+
+  useEffect(() => {
+    if (session.status !== "authenticated") {
+      setAccessDetails(null);
+      return;
+    }
+    if (!resolvedConnectionId) {
       setAccessDetails(null);
       return;
     }
     setAccessLoading(true);
     void api
-      .connectionAccessDetails(grant.connected_account_id)
+      .connectionAccessDetails(resolvedConnectionId)
       .then(setAccessDetails)
       .catch(() => setAccessDetails(null))
       .finally(() => setAccessLoading(false));
-  }, [grant.connected_account_id, grant.id, session.status]);
+  }, [resolvedConnectionId, grant.id, session.status]);
 
   const origin = brokerPublicOrigin();
-  const connSegment = grant.connected_account_id ?? "<connection_id>";
-  const directAllowed = grant.allowed_access_modes.includes("direct_token");
-  const relayAllowed = grant.allowed_access_modes.includes("relay");
+  const connSegment = resolvedConnectionId ?? "<connection_id>";
   const miroRelay = relayAllowed && isMiroProviderKey(grant.provider_app_key);
-  const showConnectionAccess = (relayAllowed || directAllowed) && Boolean(grant.connected_account_id);
+  const needsConnectionForTools = relayAllowed || directAllowed;
+  const resolvingConnections = !grant.connected_account_id && connections === null;
+  const showConnectionAccess = needsConnectionForTools && Boolean(resolvedConnectionId);
+  const connectionResolvedForGrant = Boolean(grant.connected_account_id) || connections !== null;
 
   const directExample = [
     `POST ${origin}/api/v1/token-issues/provider-access`,
@@ -279,7 +342,7 @@ function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
     JSON.stringify(
       {
         provider_app_key: grant.provider_app_key,
-        connected_account_id: grant.connected_account_id ?? null,
+        connected_account_id: grant.connected_account_id ?? resolvedConnectionId ?? null,
         requested_scopes: [] as string[],
       },
       null,
@@ -295,108 +358,175 @@ function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
     `{ ... MCP JSON-RPC body ... }`,
   ].join("\n");
 
+  const mcpRelayExample = useMemo(() => {
+    const endpointUrl = accessDetails?.rows.find((r) => r.label === "Endpoint")?.value ?? `${origin}/miro/mcp/<workspace>`;
+    return [
+      `POST ${endpointUrl}`,
+      `X-Delegated-Credential: <delegated_credential>`,
+      `X-Relay-Key: <relay key from Connection details below>`,
+      `Content-Type: application/json`,
+      ``,
+      `{ ... MCP JSON-RPC body ... }`,
+    ].join("\n");
+  }, [accessDetails, origin]);
+
+  const genericRelayExample = useMemo(() => {
+    const endpointUrl =
+      accessDetails?.rows.find((r) => r.label === "Endpoint")?.value ?? `${origin}/api/v1/…`;
+    return [
+      `POST ${endpointUrl}`,
+      `X-Delegated-Credential: <delegated_credential>`,
+      `Content-Type: application/json`,
+      ``,
+      `{ ... body ... }`,
+    ].join("\n");
+  }, [accessDetails, origin]);
+
+  const handleRotateConnectionKey = async () => {
+    if (session.status !== "authenticated" || !resolvedConnectionId) return;
+    setRotatePending(true);
+    try {
+      const result = await api.rotateConnectionAccess(session.csrfToken, resolvedConnectionId);
+      setAccessDetails(result);
+      notify({
+        tone: "success",
+        title: "New access key ready",
+        description: "Copy the details now. The previous key no longer works.",
+      });
+    } catch (error) {
+      notify({
+        tone: "error",
+        title: "Could not create a new access key",
+        description: isApiError(error) ? error.message : "Unexpected error.",
+      });
+    } finally {
+      setRotatePending(false);
+    }
+  };
+
+  const summaryLoading = accessLoading || (needsConnectionForTools && resolvingConnections && !grant.connected_account_id);
+
   return (
     <div className="grant-detail-panel stack-list">
-      <div className="stack-cell">
-        <strong>App</strong>
-        <span>{grant.service_client_display_name ?? "Any app (no name)"}</span>
+      <div className="grant-access-requests panel-inset">
+        <h3 className="grant-detail-section-title">Headers and examples</h3>
+        <p className="grant-detail-lede">
+          Use the secret from when you created this access in the header <code className="grant-inline-code">X-Delegated-Credential</code>. Origin:{" "}
+          <code className="grant-inline-code">{origin || "—"}</code>.
+        </p>
+        {grant.service_client_key ? (
+          <p className="grant-detail-lede muted">
+            Named apps may also require <code className="grant-inline-code">X-Service-Secret</code>.
+          </p>
+        ) : null}
+        {!grant.connected_account_id && resolvedConnectionId ? (
+          <p className="grant-detail-lede muted">
+            Connection details below use your active connection for this integration.
+          </p>
+        ) : null}
+        {!grant.connected_account_id && !resolvedConnectionId && connectionResolvedForGrant ? (
+          <p className="grant-detail-lede muted">
+            No active connection for this integration. Add one under Integrations, or pass <code className="grant-inline-code">connected_account_id</code> in
+            the token request body.
+          </p>
+        ) : null}
+        {grant.connected_account_id ? null : !resolvedConnectionId && !connectionResolvedForGrant ? (
+          <p className="grant-detail-lede muted">
+            Resolving which connection applies…
+          </p>
+        ) : null}
+
+        {directAllowed ? (
+          <div className="grant-detail-example-block">
+            <h4 className="grant-detail-example-title">Direct — request header</h4>
+            <p className="muted grant-detail-dev-p">Includes <code className="grant-inline-code">X-Delegated-Credential</code>.</p>
+            <GrantCodeCopy label="Copy example" text={directExample} />
+          </div>
+        ) : null}
+
+        {miroRelay ? (
+          <div className="grant-detail-example-block">
+            <h4 className="grant-detail-example-title">Relay (broker) — request header</h4>
+            <p className="muted grant-detail-dev-p">Includes <code className="grant-inline-code">X-Delegated-Credential</code>.</p>
+            <GrantCodeCopy label="Copy example" text={miroRelayExample} />
+          </div>
+        ) : null}
+
+        {miroRelay && accessDetails?.supported ? (
+          <div className="grant-detail-example-block">
+            <h4 className="grant-detail-example-title">Relay (MCP) — headers</h4>
+            <p className="muted grant-detail-dev-p">
+              Use both headers. The relay key is listed under <strong>Connection details</strong> (not the same value as{" "}
+              <code className="grant-inline-code">X-Delegated-Credential</code>).
+            </p>
+            <GrantCodeCopy label="Copy example" text={mcpRelayExample} />
+          </div>
+        ) : null}
+
+        {relayAllowed && !miroRelay ? (
+          <div className="grant-detail-example-block">
+            <h4 className="grant-detail-example-title">Relay — request header</h4>
+            <p className="muted grant-detail-dev-p">
+              Call the endpoint from <strong>Connection details</strong> with <code className="grant-inline-code">X-Delegated-Credential</code>.
+            </p>
+            <GrantCodeCopy label="Copy example" text={genericRelayExample} />
+          </div>
+        ) : null}
       </div>
-      <div className="stack-cell">
-        <strong>Integration</strong>
-        <span>{grant.provider_app_display_name}</span>
-      </div>
-      <div className="stack-cell">
-        <strong>Connection</strong>
-        <span>{grant.connected_account_display_name ?? "Pick automatically when used"}</span>
-      </div>
-      <div className="stack-cell">
-        <strong>Status</strong>
-        <span>
-          <StatusBadge tone={grantTone(grant)}>{grantStateLabel(grant)}</StatusBadge>
-        </span>
-      </div>
-      <div className="stack-cell">
-        <strong>Expires</strong>
-        <span>
-          {grant.expires_at ? `${formatDateTime(grant.expires_at)} (${relativeTime(grant.expires_at)})` : "No expiry"}
-        </span>
-      </div>
-      <div className="stack-cell">
-        <strong>Connection type</strong>
-        <span>{grant.allowed_access_modes.map((m) => userAccessModeLabel(m)).join(", ")}</span>
-      </div>
-      <div className="stack-cell">
-        <strong>Scope limits</strong>
-        <span>{grant.scope_ceiling.length ? grant.scope_ceiling.join(", ") : "Same as integration"}</span>
-      </div>
-      <div className="stack-cell">
-        <strong>Extras</strong>
-        <span>{grant.capabilities.length ? grant.capabilities.join(", ") : "None"}</span>
-      </div>
-      {grant.environment ? (
-        <div className="stack-cell">
-          <strong>Environment</strong>
-          <span>{grant.environment}</span>
-        </div>
-      ) : null}
 
       {showConnectionAccess ? (
         <AccessCredentialSummary
           details={accessDetails}
-          loading={accessLoading}
+          loading={summaryLoading}
+          rotatePending={rotatePending}
+          onRotate={accessDetails?.can_rotate ? () => void handleRotateConnectionKey() : undefined}
           cardTitle="Connection details"
           cardDescription="Endpoint and key for tools that use this connection."
         />
       ) : null}
 
-      <div className="grant-detail-dev panel-inset">
-        <h3 className="grant-detail-dev-title">For developers</h3>
-        <p className="grant-detail-dev-lede muted">
-          The secret is shown only once when access is created. Send it on each request as{" "}
-          <code className="grant-inline-code">X-Delegated-Credential</code>. Broker origin:{" "}
-          <code className="grant-inline-code">{origin || "—"}</code>.
-        </p>
-        {grant.service_client_key ? (
-          <p className="grant-detail-dev-lede muted">
-            Named apps may also require <code className="grant-inline-code">X-Service-Secret</code>.
-          </p>
-        ) : null}
-        {!grant.connected_account_id ? (
-          <p className="grant-detail-dev-lede muted">
-            No fixed connection: choose <code className="grant-inline-code">connected_account_id</code> in your service before calling the API.
-          </p>
-        ) : null}
-
-        {directAllowed ? (
-          <div className="grant-detail-dev-section">
-            <h4 className="grant-detail-dev-subtitle">Direct API</h4>
-            <p className="muted grant-detail-dev-p">Request a provider access token.</p>
-            <GrantCodeCopy label="Example" text={directExample} />
-          </div>
-        ) : null}
-
-        {miroRelay ? (
-          <div className="grant-detail-dev-section">
-            <h4 className="grant-detail-dev-subtitle">Miro relay</h4>
-            <p className="muted grant-detail-dev-p">Forward MCP requests through the broker using this connection.</p>
-            <GrantCodeCopy label="Example" text={miroRelayExample} />
-          </div>
-        ) : null}
-
-        {relayAllowed && !miroRelay ? (
-          <p className="muted grant-detail-dev-p">
-            Relay is on for this entry. Use the relay URL documented for <strong>{grant.provider_app_display_name}</strong>.
-          </p>
-        ) : null}
-
-        {isMiroProviderKey(grant.provider_app_key) && !accessDetails?.supported ? (
-          <div className="grant-detail-dev-section">
-            <h4 className="grant-detail-dev-subtitle">MCP clients</h4>
-            <p className="muted grant-detail-dev-p">
-              Some clients use <code className="grant-inline-code">POST /miro/mcp/&lt;profile_id&gt;</code> with{" "}
-              <code className="grant-inline-code">X-Relay-Key</code>. That key comes from Integrations when you copy the handoff—not the same as the
-              credential above.
-            </p>
+      <h3 className="grant-detail-section-title grant-detail-meta-title">This access</h3>
+      <div className="grant-detail-meta stack-list">
+        <div className="stack-cell">
+          <strong>App</strong>
+          <span>{grant.service_client_display_name ?? "Any app (no name)"}</span>
+        </div>
+        <div className="stack-cell">
+          <strong>Integration</strong>
+          <span>{grant.provider_app_display_name}</span>
+        </div>
+        <div className="stack-cell">
+          <strong>Connection</strong>
+          <span>{grant.connected_account_display_name ?? "Pick automatically when used"}</span>
+        </div>
+        <div className="stack-cell">
+          <strong>Status</strong>
+          <span>
+            <StatusBadge tone={grantTone(grant)}>{grantStateLabel(grant)}</StatusBadge>
+          </span>
+        </div>
+        <div className="stack-cell">
+          <strong>Expires</strong>
+          <span>
+            {grant.expires_at ? `${formatDateTime(grant.expires_at)} (${relativeTime(grant.expires_at)})` : "No expiry"}
+          </span>
+        </div>
+        <div className="stack-cell">
+          <strong>Connection type</strong>
+          <span>{grant.allowed_access_modes.map((m) => userAccessModeLabel(m)).join(", ")}</span>
+        </div>
+        <div className="stack-cell">
+          <strong>Scope limits</strong>
+          <span>{grant.scope_ceiling.length ? grant.scope_ceiling.join(", ") : "Same as integration"}</span>
+        </div>
+        <div className="stack-cell">
+          <strong>Extras</strong>
+          <span>{grant.capabilities.length ? grant.capabilities.join(", ") : "None"}</span>
+        </div>
+        {grant.environment ? (
+          <div className="stack-cell">
+            <strong>Environment</strong>
+            <span>{grant.environment}</span>
           </div>
         ) : null}
       </div>
@@ -761,6 +891,7 @@ function GrantsPage() {
   });
   const [grantPreviewAccess, setGrantPreviewAccess] = useState<ConnectionAccessDetails | null>(null);
   const [grantPreviewLoading, setGrantPreviewLoading] = useState(false);
+  const [miroSetupExchange, setMiroSetupExchange] = useState<MiroRelayAccess | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -797,6 +928,21 @@ function GrantsPage() {
     if (session.status !== "authenticated") return;
     void load();
   }, [notify, session]);
+
+  useEffect(() => {
+    if (session.status !== "authenticated") return;
+    const raw = sessionStorage.getItem("broker_miro_setup_exchange");
+    if (!raw) return;
+    sessionStorage.removeItem("broker_miro_setup_exchange");
+    try {
+      const parsed = JSON.parse(raw) as MiroRelayAccess;
+      if (parsed.relay_token) {
+        setMiroSetupExchange(parsed);
+      }
+    } catch {
+      void 0;
+    }
+  }, [session.status]);
 
   useEffect(() => {
     if (!grantModalOpen || session.status !== "authenticated") {
@@ -1161,6 +1307,13 @@ function GrantsPage() {
             )}
           </p>
         </ConfirmModal>
+      ) : null}
+
+      {miroSetupExchange?.relay_token ? (
+        <CredentialRevealModal
+          sections={miroSetupExchangeSections(miroSetupExchange)}
+          onDismissed={() => setMiroSetupExchange(null)}
+        />
       ) : null}
     </>
   );

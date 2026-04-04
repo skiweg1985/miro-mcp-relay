@@ -1,3 +1,32 @@
+## 2026-04-04 – Cursor Agent – Access-Detail Header und Connection-Auflösung
+
+- Done:
+  - `frontend/src/App.tsx`: `GrantDetailPanel` löst fehlende `connected_account_id` über `myConnections()` auf; lädt `access-details` für die ermittelte Verbindung; Rotate nutzt dieselbe ID; Abschnitte **Headers and examples** / **Connection details** vor **This access**; MCP-Beispiel mit beiden Headern; generisches Relay-Beispiel für Nicht-Miro; `GrantsPage`: `miroSetupExchange` aus `sessionStorage` + `CredentialRevealModal` (bereits verdrahtet).
+  - `frontend/src/index.css`: `.grant-detail-meta-title`.
+  - `docs/CHANGELOG.md` [Unreleased] Changed.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - frontend/src/App.tsx
+  - frontend/src/index.css
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build`
+- endpoints:
+  - `GET /api/v1/connections`, `GET /api/v1/connections/{id}/access-details`
+- UI path:
+  - Workspace → **Access** → Zeile öffnen → Header/Beispiele oben, Connection details, Metadaten unten
+- Changelog updated:
+  - yes ([Unreleased] Changed)
+- Follow-ups:
+  - keine
+
 ## 2026-04-04 – Cursor Agent – Integrations-Detailroute matchesRoute
 
 - Done:

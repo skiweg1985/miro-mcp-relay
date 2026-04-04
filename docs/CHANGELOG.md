@@ -15,6 +15,8 @@
 
 ### Changed
 
+- Frontend: Self-Service **Access** (`/grants`): Detailmodal zeigt **Headers and examples** und **Connection details** oben; bei „automatischer“ Verbindung wird die aktive Integration per `GET /api/v1/connections` aufgelöst, sodass **MCP**-Beispiel und Relay-Key sichtbar werden; MCP-Beispiel listet `X-Delegated-Credential` und `X-Relay-Key` gemeinsam; nicht-Miro-Relay erhält ein kopierbares HTTP-Beispiel; Abschnitt **This access** mit Metadaten darunter.
+
 - Frontend: **Connection details** Key-Zeile ohne doppelte Bullet-Anzeige; getrennte Kurztexte für rotierbaren Relay-Key vs. OAuth; Graph-Label **OAuth token**.
 
 - API/UI: Microsoft-Graph-Verbindungen liefern `GET .../access-details` mit Direct-/Relay-Zeilen, API-**Endpoint**, **Access request** (Token-Ausgabe-URL), Key-Status (maskiert, kein Klartext, kein Rotate); **App access**-Detail zeigt dieselbe Zusammenfassung bei **Direct** oder **Relay** (nicht nur Relay).

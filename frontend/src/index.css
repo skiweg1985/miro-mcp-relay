@@ -753,6 +753,39 @@ h3 {
   background: var(--surface-muted);
 }
 
+.grant-access-requests {
+  margin-top: var(--space-2);
+}
+
+.grant-detail-section-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-body);
+  font-weight: 650;
+}
+
+.grant-detail-meta-title {
+  margin: var(--space-4) 0 var(--space-2);
+}
+
+.grant-detail-lede {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-caption);
+  line-height: 1.45;
+}
+
+.grant-detail-example-block {
+  margin-top: var(--space-3);
+}
+
+.grant-detail-example-title {
+  margin: 0 0 var(--space-1);
+  font-size: var(--font-caption);
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--ink-secondary);
+}
+
 .grant-detail-dev-title {
   margin: 0 0 var(--space-2);
   font-size: var(--font-body);

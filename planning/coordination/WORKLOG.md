@@ -622,3 +622,32 @@
   - yes ([Unreleased] Changed)
 - Follow-ups:
   - keine
+
+## 2026-04-04 – Cursor Agent – API-Zeitstempel UTC im Frontend
+
+- Done:
+  - `parseApiDateTime` in `frontend/src/utils.ts`: naive ISO-Strings von der API als UTC (`…Z`) parsen; `formatDateTime`, `relativeTime`, `relativeTimeCompact`, `toLocalDateTimeInput` angepasst; Ablaufprüfung in `App.tsx` und `AccessPage.tsx` mit gleicher Semantik.
+  - `docs/CHANGELOG.md` [Unreleased] Fixed; `npm run build` im Frontend geprüft; gebündeltes JS unter `frontend/dist/assets/` per `git add -f` mit `index.html` abgeglichen.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - frontend/src/utils.ts
+  - frontend/src/App.tsx
+  - frontend/src/admin/AccessPage.tsx
+  - frontend/dist/index.html
+  - frontend/dist/assets/index-CklOOjfJ.js
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build`
+- UI path:
+  - Integrations-Details (Session), Grants, Admin Access
+- Changelog updated:
+  - yes ([Unreleased] Fixed)
+- Follow-ups:
+  - Backend könnte JSON künftig immer mit explizitem `Z` serialisieren (Pydantic); Frontend bleibt robust.

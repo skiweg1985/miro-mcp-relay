@@ -13,12 +13,12 @@ import type {
   ServiceClientOut,
   UserOut,
 } from "../types";
-import { formatDateTime, parseLines, relativeTime } from "../utils";
+import { formatDateTime, parseApiDateTime, parseLines, relativeTime } from "../utils";
 
 function grantState(grant: DelegationGrantOut): string {
   if (grant.revoked_at) return "Revoked";
   if (!grant.is_enabled) return "Disabled";
-  if (grant.expires_at && new Date(grant.expires_at).getTime() <= Date.now()) return "Expired";
+  if (grant.expires_at && parseApiDateTime(grant.expires_at).getTime() <= Date.now()) return "Expired";
   return "Active";
 }
 

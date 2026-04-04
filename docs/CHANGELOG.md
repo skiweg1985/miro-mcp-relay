@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Frontend: Zeitstempel aus der API (naive ISO-UTC ohne `Z`) werden beim Anzeigen und bei Ablaufprüfungen korrekt als UTC gelesen; vermeidet Verschiebung um die lokale UTC-Offset-Stunden (z. B. 2 h in Mitteleuropa).
+
 ### Removed
 
 - Verzeichnis `data/` aus dem Repository und der Git-Historie entfernt; `data/` steht in `.gitignore` (lokale Laufzeit-/Legacy-Importdateien nicht versionieren).

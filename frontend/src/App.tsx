@@ -57,6 +57,7 @@ import {
   matchesRoute,
   replaceLegacyAdminPath,
   parseLines,
+  parseApiDateTime,
   relativeTime,
   relativeTimeCompact,
   toIsoDateTime,
@@ -72,7 +73,7 @@ function connectionTone(connection: ConnectedAccountOut): "neutral" | "success" 
 function grantState(grant: SelfServiceDelegationGrantOut | DelegationGrantOut): string {
   if (grant.revoked_at) return "Removed";
   if (!grant.is_enabled) return "Off";
-  if (grant.expires_at && new Date(grant.expires_at).getTime() <= Date.now()) return "Expired";
+  if (grant.expires_at && parseApiDateTime(grant.expires_at).getTime() <= Date.now()) return "Expired";
   return "Active";
 }
 

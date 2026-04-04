@@ -21,9 +21,20 @@ export function parseLines(value: string): string[] {
     .filter(Boolean);
 }
 
+/**
+ * API liefert UTC-Zeiten oft als ISO ohne Offset; `Date` würde sie sonst als lokale Uhrzeit lesen.
+ * Strings, die bereits `Z` oder `±hh:mm` haben, bleiben unverändert.
+ */
+export function parseApiDateTime(value: string): Date {
+  const trimmed = value.trim();
+  const isoNaiveUtc = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?$/i.test(trimmed);
+  const hasTzSuffix = /Z$|[+-]\d{2}:\d{2}$/i.test(trimmed);
+  return new Date(isoNaiveUtc && !hasTzSuffix ? `${trimmed}Z` : trimmed);
+}
+
 export function toLocalDateTimeInput(value: string | null): string {
   if (!value) return "";
-  const date = new Date(value);
+  const date = parseApiDateTime(value);
   if (Number.isNaN(date.getTime())) return "";
   const timezoneOffset = date.getTimezoneOffset() * 60_000;
   return new Date(date.getTime() - timezoneOffset).toISOString().slice(0, 16);
@@ -38,7 +49,7 @@ export function toIsoDateTime(value: string): string | null {
 
 export function formatDateTime(value: string | null): string {
   if (!value) return "Not set";
-  const date = new Date(value);
+  const date = parseApiDateTime(value);
   if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
@@ -48,7 +59,7 @@ export function formatDateTime(value: string | null): string {
 
 export function relativeTime(value: string | null): string {
   if (!value) return "No expiry";
-  const date = new Date(value);
+  const date = parseApiDateTime(value);
   if (Number.isNaN(date.getTime())) return value;
   const diff = date.getTime() - Date.now();
   const absHours = Math.round(Math.abs(diff) / 3_600_000);
@@ -61,7 +72,7 @@ export function relativeTime(value: string | null): string {
 /** Short relative phrase for dense tables (e.g. "in 5h", "in 2d", "3h ago"). */
 export function relativeTimeCompact(value: string | null): string {
   if (!value) return "—";
-  const date = new Date(value);
+  const date = parseApiDateTime(value);
   if (Number.isNaN(date.getTime())) return "—";
   const diff = date.getTime() - Date.now();
   const abs = Math.abs(diff);

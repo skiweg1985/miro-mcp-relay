@@ -181,24 +181,23 @@ export function AccessPage() {
   return (
     <>
       <PageIntro
-        eyebrow="Access"
-        title="Service permissions"
-        description="Time-bound access from internal services to user-connected integrations."
+        title="Access"
+        description="Rules that let internal services use a person’s connected integrations."
         actions={
           <button type="button" className="primary-button" onClick={() => setGrantModalOpen(true)}>
-            Grant access
+            Add access
           </button>
         }
       />
       {createdResult ? (
         <SecretPanel
-          title="Access credential"
-          body={`Store this value for grant ${createdResult.delegation_grant.id}. It cannot be shown again.`}
+          title="Save this secret"
+          body={`Copy now. It cannot be shown again.`}
           value={createdResult.delegated_credential}
         />
       ) : null}
 
-      <Card title="Active access" description="Permissions issued to internal services.">
+      <Card title="Active rules">
         <DataTable
           columns={["Person", "Service", "Integration", "Expires", "Status", ""]}
           rows={grants.map((grant) => [
@@ -225,9 +224,13 @@ export function AccessPage() {
       </Card>
 
       {grantModalOpen ? (
-        <Modal title="Grant access" wide onClose={() => setGrantModalOpen(false)}>
+        <Modal
+          title="Add access"
+          description="The person must have connected the integration in their workspace when required."
+          wide
+          onClose={() => setGrantModalOpen(false)}
+        >
           <form className="stack-form" onSubmit={handleSubmit}>
-            <p className="lede">The person must have connected the integration in their workspace when required.</p>
             <div className="form-grid">
               <Field label="Person">
                 <>

@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { api } from "../api";
-import { Card, DataTable, Field, LoadingScreen, PageIntro, StatusBadge } from "../components";
+import { Card, DataTable, Field, LoadingScreen, Modal, PageIntro, StatusBadge } from "../components";
 import { useAppContext } from "../app-context";
 import { isApiError } from "../errors";
 import type { AuditEventOut, ProviderAppOut, ServiceClientOut, TokenIssueEventOut, UserOut } from "../types";
@@ -12,6 +12,20 @@ function decisionTone(decision: string): "neutral" | "success" | "warn" | "dange
   if (decision === "blocked") return "warn";
   if (decision === "error") return "danger";
   return "neutral";
+}
+
+function outcomeLabel(decision: string): string {
+  if (decision === "issued") return "Allowed";
+  if (decision === "relayed") return "Forwarded";
+  if (decision === "blocked") return "Blocked";
+  if (decision === "error") return "Error";
+  return decision;
+}
+
+function scopesShort(scopes: string[]): string {
+  if (!scopes.length) return "Default";
+  const j = scopes.join(", ");
+  return j.length > 40 ? `${j.slice(0, 37)}…` : j;
 }
 
 export function LogsPage() {
@@ -30,6 +44,8 @@ export function LogsPage() {
   const [tokenIssueProviderAppId, setTokenIssueProviderAppId] = useState("");
   const [tokenIssueDecision, setTokenIssueDecision] = useState("");
   const [loading, setLoading] = useState(true);
+  const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
+  const [selectedAuditId, setSelectedAuditId] = useState<string | null>(null);
 
   const load = async (requestedLimit: number) => {
     if (session.status !== "authenticated") return;
@@ -74,16 +90,25 @@ export function LogsPage() {
     return actionMatches && actorMatches;
   });
 
+  const selectedIssue = useMemo(
+    () => (selectedIssueId ? tokenIssues.find((i) => i.id === selectedIssueId) ?? null : null),
+    [selectedIssueId, tokenIssues],
+  );
+
+  const selectedAudit = useMemo(
+    () => (selectedAuditId ? events.find((e) => e.id === selectedAuditId) ?? null : null),
+    [selectedAuditId, events],
+  );
+
   return (
     <>
       <PageIntro
-        eyebrow="Logs"
-        title="Activity and diagnostics"
-        description="Access outcomes and audit events for review."
+        title="Logs"
+        description="Access outcomes and audit events."
         actions={
           <div className="inline-actions">
-            <button type="button" className="secondary-button" onClick={() => void load(limit)}>
-              Reload
+            <button type="button" className="ghost-button" onClick={() => void load(limit)}>
+              Refresh
             </button>
           </div>
         }
@@ -96,7 +121,7 @@ export function LogsPage() {
           className={section === "access" ? "tab tab-active" : "tab"}
           onClick={() => setSection("access")}
         >
-          Access outcomes
+          Access
         </button>
         <button
           type="button"
@@ -105,12 +130,12 @@ export function LogsPage() {
           className={section === "audit" ? "tab tab-active" : "tab"}
           onClick={() => setSection("audit")}
         >
-          Audit log
+          Audit
         </button>
       </div>
 
       {section === "access" ? (
-        <Card title="Access outcomes" description="Results when services request tokens or proxied access.">
+        <Card title="Access">
           <div className="filter-row">
             <Field label="Person">
               <select value={tokenIssueUserId} onChange={(event) => setTokenIssueUserId(event.target.value)}>
@@ -124,7 +149,7 @@ export function LogsPage() {
             </Field>
             <Field label="Service">
               <select value={tokenIssueServiceClientId} onChange={(event) => setTokenIssueServiceClientId(event.target.value)}>
-                <option value="">Any service</option>
+                <option value="">Any</option>
                 {serviceClients.map((client) => (
                   <option key={client.id} value={client.id}>
                     {client.display_name}
@@ -134,7 +159,7 @@ export function LogsPage() {
             </Field>
             <Field label="Integration">
               <select value={tokenIssueProviderAppId} onChange={(event) => setTokenIssueProviderAppId(event.target.value)}>
-                <option value="">Any integration</option>
+                <option value="">Any</option>
                 {providerApps.map((app) => (
                   <option key={app.id} value={app.id}>
                     {app.display_name}
@@ -145,8 +170,8 @@ export function LogsPage() {
             <Field label="Outcome">
               <select value={tokenIssueDecision} onChange={(event) => setTokenIssueDecision(event.target.value)}>
                 <option value="">Any</option>
-                <option value="issued">Issued</option>
-                <option value="relayed">Relayed</option>
+                <option value="issued">Allowed</option>
+                <option value="relayed">Forwarded</option>
                 <option value="blocked">Blocked</option>
                 <option value="error">Error</option>
               </select>
@@ -156,27 +181,35 @@ export function LogsPage() {
             <LoadingScreen label="Loading…" />
           ) : (
             <DataTable
-              columns={["Time", "Service", "Integration", "Connection", "Outcome", "Scopes", "Details"]}
+              columns={["Time", "Service", "Integration", "Connection", "Outcome", "Scopes"]}
+              rowKey={(rowIndex) => tokenIssues[rowIndex]?.id ?? rowIndex}
+              onRowClick={(rowIndex) => {
+                const id = tokenIssues[rowIndex]?.id;
+                if (id) setSelectedIssueId(id);
+              }}
+              getRowAriaLabel={(rowIndex) => {
+                const issue = tokenIssues[rowIndex];
+                return issue ? `Details ${formatDateTime(issue.created_at)}` : "Details";
+              }}
               rows={tokenIssues.map((issue) => [
                 formatDateTime(issue.created_at),
                 issue.service_client_display_name ?? issue.service_client_id ?? "—",
                 issue.provider_app_display_name ?? issue.provider_app_id ?? "—",
-                issue.connected_account_display_name ?? issue.connected_account_id ?? "Automatic",
+                issue.connected_account_display_name ?? issue.connected_account_id ?? "Auto",
                 <StatusBadge key={issue.id} tone={decisionTone(issue.decision)}>
-                  {issue.reason ? `${issue.decision}: ${issue.reason}` : issue.decision}
+                  {outcomeLabel(issue.decision)}
                 </StatusBadge>,
-                issue.scopes.length ? issue.scopes.join(", ") : "Inherited",
-                <pre className="audit-metadata" key={`${issue.id}-metadata`}>
-                  {JSON.stringify(issue.metadata, null, 2)}
-                </pre>,
+                <span key={`${issue.id}-sc`} className="grants-cell-ellipsis" title={issue.scopes.join(", ")}>
+                  {scopesShort(issue.scopes)}
+                </span>,
               ])}
-              emptyTitle="No matching outcomes"
-              emptyBody="Adjust filters or reload."
+              emptyTitle="No rows"
+              emptyBody="Adjust filters or refresh."
             />
           )}
         </Card>
       ) : (
-        <Card title="Audit log" description="Structured events from the backend.">
+        <Card title="Audit">
           <div className="filter-row">
             <Field label="Row limit">
               <input type="number" min={1} max={1000} value={limit} onChange={(event) => setLimit(Number(event.target.value) || 200)} />
@@ -196,14 +229,20 @@ export function LogsPage() {
             <LoadingScreen label="Loading…" />
           ) : (
             <DataTable
-              columns={["Time", "Actor", "Action", "Details"]}
+              columns={["Time", "Actor", "Action"]}
+              rowKey={(rowIndex) => filtered[rowIndex]?.id ?? rowIndex}
+              onRowClick={(rowIndex) => {
+                const id = filtered[rowIndex]?.id;
+                if (id) setSelectedAuditId(id);
+              }}
+              getRowAriaLabel={(rowIndex) => {
+                const ev = filtered[rowIndex];
+                return ev ? `Details: ${ev.action}` : "Details";
+              }}
               rows={filtered.map((event) => [
                 formatDateTime(event.created_at),
                 `${event.actor_type}${event.actor_id ? ` · ${event.actor_id}` : ""}`,
                 event.action,
-                <pre className="audit-metadata" key={event.id}>
-                  {formatJson(event.metadata_json)}
-                </pre>,
               ])}
               emptyTitle="No events"
               emptyBody="Clear filters or raise the limit."
@@ -211,6 +250,70 @@ export function LogsPage() {
           )}
         </Card>
       )}
+
+      {selectedIssue ? (
+        <Modal title="Access event" wide onClose={() => setSelectedIssueId(null)}>
+          <div className="stack-list">
+            <div className="stack-cell">
+              <strong>Time</strong>
+              <span>{formatDateTime(selectedIssue.created_at)}</span>
+            </div>
+            <div className="stack-cell">
+              <strong>Outcome</strong>
+              <span>
+                <StatusBadge tone={decisionTone(selectedIssue.decision)}>{outcomeLabel(selectedIssue.decision)}</StatusBadge>
+              </span>
+            </div>
+            {selectedIssue.reason ? (
+              <div className="stack-cell">
+                <strong>Note</strong>
+                <span>{selectedIssue.reason}</span>
+              </div>
+            ) : null}
+            <div className="stack-cell">
+              <strong>Scopes</strong>
+              <span>{selectedIssue.scopes.length ? selectedIssue.scopes.join(", ") : "Default"}</span>
+            </div>
+            <div className="stack-cell">
+              <strong>Details</strong>
+              <pre className="audit-metadata">{JSON.stringify(selectedIssue.metadata, null, 2)}</pre>
+            </div>
+          </div>
+          <div className="modal-form-actions">
+            <button type="button" className="primary-button" onClick={() => setSelectedIssueId(null)}>
+              Close
+            </button>
+          </div>
+        </Modal>
+      ) : null}
+
+      {selectedAudit ? (
+        <Modal title="Audit event" wide onClose={() => setSelectedAuditId(null)}>
+          <div className="stack-list">
+            <div className="stack-cell">
+              <strong>Time</strong>
+              <span>{formatDateTime(selectedAudit.created_at)}</span>
+            </div>
+            <div className="stack-cell">
+              <strong>Action</strong>
+              <span>{selectedAudit.action}</span>
+            </div>
+            <div className="stack-cell">
+              <strong>Actor</strong>
+              <span>{selectedAudit.actor_type}</span>
+            </div>
+            <div className="stack-cell">
+              <strong>Payload</strong>
+              <pre className="audit-metadata">{formatJson(selectedAudit.metadata_json)}</pre>
+            </div>
+          </div>
+          <div className="modal-form-actions">
+            <button type="button" className="primary-button" onClick={() => setSelectedAuditId(null)}>
+              Close
+            </button>
+          </div>
+        </Modal>
+      ) : null}
     </>
   );
 }

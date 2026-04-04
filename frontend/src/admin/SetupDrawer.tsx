@@ -44,7 +44,6 @@ export function SetupDrawer({
       >
         <header className="modal-panel-header modal-wizard-header">
           <div>
-            <p className="drawer-kicker">Configuration</p>
             <h2 id="drawer-title">{title}</h2>
             {subtitle ? <p className="drawer-subtitle">{subtitle}</p> : null}
           </div>

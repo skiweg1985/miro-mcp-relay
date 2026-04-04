@@ -4,6 +4,8 @@
 
 ### Changed
 
+- Frontend: durchgängiges Layout (Spacing-Skala, Typografie, weniger Rahmen, Milchglas-Modals mit kurzer Einblendanimation, vereinheitlichte Buttons und Tabellenzeilen); Navigation und Seitenkopf gestrafft (Workspace/Admin); Aktivität und Admin-Übersicht/Logs: Tabellen ohne JSON in Zellen, Details in Modals; Grants-Tabelle auf sechs Spalten (Limits nur im Detailmodal); `Modal` mit optionalem Kurztext (`description`), `PageIntro` mit optionalem Eyebrow; Login- und Integrations-Texte sachlich vereinfacht.
+
 - Frontend: Self-Service **App access** (`/grants`): gesamte Tabellenzeile öffnet **Access details**; **View** in der Spalte Limits entfällt; **Remove access** löst die Zeilenaktion nicht aus (`DataTable`: `onRowClick`, `getRowAriaLabel`, klickbare Zeile per Tastatur).
 
 ### Added

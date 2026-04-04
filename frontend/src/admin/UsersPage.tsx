@@ -182,11 +182,7 @@ export function UsersPage() {
 
   return (
     <>
-      <PageIntro
-        eyebrow="Users"
-        title="People and connections"
-        description="Who can sign in and which external accounts are linked."
-      />
+      <PageIntro title="People" description="Who can sign in and linked external accounts." />
 
       <div className="tab-bar" role="tablist">
         <button
@@ -205,12 +201,12 @@ export function UsersPage() {
           className={tab === "connections" ? "tab tab-active" : "tab"}
           onClick={() => setTab("connections")}
         >
-          Connected accounts
+          Connections
         </button>
       </div>
 
       {tab === "people" ? (
-        <Card title="People" description="Accounts that can sign in to this workspace.">
+        <Card title="Directory">
           <DataTable
             columns={["Email", "Name", "Role", "Status"]}
             rows={users.map((user) => [
@@ -227,7 +223,7 @@ export function UsersPage() {
         </Card>
       ) : (
         <>
-          <Card title="Connected accounts" description="External identities linked to people in your organization.">
+          <Card title="Connections">
             <div className="filter-row">
               <Field label="Person">
                 <select value={filters.userEmail} onChange={(event) => setFilters((current) => ({ ...current, userEmail: event.target.value }))}>
@@ -317,7 +313,7 @@ export function UsersPage() {
           </Card>
 
           {probeResult ? (
-            <Card title="Latest access check" description="Result of the most recent test.">
+            <Card title="Last test">
               <div className="stack-list">
                 <div className="stack-cell">
                   <strong>Outcome</strong>
@@ -335,16 +331,20 @@ export function UsersPage() {
             </Card>
           ) : null}
 
-          <Card title="Manual token import" description="For migration or recovery when the normal sign-in flow is not available.">
+          <Card title="Token import">
             <button type="button" className="primary-button" onClick={() => setImportModalOpen(true)}>
               Import tokens
             </button>
           </Card>
 
           {importModalOpen ? (
-            <Modal title="Import tokens" wide onClose={() => setImportModalOpen(false)}>
+            <Modal
+              title="Import tokens"
+              description="For migration or recovery when the normal sign-in flow is unavailable."
+              wide
+              onClose={() => setImportModalOpen(false)}
+            >
               <form className="stack-form" onSubmit={handleSubmit}>
-                <p className="lede">Pastes provider tokens into secure storage for a user.</p>
                 <div className="form-grid">
                   <Field label="Email">
                     <>

@@ -80,9 +80,8 @@ export function ServicesPage() {
   return (
     <>
       <PageIntro
-        eyebrow="Services"
-        title="Internal applications"
-        description="Registered callers that authenticate to this API."
+        title="Services"
+        description="Internal apps authenticated with a shared secret."
         actions={
           <button type="button" className="primary-button" onClick={() => setCreateOpen(true)}>
             Add service
@@ -97,7 +96,7 @@ export function ServicesPage() {
         />
       ) : null}
 
-      <Card title="Registered services" description="Systems authenticated with a shared secret.">
+      <Card title="All services">
         <DataTable
           columns={["Name", "Key", "Environment", "Created"]}
           rows={clients.map((client) => [
@@ -112,9 +111,13 @@ export function ServicesPage() {
       </Card>
 
       {createOpen ? (
-        <Modal title="Add service" wide onClose={() => setCreateOpen(false)}>
+        <Modal
+          title="Add service"
+          description="Pick which integrations this caller may use."
+          wide
+          onClose={() => setCreateOpen(false)}
+        >
           <form className="stack-form" onSubmit={handleSubmit}>
-            <p className="lede">Choose which integrations this caller may use.</p>
             <div className="form-grid">
               <Field label="Key">
                 <input value={form.key} onChange={(event) => setForm((current) => ({ ...current, key: event.target.value }))} required />

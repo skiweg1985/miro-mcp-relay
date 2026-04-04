@@ -797,3 +797,41 @@
   - yes ([Unreleased] Changed)
 - Follow-ups:
   - keine
+
+## 2026-04-04 – Cursor Agent – UI Premium Pass
+
+- Done:
+  - Designsystem `frontend/src/index.css`: Tokens, Oberflächen, Modals (Blur/Animation), Sidebar/PageIntro, Tabellen, Ghost/Tabs/Integration-Karten.
+  - `frontend/src/components.tsx`: `Modal`/`PageIntro`/Secrets; sichtbare Texte in Miro-Karte und Capability-Gate bereinigt.
+  - `frontend/src/App.tsx`: Shell, Navigation, Grants/Activity/Login, Grant-Detailtexte, Tabellen ≤6 Spalten.
+  - Admin- und User-Seiten: `DashboardPage`, `IntegrationsPage`, `UsersPage`, `ServicesPage`, `AccessPage`, `LogsPage`, `UserIntegrationsPage`, `SetupDrawer`; `index.html` Titel.
+- Next:
+  - bei Bedarf weitere Admin-Wizards auf einheitliche Modal-/Drawer-Muster prüfen
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - frontend/src/index.css
+  - frontend/src/App.tsx
+  - frontend/src/components.tsx
+  - frontend/src/admin/DashboardPage.tsx
+  - frontend/src/admin/IntegrationsPage.tsx
+  - frontend/src/admin/UsersPage.tsx
+  - frontend/src/admin/ServicesPage.tsx
+  - frontend/src/admin/AccessPage.tsx
+  - frontend/src/admin/LogsPage.tsx
+  - frontend/src/UserIntegrationsPage.tsx
+  - frontend/src/admin/SetupDrawer.tsx
+  - frontend/index.html
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build`
+- UI path:
+  - Login, Workspace (Home, Integrations, Access, Activity), Admin (Overview, Integrations, People, Services, Access, Audit)
+- Changelog updated:
+  - yes ([Unreleased] Changed)
+- Follow-ups:
+  - keine

@@ -58,25 +58,25 @@ const CARDS: CardModel[] = [
   {
     id: "ms-login",
     title: "Microsoft sign-in",
-    description: "Lets admins and users sign in with Microsoft.",
+    description: "Work or school accounts for signing in.",
     templateKey: TEMPLATE_MS_LOGIN,
   },
   {
     id: "ms-graph",
     title: "Microsoft Graph",
-    description: "Mail, calendar, and directory data for connected accounts.",
+    description: "Mail, calendar, and directory for linked accounts.",
     templateKey: TEMPLATE_MS_GRAPH,
   },
   {
     id: "miro",
     title: "Miro",
-    description: "Boards and collaboration for users who connect Miro.",
+    description: "Boards and collaboration.",
     templateKey: TEMPLATE_MIRO,
   },
   {
     id: "add",
-    title: "Custom OAuth app",
-    description: "Add another provider using OAuth 2.0.",
+    title: "Custom provider",
+    description: "Another OAuth 2.0 provider.",
     templateKey: "",
   },
 ];
@@ -427,11 +427,7 @@ export function IntegrationsPage() {
 
   return (
     <>
-      <PageIntro
-        eyebrow="Integrations"
-        title="External systems"
-        description="Configure how users sign in and which third-party services this deployment may use."
-      />
+      <PageIntro title="Integrations" description="Sign-in and third-party services for this deployment." />
 
       <div className="integration-grid">
         {CARDS.map((card) => {
@@ -449,7 +445,7 @@ export function IntegrationsPage() {
                 <span className="integration-card-body">
                   <span className="integration-card-desc">{card.description}</span>
                 </span>
-                <span className="integration-card-cta">Add integration</span>
+                <span className="integration-card-cta">Add</span>
               </button>
             );
           }
@@ -491,7 +487,7 @@ export function IntegrationsPage() {
         })}
       </div>
 
-      <Card title="All integrations" description="Registered applications available for access rules and user connections.">
+      <Card title="Registered apps">
         {apps.length ? (
           <ul className="integration-inline-list">
             {apps.map((a) => (

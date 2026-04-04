@@ -15,13 +15,15 @@ export function LoadingScreen({ label }: { label: string }) {
 
 export function Modal({
   title,
+  description,
   onClose,
   children,
   wide,
 }: {
   title: string;
+  description?: string;
   onClose: () => void;
-  children: ReactNode;
+  children?: ReactNode;
   wide?: boolean;
 }) {
   const titleId = useId();
@@ -40,7 +42,10 @@ export function Modal({
         <div className="modal-panel-header">
           <h2 id={titleId}>{title}</h2>
         </div>
-        <div className="modal-panel-body compact-form">{children}</div>
+        <div className="modal-panel-body compact-form">
+          {description ? <p className="modal-panel-desc">{description}</p> : null}
+          {children ?? null}
+        </div>
       </div>
     </div>
   );
@@ -115,7 +120,7 @@ export function PageIntro({
   description,
   actions,
 }: {
-  eyebrow: string;
+  eyebrow?: string;
   title: string;
   description: string;
   actions?: ReactNode;
@@ -123,7 +128,7 @@ export function PageIntro({
   return (
     <div className="page-intro">
       <div>
-        <p className="eyebrow">{eyebrow}</p>
+        {eyebrow ? <p className="eyebrow">{eyebrow}</p> : null}
         <h1>{title}</h1>
         <p className="lede">{description}</p>
       </div>
@@ -267,9 +272,7 @@ export function SecretPanel({
   }
 
   return (
-    <Modal title={title} wide onClose={() => setOpen(false)}>
-      <p className="eyebrow">Private</p>
-      <p className="lede">{body}</p>
+    <Modal title={title} description={body} wide onClose={() => setOpen(false)}>
       <pre className="secret-value">{value}</pre>
       <div className="modal-form-actions">
         <button type="button" className="ghost-button" onClick={() => setOpen(false)}>
@@ -303,9 +306,12 @@ export function MiroConnectionSecretsModal({ sections }: { sections: SecretModal
   }
 
   return (
-    <Modal title="Miro connection details" wide onClose={() => setOpen(false)}>
-      <p className="eyebrow">Private</p>
-      <p className="lede">Copy these values now. They will not be shown again.</p>
+    <Modal
+      title="Connection details"
+      description="Copy these values now. They will not be shown again."
+      wide
+      onClose={() => setOpen(false)}
+    >
       {sections.map((section, index) => (
         <div key={`${section.title}-${index}`} className="secret-modal-section">
           <h3>{section.title}</h3>
@@ -338,7 +344,6 @@ export function CapabilityGate({
 }) {
   return (
     <div className="capability-gate">
-      <p className="eyebrow">Reserved capability</p>
       <h2>{title}</h2>
       <p>{body}</p>
       {cta ? <div className="inline-actions">{cta}</div> : null}
@@ -442,8 +447,8 @@ export function MiroAccessCard({
   access,
   pending,
   onIssueToken,
-  title = "Use Miro in other apps",
-  description = "Copy the connection address and access key for the app that should use your Miro account.",
+  title = "Miro for other apps",
+  description = "Endpoint and key for tools that use your Miro account.",
 }: {
   access: MiroRelayAccess | null;
   pending: boolean;
@@ -455,36 +460,36 @@ export function MiroAccessCard({
     return (
       <Card title={title} description={description}>
         <EmptyState
-          title="Miro not connected yet"
-          body="Connect Miro first. Then this panel shows the connection address and lets you create a new access key when needed."
+          title="Miro not connected"
+          body="Connect Miro above, then return here for the endpoint and key."
         />
       </Card>
     );
   }
 
   const tokenState = access.relay_token
-    ? "New one-time access key ready"
+    ? "New key ready to copy"
     : access.has_relay_token
-      ? "An access key exists but cannot be shown again"
-      : "No access key yet";
+      ? "Key on file (hidden)"
+      : "No key yet";
 
   return (
     <Card title={title} description={description}>
       <div className="stack-list">
         <div className="stack-cell">
-          <strong>Connection</strong>
+          <strong>Account</strong>
           <span>{access.display_name || access.external_email || access.connected_account_id}</span>
         </div>
         <div className="stack-cell">
-          <strong>Workspace ID</strong>
+          <strong>Workspace</strong>
           <code className="inline-code">{access.profile_id}</code>
         </div>
         <div className="stack-cell">
-          <strong>Connection address</strong>
+          <strong>Endpoint</strong>
           <code className="inline-code">{access.mcp_url}</code>
         </div>
         <div className="stack-cell">
-          <strong>Access key</strong>
+          <strong>Key</strong>
           <span>{tokenState}</span>
         </div>
         <div className="stack-cell">
@@ -496,16 +501,13 @@ export function MiroAccessCard({
       {onIssueToken ? (
         <div className="inline-actions">
           <button type="button" className="primary-button" disabled={pending} onClick={onIssueToken}>
-            {pending ? "Working…" : access.has_relay_token ? "New access key" : "Create access key"}
+            {pending ? "Working…" : access.has_relay_token ? "New key" : "Create key"}
           </button>
         </div>
       ) : null}
 
       {!access.relay_token && access.has_relay_token ? (
-        <p className="lede">
-          Other apps can keep using the current key, but it cannot be shown again here. Create a new access key when you need to copy
-          fresh details from this page.
-        </p>
+        <p className="lede">The current key still works elsewhere. Create a new key when you need to copy it again.</p>
       ) : null}
 
       {access.relay_token ? (

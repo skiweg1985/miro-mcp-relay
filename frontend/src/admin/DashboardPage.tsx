@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { api } from "../api";
-import { Card, DataTable, LoadingScreen, PageIntro } from "../components";
+import { Card, DataTable, LoadingScreen, Modal, PageIntro } from "../components";
 import { useAppContext } from "../app-context";
 import { isApiError } from "../errors";
 import type { AuditEventOut, ConnectedAccountOut, DelegationGrantOut, Health, ProviderAppOut, ServiceClientOut } from "../types";
@@ -26,6 +26,7 @@ export function DashboardPage() {
   const [grants, setGrants] = useState<DelegationGrantOut[]>([]);
   const [audit, setAudit] = useState<AuditEventOut[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedAuditId, setSelectedAuditId] = useState<string | null>(null);
 
   useEffect(() => {
     if (session.status !== "authenticated") return;
@@ -56,38 +57,66 @@ export function DashboardPage() {
       .finally(() => setLoading(false));
   }, [notify, session]);
 
+  const selectedAudit = selectedAuditId ? audit.find((e) => e.id === selectedAuditId) ?? null : null;
+
   if (loading) return <LoadingScreen label="Loading…" />;
 
   return (
     <>
-      <PageIntro
-        eyebrow="Dashboard"
-        title="Overview"
-        description="Health, integration count, and recent audit activity."
-      />
+      <PageIntro title="Overview" description="Status counts and the latest audit events." />
       <div className="metric-grid">
-        <MetricCard label="API status" value={health?.ok ? "Online" : "Unavailable"} caption={health?.service ?? "Unknown"} />
-        <MetricCard label="Integrations" value={String(providerApps.length)} caption="Registered apps" />
-        <MetricCard label="Connected accounts" value={String(connections.length)} caption="User-linked connections" />
-        <MetricCard label="Services" value={String(serviceClients.length)} caption="Internal clients" />
-        <MetricCard label="Access grants" value={String(grants.length)} caption="Active permissions" />
+        <MetricCard label="API" value={health?.ok ? "Online" : "Unavailable"} caption={health?.service ?? "—"} />
+        <MetricCard label="Integrations" value={String(providerApps.length)} caption="Registered" />
+        <MetricCard label="Connections" value={String(connections.length)} caption="Linked accounts" />
+        <MetricCard label="Services" value={String(serviceClients.length)} caption="Internal apps" />
+        <MetricCard label="Access" value={String(grants.length)} caption="Active rules" />
       </div>
 
-      <Card title="Recent activity" description="Latest events from the audit log.">
+      <Card title="Recent events">
         <DataTable
-          columns={["Time", "Action", "Actor", "Details"]}
-          rows={audit.map((event) => [
-            formatDateTime(event.created_at),
-            event.action,
-            event.actor_type,
-            <code className="inline-code" key={event.id}>
-              {formatJson(event.metadata_json)}
-            </code>,
-          ])}
+          columns={["Time", "Action", "Actor"]}
+          rowKey={(rowIndex) => audit[rowIndex]?.id ?? rowIndex}
+          onRowClick={(rowIndex) => {
+            const id = audit[rowIndex]?.id;
+            if (id) setSelectedAuditId(id);
+          }}
+          getRowAriaLabel={(rowIndex) => {
+            const ev = audit[rowIndex];
+            return ev ? `Details: ${ev.action}` : "Details";
+          }}
+          rows={audit.map((event) => [formatDateTime(event.created_at), event.action, event.actor_type])}
           emptyTitle="No events yet"
-          emptyBody="Actions will appear here as people use the system."
+          emptyBody="Actions appear here as people use the system."
         />
       </Card>
+
+      {selectedAudit ? (
+        <Modal title="Event" wide onClose={() => setSelectedAuditId(null)}>
+          <div className="stack-list">
+            <div className="stack-cell">
+              <strong>Time</strong>
+              <span>{formatDateTime(selectedAudit.created_at)}</span>
+            </div>
+            <div className="stack-cell">
+              <strong>Action</strong>
+              <span>{selectedAudit.action}</span>
+            </div>
+            <div className="stack-cell">
+              <strong>Actor</strong>
+              <span>{selectedAudit.actor_type}</span>
+            </div>
+            <div className="stack-cell">
+              <strong>Payload</strong>
+              <pre className="audit-metadata">{formatJson(selectedAudit.metadata_json)}</pre>
+            </div>
+          </div>
+          <div className="modal-form-actions">
+            <button type="button" className="primary-button" onClick={() => setSelectedAuditId(null)}>
+              Close
+            </button>
+          </div>
+        </Modal>
+      ) : null}
     </>
   );
 }

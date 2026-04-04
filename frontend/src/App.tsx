@@ -54,7 +54,6 @@ import { isApiError } from "./errors";
 import {
   copyToClipboard,
   formatDateTime,
-  formatJson,
   matchesRoute,
   replaceLegacyAdminPath,
   parseLines,
@@ -72,8 +71,8 @@ function connectionTone(connection: ConnectedAccountOut): "neutral" | "success" 
 }
 
 function grantState(grant: SelfServiceDelegationGrantOut | DelegationGrantOut): string {
-  if (grant.revoked_at) return "Removed";
-  if (!grant.is_enabled) return "Off";
+  if (grant.revoked_at) return "Ended";
+  if (!grant.is_enabled) return "Paused";
   if (grant.expires_at && parseApiDateTime(grant.expires_at).getTime() <= Date.now()) return "Expired";
   return "Active";
 }
@@ -82,7 +81,7 @@ function grantTone(grant: SelfServiceDelegationGrantOut | DelegationGrantOut): "
   const state = grantState(grant);
   if (state === "Active") return "success";
   if (state === "Expired") return "danger";
-  if (state === "Removed") return "warn";
+  if (state === "Ended") return "warn";
   return "neutral";
 }
 
@@ -144,8 +143,8 @@ function isWorkspaceSelfServiceRoute(route: RouteMatch): boolean {
 }
 
 function userAccessModeLabel(mode: string): string {
-  if (mode === "relay") return "Through the app service";
-  if (mode === "direct_token") return "Direct connection";
+  if (mode === "relay") return "Relay";
+  if (mode === "direct_token") return "Direct";
   return mode;
 }
 
@@ -157,15 +156,6 @@ function splitConnectionLabel(raw: string): { primary: string; secondary?: strin
   const secondary = t.slice(idx + 3).trim();
   if (!secondary) return { primary };
   return { primary, secondary };
-}
-
-function grantPolicySummary(grant: SelfServiceDelegationGrantOut): string {
-  const sc = grant.scope_ceiling.length;
-  const cap = grant.capabilities.length;
-  if (sc === 0 && cap === 0) return "Default";
-  if (sc > 0 && cap === 0) return sc === 1 ? "1 limit" : `${sc} limits`;
-  if (sc === 0 && cap > 0) return "Custom";
-  return `${sc} limits + extras`;
 }
 
 function GrantConnectionCell({ grant }: { grant: SelfServiceDelegationGrantOut }) {
@@ -200,14 +190,6 @@ function GrantExpiresCell({ grant }: { grant: SelfServiceDelegationGrantOut }) {
       <span className="grants-expires-secondary muted">
         {grant.expires_at ? formatDateTime(grant.expires_at) : "No expiry"}
       </span>
-    </div>
-  );
-}
-
-function GrantPolicyCell({ grant }: { grant: SelfServiceDelegationGrantOut }) {
-  return (
-    <div className="grants-policy-cell">
-      <span className="grants-policy-summary">{grantPolicySummary(grant)}</span>
     </div>
   );
 }
@@ -310,15 +292,15 @@ function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
         </span>
       </div>
       <div className="stack-cell">
-        <strong>How access works</strong>
+        <strong>Connection type</strong>
         <span>{grant.allowed_access_modes.map((m) => userAccessModeLabel(m)).join(", ")}</span>
       </div>
       <div className="stack-cell">
-        <strong>Permission limits</strong>
-        <span>{grant.scope_ceiling.length ? grant.scope_ceiling.join(", ") : "Same as the integration"}</span>
+        <strong>Scope limits</strong>
+        <span>{grant.scope_ceiling.length ? grant.scope_ceiling.join(", ") : "Same as integration"}</span>
       </div>
       <div className="stack-cell">
-        <strong>Extra access</strong>
+        <strong>Extras</strong>
         <span>{grant.capabilities.length ? grant.capabilities.join(", ") : "None"}</span>
       </div>
       {grant.environment ? (
@@ -329,64 +311,52 @@ function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
       ) : null}
 
       <div className="grant-detail-dev panel-inset">
-        <h3 className="grant-detail-dev-title">Use in your application</h3>
+        <h3 className="grant-detail-dev-title">For developers</h3>
         <p className="grant-detail-dev-lede muted">
-          The delegated credential is shown only once when access is created. Store it in a secret manager; it cannot be displayed again here.
-        </p>
-        <p className="grant-detail-dev-lede muted">
-          Send it on every call as header <code className="grant-inline-code">X-Delegated-Credential</code>. Replace{" "}
-          <code className="grant-inline-code">&lt;delegated_credential&gt;</code> with that value. Use this page&apos;s broker origin (
-          <code className="grant-inline-code">{origin || "—"}</code>
-          ) or the public origin your deployment exposes to clients.
+          The secret is shown only once when access is created. Send it on each request as{" "}
+          <code className="grant-inline-code">X-Delegated-Credential</code>. Broker origin:{" "}
+          <code className="grant-inline-code">{origin || "—"}</code>.
         </p>
         {grant.service_client_key ? (
           <p className="grant-detail-dev-lede muted">
-            This access is tied to a named app. Some setups also require <code className="grant-inline-code">X-Service-Secret</code> with that
-            app&apos;s client secret.
+            Named apps may also require <code className="grant-inline-code">X-Service-Secret</code>.
           </p>
         ) : null}
         {!grant.connected_account_id ? (
           <p className="grant-detail-dev-lede muted">
-            No fixed connection is set: resolve the right <code className="grant-inline-code">connected_account_id</code> for this integration in
-            your service before calling the API.
+            No fixed connection: choose <code className="grant-inline-code">connected_account_id</code> in your service before calling the API.
           </p>
         ) : null}
 
         {directAllowed ? (
           <div className="grant-detail-dev-section">
-            <h4 className="grant-detail-dev-subtitle">Direct connection (access token)</h4>
-            <p className="muted grant-detail-dev-p">
-              Request a provider access token (no refresh token in the response).
-            </p>
-            <GrantCodeCopy label="HTTP" text={directExample} />
+            <h4 className="grant-detail-dev-subtitle">Direct API</h4>
+            <p className="muted grant-detail-dev-p">Request a provider access token.</p>
+            <GrantCodeCopy label="Example" text={directExample} />
           </div>
         ) : null}
 
         {miroRelay ? (
           <div className="grant-detail-dev-section">
-            <h4 className="grant-detail-dev-subtitle">Relay (Miro MCP)</h4>
-            <p className="muted grant-detail-dev-p">
-              Forward MCP requests through the broker. The path uses the connection id for this grant.
-            </p>
-            <GrantCodeCopy label="HTTP" text={miroRelayExample} />
+            <h4 className="grant-detail-dev-subtitle">Miro relay</h4>
+            <p className="muted grant-detail-dev-p">Forward MCP requests through the broker using this connection.</p>
+            <GrantCodeCopy label="Example" text={miroRelayExample} />
           </div>
         ) : null}
 
         {relayAllowed && !miroRelay ? (
           <p className="muted grant-detail-dev-p">
-            Relay is enabled for this grant. Use the provider-specific relay or proxy entrypoint documented for{" "}
-            <strong>{grant.provider_app_display_name}</strong>.
+            Relay is on for this entry. Use the relay URL documented for <strong>{grant.provider_app_display_name}</strong>.
           </p>
         ) : null}
 
         {isMiroProviderKey(grant.provider_app_key) ? (
           <div className="grant-detail-dev-section">
-            <h4 className="grant-detail-dev-subtitle">Profile URL and relay key (MCP clients)</h4>
+            <h4 className="grant-detail-dev-subtitle">MCP clients</h4>
             <p className="muted grant-detail-dev-p">
-              Some MCP stacks expect <code className="grant-inline-code">POST /miro/mcp/&lt;profile_id&gt;</code> with{" "}
-              <code className="grant-inline-code">X-Relay-Key</code>. That key is issued from{" "}
-              <strong>Workspace → Integrations</strong> when you copy the MCP handoff for a connection. It is not the same value as the delegated
-              credential.
+              Some clients use <code className="grant-inline-code">POST /miro/mcp/&lt;profile_id&gt;</code> with{" "}
+              <code className="grant-inline-code">X-Relay-Key</code>. That key comes from Integrations when you copy the handoff—not the same as the
+              credential above.
             </p>
           </div>
         ) : null}
@@ -533,8 +503,8 @@ function LoginPage({ onSuccess }: { onSuccess: (path: string) => void }) {
     <>
       <main className="landing">
         <div className="landing-inner">
-          <h1 className="landing-title">Sign in to continue</h1>
-          <p className="landing-sub">Access your integrations</p>
+          <h1 className="landing-title">Sign in</h1>
+          <p className="landing-sub">Use your work account to continue.</p>
           <div className="landing-cta-wrap">
             <button
               type="button"
@@ -546,10 +516,10 @@ function LoginPage({ onSuccess }: { onSuccess: (path: string) => void }) {
               {microsoftPending ? "Redirecting…" : "Log in"}
             </button>
           </div>
-          {!microsoftEnabled ? <p className="landing-hint">Sign-in is not configured.</p> : null}
+          {!microsoftEnabled ? <p className="landing-hint">Sign-in is not configured for this deployment.</p> : null}
           <ThemeToggle className="landing-theme-toggle" id="landing-theme" />
           <button type="button" className="landing-admin" onClick={() => setAdminModalOpen(true)}>
-            Administrator sign-in
+            Admin sign-in
           </button>
         </div>
       </main>
@@ -559,7 +529,7 @@ function LoginPage({ onSuccess }: { onSuccess: (path: string) => void }) {
           <button type="button" className="modal-backdrop" aria-label="Dismiss" onClick={closeAdminModal} />
           <div className="modal-panel landing-admin-modal">
             <div className="modal-panel-header">
-              <h2 id="landing-admin-login-title">Administrator sign-in</h2>
+              <h2 id="landing-admin-login-title">Admin sign-in</h2>
             </div>
             <div className="modal-panel-body">
               <form className="landing-modal-form" onSubmit={handleAdminSubmit}>
@@ -614,7 +584,7 @@ function Shell({
   navItems: Array<{ href: string; label: string }>;
   onNavigate: (path: string) => void;
   children: ReactNode;
-  kicker: string;
+  kicker?: string;
   title: string;
   subtitle: string;
 }) {
@@ -624,7 +594,7 @@ function Shell({
     <div className="app-frame">
       <aside className="sidebar">
         <div className="brand-mark">
-          <span className="brand-kicker">{kicker}</span>
+          {kicker ? <span className="brand-kicker">{kicker}</span> : null}
           <strong>{title}</strong>
           <small>{subtitle}</small>
         </div>
@@ -644,9 +614,8 @@ function Shell({
         <div className="sidebar-foot">
           <ThemeToggle id="shell-theme" />
           <div className="session-panel">
-            <p className="eyebrow">Signed in</p>
             <strong>{session.status === "authenticated" ? session.user.display_name : "Guest"}</strong>
-            <span>{session.status === "authenticated" ? session.user.email : "No active session"}</span>
+            <span>{session.status === "authenticated" ? session.user.email : "—"}</span>
           </div>
           <button type="button" className="ghost-button" onClick={() => void logout()}>
             Sign out
@@ -700,9 +669,8 @@ function WorkspacePage() {
   return (
     <>
       <PageIntro
-        eyebrow="Workspace"
-        title="Overview"
-        description="See how your connected accounts are doing. Open Integrations to connect or disconnect apps."
+        title="Home"
+        description="Connection status at a glance. Open Integrations to connect or disconnect apps."
       />
 
       <div className="metric-grid workspace-metric-grid">
@@ -877,9 +845,8 @@ function GrantsPage() {
   return (
     <>
       <PageIntro
-        eyebrow="App access"
-        title="Apps that can use your account"
-        description="Let other apps use your connected accounts on your behalf. You can add access for a named app or leave the app unset."
+        title="Access"
+        description="Choose which apps may use your connected accounts. Optional: restrict to one named app."
         actions={
           <button type="button" className="primary-button" onClick={() => setGrantModalOpen(true)}>
             Add access
@@ -889,27 +856,27 @@ function GrantsPage() {
 
       {createdResult ? (
         <SecretPanel
-          title="Save your connection details"
-          body={`Copy this value${
+          title="Save this secret"
+          body={`Copy now${
             createdResult.delegation_grant.service_client_display_name
-              ? ` for ${createdResult.delegation_grant.service_client_display_name}`
+              ? ` (${createdResult.delegation_grant.service_client_display_name})`
               : ""
-          } now. It will not be shown again.`}
+          }. It will not be shown again.`}
           value={createdResult.delegated_credential}
         />
       ) : null}
 
       <Card
-        title="Your app access"
-        description="Only your entries appear here. Remove access when an app should no longer reach your account."
+        title="Your entries"
+        description="Open a row for limits and usage details."
         headerActions={
           <button
             type="button"
             className="grant-help-trigger"
-            aria-label="Help for app access"
+            aria-label="About access"
             onClick={() => setGrantListHelpOpen(true)}
           >
-            ?
+            i
           </button>
         }
       >
@@ -922,7 +889,6 @@ function GrantsPage() {
             "grants-col--conn",
             "grants-col--status",
             "grants-col--exp",
-            "grants-col--policy",
             "grants-col--actions",
           ]}
           rowKey={(rowIndex) => grants[rowIndex]?.id ?? rowIndex}
@@ -934,9 +900,9 @@ function GrantsPage() {
             const grant = grants[rowIndex];
             if (!grant) return "Open details";
             const app = grant.service_client_display_name ?? "Any app";
-            return `Access details for ${app}`;
+            return `Details for ${app}`;
           }}
-          columns={["App", "Integration", "Connection", "Status", "Expires", "Limits", "Actions"]}
+          columns={["App", "Integration", "Connection", "Status", "Expires", ""]}
           rows={grants.map((grant) => {
             const clientLabel = grant.service_client_display_name ?? "Any app";
             const providerLabel = grant.provider_app_display_name;
@@ -950,7 +916,6 @@ function GrantsPage() {
               <GrantConnectionCell grant={grant} />,
               <StatusBadge tone={grantTone(grant)}>{grantState(grant)}</StatusBadge>,
               <GrantExpiresCell grant={grant} />,
-              <GrantPolicyCell grant={grant} />,
               <div className="grants-actions-cell">
                 {grant.revoked_at ? (
                   <span className="grants-action-placeholder muted" aria-label="No action">
@@ -965,45 +930,39 @@ function GrantsPage() {
                       setGrantRevokeConfirmId(grant.id);
                     }}
                   >
-                    Remove access
+                    Remove
                   </button>
                 )}
               </div>,
             ];
           })}
-          emptyTitle="No app access yet"
-          emptyBody="Connect an integration first, then add access for an app that should use your account."
+          emptyTitle="Nothing here yet"
+          emptyBody="Connect an integration, then add access for an app."
         />
       </Card>
 
       {grantListHelpOpen ? (
-        <Modal title="App access overview" onClose={() => setGrantListHelpOpen(false)}>
-          <div className="stack-list grant-help-modal">
-            <p className="lede">
-              App access ties a <strong>delegated credential</strong> to an integration (and optionally one connection and one named app). Your
-              service sends that credential on API calls so the broker can apply your limits.
-            </p>
-            <p className="lede">
-              The credential is shown <strong>once</strong> when you create access. Save it immediately; it is not stored in this screen.
-            </p>
-            <p className="lede">
-              Open a row for concrete HTTP examples: requesting a provider token, relaying Miro MCP through the broker, and how that differs from
-              the profile URL plus relay key from Integrations.
-            </p>
-          </div>
-        </Modal>
+        <Modal
+          title="How access works"
+          description="Each entry links an app (or any app) to an integration. A secret is shown once when you create access—store it safely. Open a row for details and examples."
+          onClose={() => setGrantListHelpOpen(false)}
+        />
       ) : null}
 
       {grantDetailId && grantDetailGrant ? (
-        <Modal title="Access details" wide onClose={() => setGrantDetailId(null)}>
+        <Modal title="Details" wide onClose={() => setGrantDetailId(null)}>
           <GrantDetailPanel grant={grantDetailGrant} />
         </Modal>
       ) : null}
 
       {grantModalOpen ? (
-        <Modal title="Add app access" wide onClose={() => setGrantModalOpen(false)}>
+        <Modal
+          title="Add access"
+          description="Optionally pick one app. Leave empty to allow any permitted app."
+          wide
+          onClose={() => setGrantModalOpen(false)}
+        >
           <form className="stack-form" onSubmit={handleSubmit}>
-            <p className="lede">Optionally choose a specific app. Leave empty to allow any app that is allowed to use this access.</p>
             <div className="form-grid">
               <Field label="App" hint="Optional">
                 <select
@@ -1043,7 +1002,7 @@ function GrantsPage() {
                   ))}
                 </select>
               </Field>
-              <Field label="How the app connects">
+              <Field label="Connection type">
                 <div className="check-grid compact">
                   {["relay", "direct_token"].map((mode) => (
                     <label key={mode} className="check-option">
@@ -1057,13 +1016,13 @@ function GrantsPage() {
                   ))}
                 </div>
               </Field>
-              <Field label="Permission limits" hint="Comma or newline separated">
+              <Field label="Scope limits" hint="One per line or comma-separated">
                 <textarea
                   value={form.scope_ceiling_text}
                   onChange={(event) => setForm((current) => ({ ...current, scope_ceiling_text: event.target.value }))}
                 />
               </Field>
-              <Field label="Extra access" hint="Comma or newline separated">
+              <Field label="Extra permissions" hint="One per line or comma-separated">
                 <textarea
                   value={form.capabilities_text}
                   onChange={(event) => setForm((current) => ({ ...current, capabilities_text: event.target.value }))}
@@ -1139,6 +1098,7 @@ function TokenAccessPage() {
   const [decisionFilter, setDecisionFilter] = useState("");
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [probeModalOpen, setProbeModalOpen] = useState(false);
+  const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -1179,6 +1139,17 @@ function TokenAccessPage() {
 
   const filteredIssues = issues.filter((issue) => (decisionFilter ? issue.decision === decisionFilter : true));
 
+  const selectedIssue = useMemo(
+    () => (selectedIssueId ? issues.find((issue) => issue.id === selectedIssueId) ?? null : null),
+    [issues, selectedIssueId],
+  );
+
+  const scopesPreview = (scopes: string[]) => {
+    if (!scopes.length) return "Default";
+    const joined = scopes.join(", ");
+    return joined.length > 56 ? `${joined.slice(0, 53)}…` : joined;
+  };
+
   const runProbe = async () => {
     if (session.status !== "authenticated" || !probeConnectionId) return;
     setProbePending(true);
@@ -1210,72 +1181,115 @@ function TokenAccessPage() {
   return (
     <>
       <PageIntro
-        eyebrow="Activity"
-        title="Recent activity and connection tests"
-        description="See what happened when apps used your access. Run a connection test if something looks wrong."
+        title="Activity"
+        description="When apps use your access, it appears here. Open a row for full detail."
         actions={
           <div className="inline-actions">
             <button type="button" className="ghost-button" onClick={() => setFilterModalOpen(true)}>
-              Filter activity
+              Filter
             </button>
             <button type="button" className="ghost-button" onClick={() => setProbeModalOpen(true)}>
               Test connection
             </button>
             <button type="button" className="ghost-button" onClick={() => void load()}>
-              Reload
+              Refresh
             </button>
           </div>
         }
       />
 
-      {probeResult ? (
-        <Card title="Last connection test" description="This checks that we can reach the service with your saved connection. It does not show private sign-in data.">
-          <div className="stack-list">
-            <div className="stack-cell">
-              <strong>Status</strong>
-              <span>{probeResult.ok ? "Connection OK" : friendlyBrokerMessage(probeResult.message)}</span>
-            </div>
-            <div className="stack-cell">
-              <strong>Checked</strong>
-              <span>{formatDateTime(probeResult.checked_at)}</span>
-            </div>
-            <div className="stack-cell">
-              <strong>Account</strong>
-              <span>{probeResult.external_user_name || probeResult.external_user_id || "Not returned"}</span>
-            </div>
-          </div>
-        </Card>
-      ) : null}
-
-      <Card title="Access activity" description="Read-only list of how apps used your app access.">
+      <Card title="History">
         <DataTable
-          columns={["Time", "App", "Access entry", "Integration", "Result", "Permissions", "Details"]}
+          tableClassName="activity-table"
+          wrapClassName="activity-table-wrap"
+          columnClasses={["activity-col--time", "activity-col--app", "activity-col--int", "activity-col--out", "activity-col--scopes"]}
+          rowKey={(rowIndex) => filteredIssues[rowIndex]?.id ?? rowIndex}
+          onRowClick={(rowIndex) => {
+            const id = filteredIssues[rowIndex]?.id;
+            if (id) setSelectedIssueId(id);
+          }}
+          getRowAriaLabel={(rowIndex) => {
+            const issue = filteredIssues[rowIndex];
+            if (!issue) return "Open details";
+            return `Activity at ${formatDateTime(issue.created_at)}`;
+          }}
+          columns={["Time", "App", "Integration", "Outcome", "Scopes"]}
           rows={filteredIssues.map((issue) => [
-            formatDateTime(issue.created_at),
-            issue.service_client_display_name ?? issue.service_client_id ?? "Unknown",
-            issue.delegation_grant_id ?? "Unknown",
-            issue.provider_app_display_name ?? issue.provider_app_id ?? "Unknown",
-            <StatusBadge key={issue.id} tone={decisionTone(issue.decision)}>
-              {issue.reason
-                ? `${userIssueDecisionLabel(issue.decision)}: ${friendlyBrokerMessage(issue.reason)}`
-                : userIssueDecisionLabel(issue.decision)}
+            <span key={`${issue.id}-t`} className="activity-cell-time">
+              {formatDateTime(issue.created_at)}
+            </span>,
+            <span key={`${issue.id}-a`} className="grants-cell-ellipsis" title={issue.service_client_display_name ?? issue.service_client_id ?? ""}>
+              {issue.service_client_display_name ?? issue.service_client_id ?? "—"}
+            </span>,
+            <span key={`${issue.id}-p`} className="grants-cell-ellipsis" title={issue.provider_app_display_name ?? ""}>
+              {issue.provider_app_display_name ?? issue.provider_app_id ?? "—"}
+            </span>,
+            <StatusBadge key={`${issue.id}-d`} tone={decisionTone(issue.decision)}>
+              {userIssueDecisionLabel(issue.decision)}
             </StatusBadge>,
-            issue.scopes.length ? issue.scopes.join(", ") : "Default",
-            <pre className="audit-metadata" key={`${issue.id}-metadata`}>
-              {JSON.stringify(issue.metadata, null, 2)}
-            </pre>,
+            <span key={`${issue.id}-s`} className="grants-cell-ellipsis" title={issue.scopes.join(", ")}>
+              {scopesPreview(issue.scopes)}
+            </span>,
           ])}
           emptyTitle="No activity yet"
-          emptyBody="When an app uses your app access, a row appears here."
+          emptyBody="When an app uses your access, a row appears here."
         />
       </Card>
 
+      {selectedIssue ? (
+        <Modal title="Event detail" onClose={() => setSelectedIssueId(null)} wide>
+          <div className="stack-list">
+            <div className="stack-cell">
+              <strong>Time</strong>
+              <span>{formatDateTime(selectedIssue.created_at)}</span>
+            </div>
+            <div className="stack-cell">
+              <strong>App</strong>
+              <span>{selectedIssue.service_client_display_name ?? selectedIssue.service_client_id ?? "—"}</span>
+            </div>
+            <div className="stack-cell">
+              <strong>Integration</strong>
+              <span>{selectedIssue.provider_app_display_name ?? selectedIssue.provider_app_id ?? "—"}</span>
+            </div>
+            <div className="stack-cell">
+              <strong>Access</strong>
+              <span>{selectedIssue.delegation_grant_id ?? "—"}</span>
+            </div>
+            <div className="stack-cell">
+              <strong>Outcome</strong>
+              <span>
+                <StatusBadge tone={decisionTone(selectedIssue.decision)}>{userIssueDecisionLabel(selectedIssue.decision)}</StatusBadge>
+              </span>
+            </div>
+            {selectedIssue.reason ? (
+              <div className="stack-cell">
+                <strong>Note</strong>
+                <span>{friendlyBrokerMessage(selectedIssue.reason)}</span>
+              </div>
+            ) : null}
+            <div className="stack-cell">
+              <strong>Scopes</strong>
+              <span>{selectedIssue.scopes.length ? selectedIssue.scopes.join(", ") : "Default"}</span>
+            </div>
+            <div className="stack-cell">
+              <strong>Details</strong>
+              <pre className="audit-metadata">{JSON.stringify(selectedIssue.metadata, null, 2)}</pre>
+            </div>
+          </div>
+          <div className="modal-form-actions">
+            <button type="button" className="primary-button" onClick={() => setSelectedIssueId(null)}>
+              Close
+            </button>
+          </div>
+        </Modal>
+      ) : null}
+
       {filterModalOpen ? (
-        <Modal title="Filter activity" onClose={() => setFilterModalOpen(false)}>
+        <Modal title="Filters" description="Narrow the list below." onClose={() => setFilterModalOpen(false)}>
           <div className="stack-form">
             <Field label="App">
               <select value={serviceClientFilter} onChange={(event) => setServiceClientFilter(event.target.value)}>
-                <option value="">All apps</option>
+                <option value="">All</option>
                 {serviceClients.map((client) => (
                   <option key={client.id} value={client.id}>
                     {client.display_name}
@@ -1283,9 +1297,9 @@ function TokenAccessPage() {
                 ))}
               </select>
             </Field>
-            <Field label="App access">
+            <Field label="Access entry">
               <select value={grantFilter} onChange={(event) => setGrantFilter(event.target.value)}>
-                <option value="">All entries</option>
+                <option value="">All</option>
                 {grants.map((grant) => (
                   <option key={grant.id} value={grant.id}>
                     {(grant.service_client_display_name ?? "Any app") + " · " + grant.provider_app_display_name}
@@ -1293,9 +1307,9 @@ function TokenAccessPage() {
                 ))}
               </select>
             </Field>
-            <Field label="Result">
+            <Field label="Outcome">
               <select value={decisionFilter} onChange={(event) => setDecisionFilter(event.target.value)}>
-                <option value="">All results</option>
+                <option value="">All</option>
                 <option value="issued">Allowed</option>
                 <option value="relayed">Forwarded</option>
                 <option value="blocked">Blocked</option>
@@ -1304,15 +1318,22 @@ function TokenAccessPage() {
             </Field>
           </div>
           <div className="modal-form-actions">
+            <button type="button" className="ghost-button" onClick={() => setFilterModalOpen(false)}>
+              Cancel
+            </button>
             <button type="button" className="primary-button" onClick={() => setFilterModalOpen(false)}>
-              Done
+              Apply
             </button>
           </div>
         </Modal>
       ) : null}
 
       {probeModalOpen ? (
-        <Modal title="Test connection" onClose={() => setProbeModalOpen(false)}>
+        <Modal
+          title="Test connection"
+          description="Verifies we can reach the provider with your saved sign-in."
+          onClose={() => setProbeModalOpen(false)}
+        >
           <div className="stack-form">
             <Field label="Connection">
               <select value={probeConnectionId} onChange={(event) => setProbeConnectionId(event.target.value)}>
@@ -1379,9 +1400,9 @@ function NotFoundPage({ onNavigate, fallbackPath }: { onNavigate: (path: string)
 }
 
 const USER_WORKSPACE_NAV = [
-  { href: "/workspace", label: "Workspace" },
+  { href: "/workspace", label: "Home" },
   { href: "/workspace/integrations", label: "Integrations" },
-  { href: "/grants", label: "App access" },
+  { href: "/grants", label: "Access" },
   { href: "/token-access", label: "Activity" },
 ];
 
@@ -1529,9 +1550,8 @@ function AuthenticatedApp() {
         currentPath={route.path}
         navItems={USER_WORKSPACE_NAV}
         onNavigate={navigate}
-        kicker="Workspace"
-        title="Your account"
-        subtitle="Connections, app access, and activity"
+        title="Workspace"
+        subtitle="Connections and activity"
       >
         {userWorkspaceMain}
       </Shell>
@@ -1548,17 +1568,16 @@ function AuthenticatedApp() {
         currentPath={route.path}
         navItems={[
           { href: "/workspace", label: "Workspace" },
-          { href: "/app", label: "Dashboard" },
+          { href: "/app", label: "Overview" },
           { href: "/app/integrations", label: "Integrations" },
-          { href: "/app/users", label: "Users" },
+          { href: "/app/users", label: "People" },
           { href: "/app/services", label: "Services" },
           { href: "/app/access", label: "Access" },
-          { href: "/app/logs", label: "Logs" },
+          { href: "/app/logs", label: "Audit" },
         ]}
         onNavigate={navigate}
-        kicker="OAuth integration broker"
-        title="Admin console"
-        subtitle="Organization configuration"
+        title="Admin"
+        subtitle="Organization"
       >
         {route.name === "dashboard" ? <DashboardPage /> : null}
         {route.name === "integrations" ? <IntegrationsPage /> : null}
@@ -1594,9 +1613,8 @@ function AuthenticatedApp() {
       currentPath={route.path}
       navItems={USER_WORKSPACE_NAV}
       onNavigate={navigate}
-      kicker="Workspace"
-      title="Your account"
-      subtitle="Connections, app access, and activity"
+      title="Workspace"
+      subtitle="Connections and activity"
     >
       {userWorkspaceMain}
     </Shell>

@@ -40,6 +40,13 @@ function connectionTone(connection: ConnectedAccountOut): "neutral" | "success" 
   return "neutral";
 }
 
+function connectionStatusLabel(connection: ConnectedAccountOut): string {
+  if (connection.status === "revoked") return "Disconnected";
+  if (connection.status === "connected" && connection.last_error) return "Needs review";
+  if (connection.status === "connected") return "Connected";
+  return connection.status;
+}
+
 function friendlyBrokerMessage(raw: string | null | undefined): string {
   const message = (raw ?? "").trim();
   if (!message) return "Something went wrong. Please try again.";
@@ -320,16 +327,15 @@ export function UserIntegrationsPage() {
   return (
     <>
       <PageIntro
-        eyebrow="Integrations"
-        title="Connected apps"
-        description="Connect the apps you use so this service can work with your accounts on your behalf."
+        title="Integrations"
+        description="Connect the apps you use. We only act on your behalf after you sign in."
       />
 
       {setupPending ? <LoadingScreen label="Preparing your one-time Miro setup…" /> : null}
 
       {connectableApps.length === 0 ? (
-        <Card title="No integrations available" description="Your organization has not published any connectable apps yet.">
-          <EmptyState title="Nothing to connect" body="Ask an administrator to add integrations for your organization." />
+        <Card title="Nothing to connect" description="Your organization has not added any apps yet.">
+          <EmptyState title="Empty" body="Ask an admin to add integrations." />
         </Card>
       ) : (
         <div className="integration-grid user-integration-grid">
@@ -348,11 +354,9 @@ export function UserIntegrationsPage() {
                 <div className="integration-card-head">
                   <span className="integration-card-title">{app.display_name}</span>
                   {connection ? (
-                    <StatusBadge tone={connectionTone(connection)}>
-                      {connection.status === "connected" && connection.last_error ? "attention" : connection.status}
-                    </StatusBadge>
+                    <StatusBadge tone={connectionTone(connection)}>{connectionStatusLabel(connection)}</StatusBadge>
                   ) : (
-                    <StatusBadge tone="neutral">not connected</StatusBadge>
+                    <StatusBadge tone="neutral">Not connected</StatusBadge>
                   )}
                 </div>
                 <div className="integration-card-body">
@@ -395,8 +399,6 @@ export function UserIntegrationsPage() {
           access={miroAccess}
           pending={tokenPending}
           onIssueToken={() => void handleRotateMiroToken(existingMiro.id)}
-          title="Use Miro in other apps"
-          description="Copy the connection address and access key for the app that should use your Miro account."
         />
       ) : null}
 

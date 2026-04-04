@@ -213,10 +213,6 @@ function brokerPublicOrigin(): string {
   return window.location.origin;
 }
 
-function isMiroProviderKey(key: string): boolean {
-  return key.toLowerCase().includes("miro");
-}
-
 function GrantCodeCopy({
   label,
   text,
@@ -274,13 +270,13 @@ function miroSetupExchangeSections(m: MiroRelayAccess): { title: string; body: s
   return sections;
 }
 
-type DelegatedCredentialLoadState = "loading" | "ready" | "missing" | "error";
+type AppAccessKeyLoadState = "loading" | "ready" | "missing" | "error";
 
-function DelegatedCredentialPanel({ grantId, canUse }: { grantId: string; canUse: boolean }) {
+function GrantAppAccessKeySection({ grantId, canUse }: { grantId: string; canUse: boolean }) {
   const { notify, session } = useAppContext();
   const [reveal, setReveal] = useState(false);
   const [credential, setCredential] = useState<string | null>(null);
-  const [loadState, setLoadState] = useState<DelegatedCredentialLoadState>("loading");
+  const [loadState, setLoadState] = useState<AppAccessKeyLoadState>("loading");
   const [rotateConfirm, setRotateConfirm] = useState(false);
   const [rotatePending, setRotatePending] = useState(false);
 
@@ -336,13 +332,13 @@ function DelegatedCredentialPanel({ grantId, canUse }: { grantId: string; canUse
       setLoadState("ready");
       notify({
         tone: "success",
-        title: "Secret updated",
-        description: "Copy it now. The previous secret no longer works.",
+        title: "Access key updated",
+        description: "Copy it now. The previous key no longer works.",
       });
     } catch (error) {
       notify({
         tone: "error",
-        title: "Could not replace secret",
+        title: "Could not replace key",
         description: isApiError(error) ? error.message : "Unexpected error.",
       });
     } finally {
@@ -356,59 +352,40 @@ function DelegatedCredentialPanel({ grantId, canUse }: { grantId: string; canUse
 
   return (
     <>
-      <div className="grant-delegated-credential panel-inset">
-        <h3 className="grant-detail-section-title">Delegated credential</h3>
-        <p className="grant-detail-lede muted">
-          Value for the <code className="grant-inline-code">X-Delegated-Credential</code> header.
-        </p>
-        {loadState === "loading" ? (
-          <p className="muted grant-detail-lede">Loading…</p>
-        ) : null}
-
-        {loadState === "error" ? (
-          <p className="muted grant-detail-lede">Could not load the secret. Try again later.</p>
-        ) : null}
-
+      <div className="access-modal-dev-block">
+        <h4 className="access-modal-dev-heading">App access key</h4>
+        <p className="access-modal-dev-lede muted">For API requests to this workspace.</p>
+        {loadState === "loading" ? <p className="muted access-modal-dev-lede">Loading…</p> : null}
+        {loadState === "error" ? <p className="muted access-modal-dev-lede">Could not load. Try again later.</p> : null}
         {loadState === "ready" && credential ? (
-          <>
-            <div className="grant-delegated-credential-block">
-              <div className="grant-delegated-credential-value">
-                {reveal ? (
-                  <code className="grant-credential-code">{credential}</code>
-                ) : (
-                  <span className="grant-credential-masked" aria-hidden>
-                    ••••••••••••••••
-                  </span>
-                )}
-              </div>
-              <div className="grant-delegated-credential-buttons">
-                <button type="button" className="ghost-button" onClick={() => setReveal((v) => !v)}>
-                  {reveal ? "Hide" : "Reveal"}
-                </button>
-                <button type="button" className="ghost-button" onClick={() => void handleCopy()}>
-                  Copy
-                </button>
-              </div>
+          <div className="grant-delegated-credential-block">
+            <div className="grant-delegated-credential-value">
+              {reveal ? (
+                <code className="grant-credential-code">{credential}</code>
+              ) : (
+                <span className="grant-credential-masked" aria-hidden>
+                  ••••••••••••••••
+                </span>
+              )}
             </div>
-            <details className="grant-disclosure grant-disclosure--inline">
-              <summary className="grant-disclosure-summary grant-disclosure-summary--inline">Replace secret</summary>
-              <div className="grant-detail-disclosure-body">
-                <p className="muted grant-detail-lede">Creates a new secret and invalidates the current one.</p>
-                <button type="button" className="secondary-button" onClick={() => setRotateConfirm(true)}>
-                  Replace secret
-                </button>
-              </div>
-            </details>
-          </>
+            <div className="grant-delegated-credential-buttons">
+              <button type="button" className="ghost-button" onClick={() => setReveal((v) => !v)}>
+                {reveal ? "Hide" : "Show"}
+              </button>
+              <button type="button" className="ghost-button" onClick={() => void handleCopy()}>
+                Copy
+              </button>
+              <button type="button" className="ghost-button" onClick={() => setRotateConfirm(true)}>
+                Replace key
+              </button>
+            </div>
+          </div>
         ) : null}
-
         {loadState === "missing" ? (
           <div className="grant-delegated-credential-block grant-delegated-credential-block--empty">
-            <p className="muted grant-detail-lede">
-              This access was created before server-side storage. Replace the secret once to enable reveal and copy here.
-            </p>
+            <p className="muted access-modal-dev-lede">Not stored for this entry. Replace once to enable Show and Copy.</p>
             <button type="button" className="secondary-button" onClick={() => setRotateConfirm(true)}>
-              Replace secret
+              Replace key
             </button>
           </div>
         ) : null}
@@ -416,17 +393,124 @@ function DelegatedCredentialPanel({ grantId, canUse }: { grantId: string; canUse
 
       {rotateConfirm ? (
         <ConfirmModal
-          title="Replace secret?"
-          confirmLabel="Replace secret"
+          title="Replace app access key?"
+          confirmLabel="Replace key"
           cancelLabel="Cancel"
           confirmBusy={rotatePending}
           onCancel={() => setRotateConfirm(false)}
           onConfirm={() => void handleRotate()}
         >
-          <p className="lede">The current secret stops working. Update every client that uses it.</p>
+          <p className="lede">The current key stops working everywhere it is used.</p>
         </ConfirmModal>
       ) : null}
     </>
+  );
+}
+
+function AccessConnectionTool({
+  accessDetails,
+  connectionName,
+  onReplaceConnectionKey,
+  replaceConnectionKeyPending,
+}: {
+  accessDetails: ConnectionAccessDetails;
+  connectionName: string;
+  onReplaceConnectionKey?: () => void;
+  replaceConnectionKeyPending?: boolean;
+}) {
+  const { notify } = useAppContext();
+  const [keyReveal, setKeyReveal] = useState(false);
+
+  const endpointUrl = accessDetails.rows.find((r) => r.label === "Endpoint")?.value ?? null;
+  const key = accessDetails.key_section;
+  const canRotateConnection = Boolean(accessDetails.can_rotate && onReplaceConnectionKey);
+
+  const copyEndpoint = async () => {
+    if (!endpointUrl) return;
+    const ok = await copyToClipboard(endpointUrl);
+    notify({
+      tone: ok ? "success" : "error",
+      title: ok ? "Copied to clipboard" : "Clipboard unavailable",
+      description: ok ? "Paste it into your tool where the URL is required." : "Your browser did not allow the copy action.",
+    });
+  };
+
+  const copyKey = async (value: string) => {
+    const ok = await copyToClipboard(value);
+    notify({
+      tone: ok ? "success" : "error",
+      title: ok ? "Copied to clipboard" : "Clipboard unavailable",
+      description: ok ? "Store this value somewhere safe before you navigate away." : "Your browser did not allow the copy action.",
+    });
+  };
+
+  const keyPlaintext = key?.plaintext?.trim() ? key.plaintext : null;
+  const keyReady = key?.status === "ready" && keyPlaintext;
+  const keyStored = key?.status === "stored";
+
+  return (
+    <div className="access-modal-tool">
+      <div className="access-modal-row">
+        <span className="access-modal-label">Connection</span>
+        <span className="access-modal-value">{connectionName || "—"}</span>
+      </div>
+      <div className="access-modal-row access-modal-row--endpoint">
+        <span className="access-modal-label">Endpoint</span>
+        <div className="access-modal-value-wrap">
+          {endpointUrl ? (
+            <>
+              <code className="access-modal-code">{endpointUrl}</code>
+              <button type="button" className="ghost-button access-modal-inline-btn" onClick={() => void copyEndpoint()}>
+                Copy
+              </button>
+            </>
+          ) : (
+            <span className="access-modal-value">—</span>
+          )}
+        </div>
+      </div>
+      <div className="access-modal-row access-modal-row--key">
+        <span className="access-modal-label">Access key</span>
+        <div className="access-modal-value-wrap access-modal-value-wrap--key">
+          {keyReady && keyPlaintext ? (
+            <>
+              <div className="grant-delegated-credential-value access-modal-key-box">
+                {keyReveal ? (
+                  <code className="grant-credential-code">{keyPlaintext}</code>
+                ) : (
+                  <span className="grant-credential-masked" aria-hidden>
+                    ••••••••••••••••
+                  </span>
+                )}
+              </div>
+              <div className="grant-delegated-credential-buttons">
+                <button type="button" className="ghost-button" onClick={() => setKeyReveal((v) => !v)}>
+                  {keyReveal ? "Hide" : "Show"}
+                </button>
+                <button type="button" className="ghost-button" onClick={() => void copyKey(keyPlaintext)}>
+                  Copy
+                </button>
+              </div>
+            </>
+          ) : keyStored ? (
+            <>
+              <span className="grant-credential-masked" aria-hidden>
+                ••••••••••••••••
+              </span>
+              {canRotateConnection ? (
+                <button type="button" className="ghost-button" disabled={replaceConnectionKeyPending} onClick={onReplaceConnectionKey}>
+                  {replaceConnectionKeyPending ? "Working…" : "Replace key"}
+                </button>
+              ) : (
+                <span className="muted access-modal-muted-inline">Not shown here</span>
+              )}
+            </>
+          ) : (
+            <span className="muted">—</span>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -483,60 +567,48 @@ function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
   }, [resolvedConnectionId, grant.id, session.status]);
 
   const origin = brokerPublicOrigin();
-  const connSegment = resolvedConnectionId ?? "<connection_id>";
-  const miroRelay = relayAllowed && isMiroProviderKey(grant.provider_app_key);
   const needsConnectionForTools = relayAllowed || directAllowed;
   const resolvingConnections = !grant.connected_account_id && connections === null;
   const showConnectionAccess = needsConnectionForTools && Boolean(resolvedConnectionId);
   const connectionResolvedForGrant = Boolean(grant.connected_account_id) || connections !== null;
 
-  const directExample = [
-    `POST ${origin}/api/v1/token-issues/provider-access`,
-    `X-Delegated-Credential: <delegated_credential>`,
-    `Content-Type: application/json`,
-    ``,
-    JSON.stringify(
-      {
-        provider_app_key: grant.provider_app_key,
-        connected_account_id: grant.connected_account_id ?? resolvedConnectionId ?? null,
-        requested_scopes: [] as string[],
-      },
-      null,
-      2,
-    ),
-  ].join("\n");
+  const connectionName = useMemo(() => {
+    if (grant.connected_account_display_name) return grant.connected_account_display_name;
+    const accountRow = accessDetails?.rows.find((r) => r.label === "Account")?.value;
+    if (accountRow) return accountRow;
+    return accessDetails?.connection_summary ?? "—";
+  }, [grant.connected_account_display_name, accessDetails]);
 
-  const miroRelayExample = [
-    `POST ${origin}/api/v1/broker-proxy/miro/${connSegment}`,
-    `X-Delegated-Credential: <delegated_credential>`,
-    `Content-Type: application/json`,
-    ``,
-    `{ ... MCP JSON-RPC body ... }`,
-  ].join("\n");
+  const usageExampleText = useMemo(() => {
+    const endpointFromRows = accessDetails?.rows.find((r) => r.label === "Endpoint")?.value;
+    if (directAllowed) {
+      return [
+        `POST ${origin}/api/v1/token-issues/provider-access`,
+        `Content-Type: application/json`,
+        ``,
+        JSON.stringify(
+          {
+            provider_app_key: grant.provider_app_key,
+            connected_account_id: grant.connected_account_id ?? resolvedConnectionId ?? null,
+            requested_scopes: [] as string[],
+          },
+          null,
+          2,
+        ),
+      ].join("\n");
+    }
+    const ep = endpointFromRows ?? "<endpoint>";
+    return [`POST ${ep}`, `Content-Type: application/json`, ``, `{ }`].join("\n");
+  }, [accessDetails, directAllowed, grant.connected_account_id, grant.provider_app_key, origin, resolvedConnectionId]);
 
-  const mcpRelayExample = useMemo(() => {
-    const endpointUrl = accessDetails?.rows.find((r) => r.label === "Endpoint")?.value ?? `${origin}/miro/mcp/<workspace>`;
-    return [
-      `POST ${endpointUrl}`,
-      `X-Delegated-Credential: <delegated_credential>`,
-      `X-Relay-Key: <relay key from Connection details below>`,
-      `Content-Type: application/json`,
-      ``,
-      `{ ... MCP JSON-RPC body ... }`,
-    ].join("\n");
-  }, [accessDetails, origin]);
-
-  const genericRelayExample = useMemo(() => {
-    const endpointUrl =
-      accessDetails?.rows.find((r) => r.label === "Endpoint")?.value ?? `${origin}/api/v1/…`;
-    return [
-      `POST ${endpointUrl}`,
-      `X-Delegated-Credential: <delegated_credential>`,
-      `Content-Type: application/json`,
-      ``,
-      `{ ... body ... }`,
-    ].join("\n");
-  }, [accessDetails, origin]);
+  const developerHeadersExample = useMemo(() => {
+    const ep = accessDetails?.rows.find((r) => r.label === "Endpoint")?.value ?? "<endpoint>";
+    const lines = [`POST ${ep}`, `Content-Type: application/json`, ``, `X-Delegated-Credential: <app access key>`];
+    if (relayAllowed && accessDetails?.supported) {
+      lines.push(`X-Relay-Key: <connection access key>`);
+    }
+    return lines.join("\n");
+  }, [accessDetails, relayAllowed]);
 
   const handleRotateConnectionKey = async () => {
     if (session.status !== "authenticated" || !resolvedConnectionId) return;
@@ -546,8 +618,8 @@ function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
       setAccessDetails(result);
       notify({
         tone: "success",
-        title: "New access key ready",
-        description: "Copy the details now. The previous key no longer works.",
+        title: "Access key ready",
+        description: "Copy it now. The previous key no longer works.",
       });
     } catch (error) {
       notify({
@@ -563,130 +635,144 @@ function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
   const summaryLoading = accessLoading || (needsConnectionForTools && resolvingConnections && !grant.connected_account_id);
   const grantCanUseCredential = grantUiState(grant) !== "ended";
 
-  return (
-    <div className="grant-detail-panel stack-list">
-      <DelegatedCredentialPanel grantId={grant.id} canUse={grantCanUseCredential} />
+  const extraAccessRows = accessDetails?.supported
+    ? accessDetails.rows.filter(
+        (r) =>
+          r.label !== "Account" &&
+          r.label !== "Endpoint" &&
+          r.value != null &&
+          String(r.value).trim() !== "",
+      )
+    : [];
 
-      {showConnectionAccess ? (
-        <AccessCredentialSummary
-          details={accessDetails}
-          loading={summaryLoading}
-          rotatePending={rotatePending}
-          onRotate={accessDetails?.can_rotate ? () => void handleRotateConnectionKey() : undefined}
-          cardTitle="Connection details"
-          cardDescription="Endpoint and key for tools that use this connection."
+  return (
+    <div className="access-modal-root">
+      {resolvingConnections && needsConnectionForTools && !grant.connected_account_id ? (
+        <p className="muted access-modal-hint">Loading connection…</p>
+      ) : null}
+
+      {!resolvedConnectionId && connectionResolvedForGrant && needsConnectionForTools ? (
+        <p className="muted access-modal-hint">Add a connection under Integrations to use this access.</p>
+      ) : null}
+
+      {summaryLoading && showConnectionAccess ? <p className="muted access-modal-hint">Loading…</p> : null}
+
+      {!summaryLoading && showConnectionAccess && accessDetails?.supported ? (
+        <AccessConnectionTool
+          accessDetails={accessDetails}
+          connectionName={connectionName}
+          onReplaceConnectionKey={accessDetails.can_rotate ? () => void handleRotateConnectionKey() : undefined}
+          replaceConnectionKeyPending={rotatePending}
         />
       ) : null}
 
-      <details className="grant-disclosure">
-        <summary className="grant-disclosure-summary">HTTP examples</summary>
+      {!summaryLoading && showConnectionAccess && accessDetails && !accessDetails.supported ? (
+        <p className="muted access-modal-hint">Connection details are not available for this integration.</p>
+      ) : null}
+
+      <details className="grant-disclosure grant-disclosure--after-tool">
+        <summary className="grant-disclosure-summary">Usage example</summary>
         <div className="grant-detail-disclosure-body">
-          <div className="grant-access-requests panel-inset grant-access-requests--nested">
-            <p className="grant-detail-lede">
-              Broker origin <code className="grant-inline-code">{origin || "—"}</code>.
-              {grant.service_client_key ? (
-                <> Named apps may require <code className="grant-inline-code">X-Service-Secret</code>.</>
-              ) : null}
-            </p>
-            {!grant.connected_account_id && resolvedConnectionId ? (
-              <p className="grant-detail-lede muted">Connection details use your active connection for this integration.</p>
-            ) : null}
-            {!grant.connected_account_id && !resolvedConnectionId && connectionResolvedForGrant ? (
-              <p className="grant-detail-lede muted">
-                No active connection for this integration. Add one under Integrations, or pass <code className="grant-inline-code">connected_account_id</code> in
-                the token request body.
-              </p>
-            ) : null}
-            {grant.connected_account_id ? null : !resolvedConnectionId && !connectionResolvedForGrant ? (
-              <p className="grant-detail-lede muted">Resolving which connection applies…</p>
-            ) : null}
-
-            {directAllowed ? (
-              <div className="grant-detail-example-block">
-                <h4 className="grant-detail-example-title">Direct</h4>
-                <p className="muted grant-detail-dev-p">Token issue request with <code className="grant-inline-code">X-Delegated-Credential</code>.</p>
-                <GrantCodeCopy label="Copy example" text={directExample} />
-              </div>
-            ) : null}
-
-            {miroRelay ? (
-              <div className="grant-detail-example-block">
-                <h4 className="grant-detail-example-title">Relay (broker)</h4>
-                <p className="muted grant-detail-dev-p">Broker proxy with <code className="grant-inline-code">X-Delegated-Credential</code>.</p>
-                <GrantCodeCopy label="Copy example" text={miroRelayExample} />
-              </div>
-            ) : null}
-
-            {miroRelay && accessDetails?.supported ? (
-              <div className="grant-detail-example-block">
-                <h4 className="grant-detail-example-title">Relay (MCP)</h4>
-                <p className="muted grant-detail-dev-p">
-                  Relay key under <strong>Connection details</strong> (not the same as the delegated credential).
-                </p>
-                <GrantCodeCopy label="Copy example" text={mcpRelayExample} />
-              </div>
-            ) : null}
-
-            {relayAllowed && !miroRelay ? (
-              <div className="grant-detail-example-block">
-                <h4 className="grant-detail-example-title">Relay</h4>
-                <p className="muted grant-detail-dev-p">
-                  Call the endpoint from <strong>Connection details</strong> with <code className="grant-inline-code">X-Delegated-Credential</code>.
-                </p>
-                <GrantCodeCopy label="Copy example" text={genericRelayExample} />
-              </div>
-            ) : null}
-          </div>
+          <GrantCodeCopy label="Copy" text={usageExampleText} />
         </div>
       </details>
 
       <details className="grant-disclosure">
-        <summary className="grant-disclosure-summary">Scope and status</summary>
-        <div className="grant-detail-disclosure-body">
-          <div className="grant-detail-meta stack-list">
-            <div className="stack-cell">
-              <strong>App</strong>
-              <span>{grant.service_client_display_name ?? "Any app (no name)"}</span>
-            </div>
-            <div className="stack-cell">
-              <strong>Integration</strong>
-              <span>{grant.provider_app_display_name}</span>
-            </div>
-            <div className="stack-cell">
-              <strong>Connection</strong>
-              <span>{grant.connected_account_display_name ?? "Pick automatically when used"}</span>
-            </div>
-            <div className="stack-cell">
-              <strong>Status</strong>
-              <span>
-                <StatusBadge tone={grantTone(grant)}>{grantStateLabel(grant)}</StatusBadge>
-              </span>
-            </div>
-            <div className="stack-cell">
-              <strong>Expires</strong>
-              <span>
-                {grant.expires_at ? `${formatDateTime(grant.expires_at)} (${relativeTime(grant.expires_at)})` : "No expiry"}
-              </span>
-            </div>
-            <div className="stack-cell">
-              <strong>Connection type</strong>
-              <span>{grant.allowed_access_modes.map((m) => userAccessModeLabel(m)).join(", ")}</span>
-            </div>
-            <div className="stack-cell">
-              <strong>Scope limits</strong>
-              <span>{grant.scope_ceiling.length ? grant.scope_ceiling.join(", ") : "Same as integration"}</span>
-            </div>
-            <div className="stack-cell">
-              <strong>Extras</strong>
-              <span>{grant.capabilities.length ? grant.capabilities.join(", ") : "None"}</span>
-            </div>
-            {grant.environment ? (
-              <div className="stack-cell">
-                <strong>Environment</strong>
-                <span>{grant.environment}</span>
-              </div>
-            ) : null}
+        <summary className="grant-disclosure-summary">Developer details</summary>
+        <div className="grant-detail-disclosure-body access-modal-dev">
+          <GrantAppAccessKeySection grantId={grant.id} canUse={grantCanUseCredential} />
+
+          {grant.service_client_key ? (
+            <p className="muted access-modal-dev-lede">
+              Named apps may require <code className="grant-inline-code">X-Service-Secret</code> from the service settings.
+            </p>
+          ) : null}
+
+          <div className="access-modal-dev-block">
+            <h4 className="access-modal-dev-heading">Headers (reference)</h4>
+            <pre className="access-modal-dev-pre">{developerHeadersExample}</pre>
+            <GrantCodeCopy label="Copy" text={developerHeadersExample} />
           </div>
+
+          {extraAccessRows && extraAccessRows.length > 0 ? (
+            <div className="access-modal-dev-block">
+              <h4 className="access-modal-dev-heading">More fields</h4>
+              <div className="stack-list access-modal-extra-rows">
+                {extraAccessRows.map((row, index) => (
+                  <div key={`${row.label}-${index}`} className="stack-cell access-credential-row">
+                    <strong>{row.label}</strong>
+                    <span className="access-credential-row-value">
+                      {row.monospace ? <code className="inline-code">{row.value}</code> : <span>{row.value}</span>}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {accessDetails?.extra_blocks && accessDetails.extra_blocks.length > 0 ? (
+            <div className="access-modal-dev-block">
+              <h4 className="access-modal-dev-heading">Setup snippets</h4>
+              {accessDetails.extra_blocks.map((block, index) => (
+                <div key={`${block.title}-${index}`} className="access-modal-extra-block">
+                  <strong className="access-modal-extra-title">{block.title}</strong>
+                  <pre className="access-modal-dev-pre">{block.value}</pre>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          <div className="access-modal-dev-block">
+            <h4 className="access-modal-dev-heading">This access</h4>
+            <div className="grant-detail-meta stack-list access-modal-meta">
+              <div className="stack-cell">
+                <strong>App</strong>
+                <span>{grant.service_client_display_name ?? "Any app (no name)"}</span>
+              </div>
+              <div className="stack-cell">
+                <strong>Integration</strong>
+                <span>{grant.provider_app_display_name}</span>
+              </div>
+              <div className="stack-cell">
+                <strong>Status</strong>
+                <span>
+                  <StatusBadge tone={grantTone(grant)}>{grantStateLabel(grant)}</StatusBadge>
+                </span>
+              </div>
+              <div className="stack-cell">
+                <strong>Expires</strong>
+                <span>
+                  {grant.expires_at ? `${formatDateTime(grant.expires_at)} (${relativeTime(grant.expires_at)})` : "No expiry"}
+                </span>
+              </div>
+              <div className="stack-cell">
+                <strong>Modes</strong>
+                <span>{grant.allowed_access_modes.map((m) => userAccessModeLabel(m)).join(", ")}</span>
+              </div>
+              <div className="stack-cell">
+                <strong>Scope limits</strong>
+                <span>{grant.scope_ceiling.length ? grant.scope_ceiling.join(", ") : "Same as integration"}</span>
+              </div>
+              <div className="stack-cell">
+                <strong>Extras</strong>
+                <span>{grant.capabilities.length ? grant.capabilities.join(", ") : "None"}</span>
+              </div>
+              {grant.environment ? (
+                <div className="stack-cell">
+                  <strong>Environment</strong>
+                  <span>{grant.environment}</span>
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          {accessDetails?.manage_path ? (
+            <div className="inline-actions access-modal-manage">
+              <a className="ghost-button" href={accessDetails.manage_path}>
+                Manage connection
+              </a>
+            </div>
+          ) : null}
         </div>
       </details>
     </div>
@@ -1342,7 +1428,7 @@ function GrantsPage() {
       ) : null}
 
       {grantDetailId && grantDetailGrant ? (
-        <Modal title="Access" wide onClose={() => setGrantDetailId(null)}>
+        <Modal title="Access" onClose={() => setGrantDetailId(null)}>
           <GrantDetailPanel grant={grantDetailGrant} />
         </Modal>
       ) : null}

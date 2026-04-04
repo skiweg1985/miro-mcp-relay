@@ -1,3 +1,30 @@
+## 2026-04-04 – Cursor Agent – Access-Modal vereinfacht
+
+- Done:
+  - `frontend/src/App.tsx`: `AccessConnectionTool` + `GrantAppAccessKeySection`; primär nur Connection / Endpoint / Access key; **Usage example** und **Developer details** einklappbar; entfernt: mehrfache HTTP-/Relay-Beispiele, `isMiroProviderKey`; Modal ohne `wide`.
+  - `frontend/src/index.css`: `.access-modal-*` kompaktes Layout.
+  - `docs/CHANGELOG.md` [Unreleased] Changed.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - frontend/src/App.tsx
+  - frontend/src/index.css
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - `cd frontend && npm run build`
+- UI path:
+  - `/grants` → Zeile → **Access**
+- Changelog updated:
+  - yes
+- Follow-ups:
+  - keine
+
 ## 2026-04-04 – Cursor Agent – Delegated Credential serverseitig abrufbar
 
 - Done:

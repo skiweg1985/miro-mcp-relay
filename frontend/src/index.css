@@ -851,6 +851,134 @@ h3 {
   margin-top: 0;
 }
 
+.access-modal-root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: min(440px, 100%);
+}
+
+.access-modal-tool {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.access-modal-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.access-modal-label {
+  font-size: var(--font-caption);
+  font-weight: 650;
+  color: var(--ink-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.access-modal-value {
+  font-size: var(--font-body);
+  word-break: break-word;
+}
+
+.access-modal-value-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.access-modal-value-wrap--key {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.access-modal-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: var(--font-caption);
+  word-break: break-all;
+  line-height: 1.45;
+}
+
+.access-modal-key-box {
+  width: 100%;
+}
+
+.access-modal-hint {
+  margin: 0;
+  font-size: var(--font-caption);
+}
+
+.access-modal-inline-btn {
+  flex-shrink: 0;
+}
+
+.access-modal-muted-inline {
+  font-size: var(--font-caption);
+}
+
+.access-modal-dev {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.access-modal-dev-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.access-modal-dev-heading {
+  margin: 0;
+  font-size: var(--font-caption);
+  font-weight: 650;
+}
+
+.access-modal-dev-lede {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-caption);
+  line-height: 1.45;
+}
+
+.access-modal-dev-pre {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: 8px;
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-subtle);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: var(--font-caption);
+  line-height: 1.45;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.access-modal-meta .stack-cell {
+  padding: var(--space-1) 0;
+}
+
+.access-modal-extra-title {
+  font-size: var(--font-caption);
+}
+
+.access-modal-extra-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.access-modal-manage {
+  margin-top: var(--space-1);
+}
+
+.grant-disclosure--after-tool {
+  margin-top: var(--space-2);
+}
+
 .grant-detail-lede {
   margin: 0 0 var(--space-2);
   font-size: var(--font-caption);

@@ -19,7 +19,7 @@
 
 ### Changed
 
-- Frontend: Self-Service **Access** (`/grants`): Detailmodal **Access** mit Delegated-Credential-Karte (Reveal, Copy, serverseitiger Abruf), **Connection details**; bei „automatischer“ Verbindung Auflösung per `GET /api/v1/connections` für MCP- und Relay-Beispiele; **HTTP examples** und **Scope and status** einklappbar.
+- Frontend: Self-Service **Access** (`/grants`): Detailmodal auf Verbindungsnutzung fokussiert (Connection, Endpoint, Access key mit Show/Copy); **Usage example** und **Developer details** einklappbar; App-Zugangsschlüssel und technische Referenz nur unter **Developer details**; bei „automatischer“ Verbindung weiter Auflösung per `GET /api/v1/connections`.
 
 - Frontend: **Connection details** Key-Zeile ohne doppelte Bullet-Anzeige; getrennte Kurztexte für rotierbaren Relay-Key vs. OAuth; Graph-Label **OAuth token**.
 

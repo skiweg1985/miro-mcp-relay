@@ -4,6 +4,8 @@
 
 ### Added
 
+- API: `GET /api/v1/connections/{id}/access-details` und `POST /api/v1/connections/{id}/access-details/rotate` liefern ein gemeinsames Schema für sichtbare Verbindungs-/Endpoint-Zugangsdaten (Key-Status, maskiert, einmaliger Klartext nach Rotation); erste Anbindung über Miro; bestehende Routen `miro-access` und `miro-access/reset` bleiben parallel.
+- Frontend: `AccessCredentialSummary` (Endpoint, Key-Status, Kopieren für Endpoint, Schlüssel nur im Bestätigungs-Modal); **Integrations**, **Access**-Detailmodal und **Add access**-Vorschau bei gewählter Verbindung.
 - Backend: generische Relay-Engine `execute_relay_request` (`relay_engine.py`) mit konfigurierbarem Upstream, Headern, Token-Transport, Retry und Circuit Breaker; OAuth-Refresh über `oauth_connection_tokens.refresh_oauth_tokens` (verbundenes Konto vs. Provider-App je nach `oauth_refresh_client_credential_source`).
 - Datenmodell: `provider_apps.relay_config_json` (JSON) für Relay-/Verbindungskonfiguration; Presets pro Template in `relay_config.effective_relay_config` (u. a. Miro `streamable_http`, Microsoft Graph `rest_proxy`).
 - API: `ProviderAppOut` um `allowed_connection_types` und `relay_config`; Create/Update optional `allowed_connection_types` / `relay_config`; Legacy-Felder `access_mode` / `allow_relay` werden aus `relay_config` synchron gehalten (`sync_legacy_access_fields_from_relay`).

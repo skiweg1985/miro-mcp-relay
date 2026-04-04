@@ -17,6 +17,7 @@ from app.microsoft_graph import (
     refresh_microsoft_graph_connection,
     start_microsoft_graph_connection,
 )
+from app.connection_access_details import build_connection_access_details, issue_rotated_connection_access_key
 from app.miro import (
     build_miro_access_payload,
     consume_miro_setup_token,
@@ -24,7 +25,6 @@ from app.miro import (
     fetch_miro_token_context,
     finalize_miro_callback,
     get_miro_provider_app,
-    issue_relay_token,
     refresh_connected_account,
     start_miro_connection,
 )
@@ -39,6 +39,7 @@ from app.provider_templates import (
 )
 from app.schemas import (
     ConnectedAccountOut,
+    ConnectionAccessDetailsOut,
     ConnectionProbeResponse,
     MiroConnectStartRequest,
     MiroConnectStartResponse,
@@ -48,7 +49,7 @@ from app.schemas import (
     ProviderConnectStartRequest,
     ProviderConnectStartResponse,
 )
-from app.security import decrypt_text, loads_json, lookup_secret_hash, utcnow
+from app.security import decrypt_text, loads_json, utcnow
 
 router = APIRouter(tags=["connections"])
 
@@ -418,6 +419,59 @@ async def probe_connection(
     )
 
 
+@router.get("/connections/{connection_id}/access-details", response_model=ConnectionAccessDetailsOut)
+def get_connection_access_details(
+    connection_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    connection = _load_user_connection(db, current_user, connection_id)
+    provider_app = _connection_provider_app(db, connection)
+    if provider_app_matches_template(provider_app, MIRO_RELAY_TEMPLATE) and not connection.legacy_profile_id:
+        owner = db.get(User, connection.user_id) or current_user
+        ensure_legacy_miro_identity(db, user=owner, connected_account=connection)
+        db.commit()
+        db.refresh(connection)
+    return build_connection_access_details(db=db, provider_app=provider_app, connection=connection)
+
+
+@router.post("/connections/{connection_id}/access-details/rotate", response_model=ConnectionAccessDetailsOut)
+def rotate_connection_access_details(
+    connection_id: str,
+    current_user: User = Depends(get_current_user),
+    _csrf: str = Depends(require_csrf),
+    db: Session = Depends(get_db),
+):
+    connection = _load_user_connection(db, current_user, connection_id)
+    provider_app = _connection_provider_app(db, connection)
+    try:
+        relay_token = issue_rotated_connection_access_key(
+            db=db,
+            current_user=current_user,
+            connection=connection,
+            provider_app=provider_app,
+        )
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Access keys are not available for this connection")
+    if provider_app_matches_template(provider_app, MIRO_RELAY_TEMPLATE):
+        record_audit(
+            db,
+            action="miro.connection.relay_token.rotated",
+            actor_type="user",
+            actor_id=current_user.id,
+            organization_id=current_user.organization_id,
+            metadata={"connected_account_id": connection.id, "profile_id": connection.legacy_profile_id},
+        )
+    db.commit()
+    db.refresh(connection)
+    return build_connection_access_details(
+        db=db,
+        provider_app=provider_app,
+        connection=connection,
+        relay_token_plain=relay_token,
+    )
+
+
 @router.get("/connections/{connection_id}/miro-access", response_model=MiroRelayAccessResponse)
 def get_miro_access(connection_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     connection = _load_user_connection(db, current_user, connection_id)
@@ -438,12 +492,16 @@ def reset_miro_access(
     db: Session = Depends(get_db),
 ):
     connection = _load_user_connection(db, current_user, connection_id)
-    _ensure_connection_template(db, connection, MIRO_RELAY_TEMPLATE)
-    if not connection.legacy_profile_id:
-        owner = db.get(User, connection.user_id) or current_user
-        ensure_legacy_miro_identity(db, user=owner, connected_account=connection)
-    relay_token = issue_relay_token()
-    connection.legacy_relay_token_hash = lookup_secret_hash(relay_token)
+    provider_app = _ensure_connection_template(db, connection, MIRO_RELAY_TEMPLATE)
+    try:
+        relay_token = issue_rotated_connection_access_key(
+            db=db,
+            current_user=current_user,
+            connection=connection,
+            provider_app=provider_app,
+        )
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Connection is not compatible with this action")
     record_audit(
         db,
         action="miro.connection.relay_token.rotated",

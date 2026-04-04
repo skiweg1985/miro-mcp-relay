@@ -3,21 +3,22 @@ import { useEffect, useMemo, useState } from "react";
 import { SetupDrawer, SummaryRow, type WizardStep } from "./admin/SetupDrawer";
 import { useAppContext } from "./app-context";
 import { api } from "./api";
+import { connectionAccessDetailsFromMiroLegacy } from "./accessCredentialMappers";
 import { TEMPLATE_MIRO, TEMPLATE_MS_LOGIN } from "./admin/constants";
+import { AccessCredentialSummary } from "./AccessCredentialSummary";
 import {
   Card,
   ConfirmModal,
   EmptyState,
   LoadingScreen,
-  MiroAccessCard,
   PageIntro,
   StatusBadge,
 } from "./components";
 import { isApiError } from "./errors";
 import type {
   ConnectedAccountOut,
+  ConnectionAccessDetails,
   ConnectionProbeResult,
-  MiroRelayAccess,
   ProviderAppOut,
   ProviderDefinitionOut,
 } from "./types";
@@ -104,7 +105,7 @@ export function UserIntegrationsPage() {
   const [providerApps, setProviderApps] = useState<ProviderAppOut[]>([]);
   const [definitions, setDefinitions] = useState<ProviderDefinitionOut[]>([]);
   const [connections, setConnections] = useState<ConnectedAccountOut[]>([]);
-  const [miroAccess, setMiroAccess] = useState<MiroRelayAccess | null>(null);
+  const [accessDetails, setAccessDetails] = useState<ConnectionAccessDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<Set<string>>(() => new Set());
   const [tokenPending, setTokenPending] = useState(false);
@@ -131,9 +132,13 @@ export function UserIntegrationsPage() {
       const providerMap = Object.fromEntries(appData.map((app) => [app.id, app]));
       const miroConn = findConnectedMiroConnection(connectionData, providerMap);
       if (miroConn) {
-        setMiroAccess(await api.miroAccess(miroConn.id));
+        try {
+          setAccessDetails(await api.connectionAccessDetails(miroConn.id));
+        } catch {
+          setAccessDetails(null);
+        }
       } else {
-        setMiroAccess(null);
+        setAccessDetails(null);
       }
     } catch (error) {
       notify({
@@ -190,10 +195,10 @@ export function UserIntegrationsPage() {
     void api
       .exchangeMiroSetup(session.csrfToken, setupToken)
       .then((result) => {
-        setMiroAccess(result);
+        setAccessDetails(connectionAccessDetailsFromMiroLegacy(result));
         notify({
           tone: "success",
-          title: "Miro connection details ready",
+          title: "Connection details ready",
           description: "Copy the details before you leave this page.",
         });
       })
@@ -296,12 +301,12 @@ export function UserIntegrationsPage() {
     });
   };
 
-  const handleRotateMiroToken = async (miroConnectionId: string) => {
+  const handleRotateAccessKey = async (miroConnectionId: string) => {
     if (session.status !== "authenticated") return;
     setTokenPending(true);
     try {
-      const result = await api.resetMiroAccess(session.csrfToken, miroConnectionId);
-      setMiroAccess(result);
+      const result = await api.rotateConnectionAccess(session.csrfToken, miroConnectionId);
+      setAccessDetails(result);
       notify({
         tone: "success",
         title: "New access key ready",
@@ -396,10 +401,12 @@ export function UserIntegrationsPage() {
       )}
 
       {existingMiro ? (
-        <MiroAccessCard
-          access={miroAccess}
-          pending={tokenPending}
-          onIssueToken={() => void handleRotateMiroToken(existingMiro.id)}
+        <AccessCredentialSummary
+          details={accessDetails}
+          rotatePending={tokenPending}
+          onRotate={() => void handleRotateAccessKey(existingMiro.id)}
+          cardTitle="Connection details"
+          cardDescription="Endpoint and key for tools that use this connection."
         />
       ) : null}
 

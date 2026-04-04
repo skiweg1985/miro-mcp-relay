@@ -1045,3 +1045,31 @@
   - yes ([Unreleased] Added / Changed)
 - Follow-ups:
   - keine
+
+## 2026-04-04 – Cursor Agent – Connection access details (generic UI)
+
+- Done:
+  - `backend/app/connection_access_details.py`, `schemas.py`: `ConnectionAccessDetailsOut`, Builder aus Miro-Payload; `GET/POST .../access-details` und `.../rotate` in `routers/connections.py`; `reset_miro` nutzt `issue_rotated_connection_access_key`.
+  - `frontend/src/AccessCredentialSummary.tsx`, `accessCredentialMappers.ts`, `components.tsx` (`CredentialRevealModal`), `api.ts`, `types.ts`, `UserIntegrationsPage.tsx`, `App.tsx` (Grant-Detail, Add-access), `index.css`.
+  - `backend/test_welle1_smoke.py`: Assertions für `access-details`; `docs/CHANGELOG.md` [Unreleased] Added.
+- Next:
+  - Weitere Integrationen am gleichen Schema (ohne Miro-Hardcode in der UI).
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - backend/app/connection_access_details.py, schemas.py, routers/connections.py, test_welle1_smoke.py
+  - frontend/src/AccessCredentialSummary.tsx, accessCredentialMappers.ts, components.tsx, api.ts, types.ts, UserIntegrationsPage.tsx, App.tsx, index.css
+  - docs/CHANGELOG.md, planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `python3 -m unittest test_welle1_smoke.Welle1SmokeTest.test_miro_access_bundle_and_legacy_proxy_run_on_fastapi_stack`, `cd frontend && npm run build`
+- Endpoints:
+  - `GET /api/v1/connections/{id}/access-details`, `POST /api/v1/connections/{id}/access-details/rotate`
+- UI path:
+  - Workspace → Integrations; Access → row → Details; Access → Add access
+- Changelog updated:
+  - yes ([Unreleased] Added)
+- Follow-ups:
+  - keine

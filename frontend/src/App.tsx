@@ -16,6 +16,7 @@ import { IntegrationsPage } from "./admin/IntegrationsPage";
 import { LogsPage } from "./admin/LogsPage";
 import { ServicesPage } from "./admin/ServicesPage";
 import { UsersPage } from "./admin/UsersPage";
+import { AccessCredentialSummary, AccessCredentialConnectionHint } from "./AccessCredentialSummary";
 import { api } from "./api";
 import {
   Card,
@@ -32,6 +33,7 @@ import {
 } from "./components";
 import type {
   ConnectedAccountOut,
+  ConnectionAccessDetails,
   ConnectionProbeResult,
   DelegationGrantCreateResult,
   DelegationGrantFormValues,
@@ -245,11 +247,29 @@ function GrantCodeCopy({
 }
 
 function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
+  const { session } = useAppContext();
+  const [accessDetails, setAccessDetails] = useState<ConnectionAccessDetails | null>(null);
+  const [accessLoading, setAccessLoading] = useState(false);
+
+  useEffect(() => {
+    if (session.status !== "authenticated" || !grant.connected_account_id) {
+      setAccessDetails(null);
+      return;
+    }
+    setAccessLoading(true);
+    void api
+      .connectionAccessDetails(grant.connected_account_id)
+      .then(setAccessDetails)
+      .catch(() => setAccessDetails(null))
+      .finally(() => setAccessLoading(false));
+  }, [grant.connected_account_id, grant.id, session.status]);
+
   const origin = brokerPublicOrigin();
   const connSegment = grant.connected_account_id ?? "<connection_id>";
   const directAllowed = grant.allowed_access_modes.includes("direct_token");
   const relayAllowed = grant.allowed_access_modes.includes("relay");
   const miroRelay = relayAllowed && isMiroProviderKey(grant.provider_app_key);
+  const showConnectionAccess = relayAllowed && Boolean(grant.connected_account_id);
 
   const directExample = [
     `POST ${origin}/api/v1/token-issues/provider-access`,
@@ -320,6 +340,15 @@ function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
         </div>
       ) : null}
 
+      {showConnectionAccess ? (
+        <AccessCredentialSummary
+          details={accessDetails}
+          loading={accessLoading}
+          cardTitle="Connection details"
+          cardDescription="Endpoint and key for tools that use this connection."
+        />
+      ) : null}
+
       <div className="grant-detail-dev panel-inset">
         <h3 className="grant-detail-dev-title">For developers</h3>
         <p className="grant-detail-dev-lede muted">
@@ -360,7 +389,7 @@ function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
           </p>
         ) : null}
 
-        {isMiroProviderKey(grant.provider_app_key) ? (
+        {isMiroProviderKey(grant.provider_app_key) && !accessDetails?.supported ? (
           <div className="grant-detail-dev-section">
             <h4 className="grant-detail-dev-subtitle">MCP clients</h4>
             <p className="muted grant-detail-dev-p">
@@ -730,6 +759,8 @@ function GrantsPage() {
     expires_in_days: 365,
     capabilities_text: "",
   });
+  const [grantPreviewAccess, setGrantPreviewAccess] = useState<ConnectionAccessDetails | null>(null);
+  const [grantPreviewLoading, setGrantPreviewLoading] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -766,6 +797,23 @@ function GrantsPage() {
     if (session.status !== "authenticated") return;
     void load();
   }, [notify, session]);
+
+  useEffect(() => {
+    if (!grantModalOpen || session.status !== "authenticated") {
+      setGrantPreviewAccess(null);
+      return;
+    }
+    if (!form.connected_account_id.trim()) {
+      setGrantPreviewAccess(null);
+      return;
+    }
+    setGrantPreviewLoading(true);
+    void api
+      .connectionAccessDetails(form.connected_account_id.trim())
+      .then(setGrantPreviewAccess)
+      .catch(() => setGrantPreviewAccess(null))
+      .finally(() => setGrantPreviewLoading(false));
+  }, [grantModalOpen, form.connected_account_id, session.status]);
 
   const providerAppById = useMemo(
     () => Object.fromEntries(providerApps.map((app) => [app.id, app])),
@@ -1072,6 +1120,16 @@ function GrantsPage() {
                 />
               </Field>
             </div>
+            {form.connected_account_id.trim() ? (
+              <AccessCredentialSummary
+                details={grantPreviewAccess}
+                loading={grantPreviewLoading}
+                cardTitle="Connection preview"
+                cardDescription="Endpoint and key status for the selected connection when this integration supports it."
+              />
+            ) : (
+              <AccessCredentialConnectionHint />
+            )}
             <div className="modal-form-actions">
               <button type="button" className="ghost-button" onClick={() => setGrantModalOpen(false)}>
                 Cancel

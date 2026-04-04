@@ -1,7 +1,6 @@
 import { type FormEvent, type ReactNode, useEffect, useId, useState, type Key } from "react";
 
 import { useAppContext } from "./app-context";
-import type { MiroRelayAccess } from "./types";
 import { classNames, copyToClipboard } from "./utils";
 
 export function LoadingScreen({ label }: { label: string }) {
@@ -295,7 +294,7 @@ export function SecretPanel({
 
 export type SecretModalSection = { title: string; body: string; value: string };
 
-export function MiroConnectionSecretsModal({ sections }: { sections: SecretModalSection[] }) {
+export function CredentialRevealModal({ sections }: { sections: SecretModalSection[] }) {
   const [open, setOpen] = useState(true);
   const { notify } = useAppContext();
 
@@ -339,6 +338,8 @@ export function MiroConnectionSecretsModal({ sections }: { sections: SecretModal
     </Modal>
   );
 }
+
+export const MiroConnectionSecretsModal = CredentialRevealModal;
 
 export function CapabilityGate({
   title,
@@ -447,105 +448,5 @@ export function ToastViewport() {
         </button>
       ))}
     </div>
-  );
-}
-
-export function MiroAccessCard({
-  access,
-  pending,
-  onIssueToken,
-  title = "Miro for other apps",
-  description = "Endpoint and key for tools that use your Miro account.",
-}: {
-  access: MiroRelayAccess | null;
-  pending: boolean;
-  onIssueToken?: () => void;
-  title?: string;
-  description?: string;
-}) {
-  if (!access) {
-    return (
-      <Card title={title} description={description}>
-        <EmptyState
-          title="Miro not connected"
-          body="Connect Miro above, then return here for the endpoint and key."
-        />
-      </Card>
-    );
-  }
-
-  const tokenState = access.relay_token
-    ? "New key ready to copy"
-    : access.has_relay_token
-      ? "Key on file (hidden)"
-      : "No key yet";
-
-  return (
-    <Card title={title} description={description}>
-      <div className="stack-list">
-        <div className="stack-cell">
-          <strong>Account</strong>
-          <span>{access.display_name || access.external_email || access.connected_account_id}</span>
-        </div>
-        <div className="stack-cell">
-          <strong>Workspace</strong>
-          <code className="inline-code">{access.profile_id}</code>
-        </div>
-        <div className="stack-cell">
-          <strong>Endpoint</strong>
-          <code className="inline-code">{access.mcp_url}</code>
-        </div>
-        <div className="stack-cell">
-          <strong>Key</strong>
-          <span>{tokenState}</span>
-        </div>
-        <div className="stack-cell">
-          <strong>Status</strong>
-          <span>{access.connection_status}</span>
-        </div>
-      </div>
-
-      {onIssueToken ? (
-        <div className="inline-actions">
-          <button type="button" className="primary-button" disabled={pending} onClick={onIssueToken}>
-            {pending ? "Working…" : access.has_relay_token ? "New key" : "Create key"}
-          </button>
-        </div>
-      ) : null}
-
-      {!access.relay_token && access.has_relay_token ? (
-        <p className="lede">The current key still works elsewhere. Create a new key when you need to copy it again.</p>
-      ) : null}
-
-      {access.relay_token ? (
-        <MiroConnectionSecretsModal
-          sections={[
-            {
-              title: "Access key",
-              body: "This value is shown only once. Save it in your app before you leave the page.",
-              value: access.relay_token,
-            },
-            ...(access.mcp_config_json
-              ? [
-                  {
-                    title: "App configuration (JSON)",
-                    body: "Paste this into your app’s settings to use the Miro connection from this service.",
-                    value: access.mcp_config_json,
-                  },
-                ]
-              : []),
-            ...(access.credentials_bundle_json
-              ? [
-                  {
-                    title: "Combined setup (JSON)",
-                    body: "Includes workspace ID and access key together for apps that need one block to paste.",
-                    value: access.credentials_bundle_json,
-                  },
-                ]
-              : []),
-          ]}
-        />
-      ) : null}
-    </Card>
   );
 }

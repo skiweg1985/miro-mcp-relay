@@ -268,6 +268,43 @@ class MiroSetupExchangeRequest(BaseModel):
     setup_token: str = Field(min_length=8, max_length=400)
 
 
+class AccessDetailRowOut(BaseModel):
+    label: str
+    value: str | None = None
+    copyable: bool = False
+    monospace: bool = False
+
+
+class AccessCredentialKeyOut(BaseModel):
+    status: str
+    label: str = "Key"
+    masked_hint: str | None = None
+    plaintext: str | None = None
+
+
+class AccessCopyBlockOut(BaseModel):
+    title: str
+    body: str
+    value: str
+
+
+class ConnectionAccessDetailsOut(BaseModel):
+    ok: bool = True
+    supported: bool
+    connected_account_id: str
+    provider_app_key: str = ""
+    provider_display_name: str | None = None
+    connection_type_label: str | None = None
+    section_title: str | None = None
+    connection_summary: str | None = None
+    connection_status_label: str | None = None
+    rows: list[AccessDetailRowOut] = Field(default_factory=list)
+    key_section: AccessCredentialKeyOut | None = None
+    extra_blocks: list[AccessCopyBlockOut] = Field(default_factory=list)
+    can_rotate: bool = False
+    manage_path: str | None = None
+
+
 class MiroRelayAccessResponse(BaseModel):
     ok: bool = True
     connected_account_id: str

@@ -10,6 +10,7 @@ import type {
   Health,
   IntegrationTestResult,
   LoginOptionsResponse,
+  ConnectionAccessDetails,
   MiroRelayAccess,
   ProviderAppOut,
   ProviderDefinitionOut,
@@ -149,6 +150,15 @@ export const api = {
   },
   probeConnection(csrfToken: string, connectionId: string) {
     return request<ConnectionProbeResult>(`/api/v1/connections/${connectionId}/probe`, {
+      method: "POST",
+      csrfToken,
+    });
+  },
+  connectionAccessDetails(connectionId: string) {
+    return request<ConnectionAccessDetails>(`/api/v1/connections/${connectionId}/access-details`);
+  },
+  rotateConnectionAccess(csrfToken: string, connectionId: string) {
+    return request<ConnectionAccessDetails>(`/api/v1/connections/${connectionId}/access-details/rotate`, {
       method: "POST",
       csrfToken,
     });

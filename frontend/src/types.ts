@@ -271,6 +271,43 @@ export type MiroRelayAccess = {
   external_email: string | null;
 };
 
+export type AccessDetailRow = {
+  label: string;
+  value: string | null;
+  copyable?: boolean;
+  monospace?: boolean;
+};
+
+export type AccessCredentialKey = {
+  status: string;
+  label?: string;
+  masked_hint: string | null;
+  plaintext: string | null;
+};
+
+export type AccessCopyBlock = {
+  title: string;
+  body: string;
+  value: string;
+};
+
+export type ConnectionAccessDetails = {
+  ok: boolean;
+  supported: boolean;
+  connected_account_id: string;
+  provider_app_key: string;
+  provider_display_name: string | null;
+  connection_type_label: string | null;
+  section_title: string | null;
+  connection_summary: string | null;
+  connection_status_label: string | null;
+  rows: AccessDetailRow[];
+  key_section: AccessCredentialKey | null;
+  extra_blocks: AccessCopyBlock[];
+  can_rotate: boolean;
+  manage_path: string | null;
+};
+
 export type AuditEventOut = {
   id: string;
   actor_type: string;

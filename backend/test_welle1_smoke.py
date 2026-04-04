@@ -279,6 +279,16 @@ class Welle1SmokeTest(unittest.TestCase):
         self.assertTrue(details_body["has_relay_token"])
         self.assertIsNone(details_body["relay_token"])
 
+        access_generic = client.get(
+            f"/api/v1/connections/{fixture['miro_connection_id']}/access-details",
+            headers={"X-CSRF-Token": csrf_token},
+        )
+        self.assertEqual(access_generic.status_code, 200)
+        ag = access_generic.json()
+        self.assertTrue(ag["supported"])
+        self.assertEqual(ag["key_section"]["status"], "stored")
+        self.assertIsNone(ag["key_section"]["plaintext"])
+
         rotated = client.post(
             f"/api/v1/connections/{fixture['miro_connection_id']}/miro-access/reset",
             headers={"X-CSRF-Token": csrf_token},
@@ -321,6 +331,15 @@ class Welle1SmokeTest(unittest.TestCase):
 
         self.assertEqual(relayed.status_code, 200)
         self.assertEqual(relayed.json(), {"ok": True, "channel": "fastapi-legacy"})
+
+        generic_rotate = client.post(
+            f"/api/v1/connections/{fixture['miro_connection_id']}/access-details/rotate",
+            headers={"X-CSRF-Token": csrf_token},
+        )
+        self.assertEqual(generic_rotate.status_code, 200)
+        gr = generic_rotate.json()
+        self.assertEqual(gr["key_section"]["status"], "ready")
+        self.assertTrue(gr["key_section"]["plaintext"])
 
 
 if __name__ == "__main__":

@@ -1,3 +1,33 @@
+## 2026-04-04 – Cursor Agent – App access: Zeile klickbar
+
+- Done:
+  - `frontend/src/components.tsx`: `DataTable` mit optionalem `onRowClick`, `getRowAriaLabel`, fokussierbare Zeile (`data-table-row--clickable`).
+  - `frontend/src/App.tsx`: Grants-Tabelle öffnet Details per Zeilenklick; **View** entfernt; **Remove access** mit `stopPropagation`; Hilfetext angepasst.
+  - `frontend/src/index.css`: Cursor und Fokus-Ring für klickbare Zeilen.
+  - `docs/CHANGELOG.md` [Unreleased] Changed; `frontend/dist/index.html` Asset-Hashes nach Build.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - frontend/src/components.tsx
+  - frontend/src/App.tsx
+  - frontend/src/index.css
+  - frontend/dist/index.html
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build`
+- UI path:
+  - `/grants` → Zeile anklicken → Modal **Access details**; **Remove access** nur Widerruf
+- Changelog updated:
+  - yes ([Unreleased] Changed)
+- Follow-ups:
+  - keine
+
 ## 2026-04-04 – Cursor Agent – Secret-UX: Modal statt Reveal
 
 - Done:

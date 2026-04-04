@@ -170,6 +170,8 @@ export function DataTable({
   wrapClassName,
   columnClasses,
   rowKey,
+  onRowClick,
+  getRowAriaLabel,
 }: {
   columns: string[];
   rows: ReactNode[][];
@@ -179,6 +181,8 @@ export function DataTable({
   wrapClassName?: string;
   columnClasses?: string[];
   rowKey?: (rowIndex: number) => Key;
+  onRowClick?: (rowIndex: number) => void;
+  getRowAriaLabel?: (rowIndex: number) => string;
 }) {
   if (!rows.length) {
     return <EmptyState title={emptyTitle} body={emptyBody} />;
@@ -198,7 +202,23 @@ export function DataTable({
         </thead>
         <tbody>
           {rows.map((row, rowIndex) => (
-            <tr key={rowKey?.(rowIndex) ?? rowIndex}>
+            <tr
+              key={rowKey?.(rowIndex) ?? rowIndex}
+              className={onRowClick ? "data-table-row--clickable" : undefined}
+              tabIndex={onRowClick ? 0 : undefined}
+              aria-label={onRowClick ? getRowAriaLabel?.(rowIndex) ?? "Open details" : undefined}
+              onClick={onRowClick ? () => onRowClick(rowIndex) : undefined}
+              onKeyDown={
+                onRowClick
+                  ? (event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        onRowClick(rowIndex);
+                      }
+                    }
+                  : undefined
+              }
+            >
               {row.map((cell, cellIndex) => (
                 <td key={`${rowIndex}-${cellIndex}`} className={columnClasses?.[cellIndex]}>
                   {cell}

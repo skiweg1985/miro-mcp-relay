@@ -204,19 +204,10 @@ function GrantExpiresCell({ grant }: { grant: SelfServiceDelegationGrantOut }) {
   );
 }
 
-function GrantPolicyCell({
-  grant,
-  onView,
-}: {
-  grant: SelfServiceDelegationGrantOut;
-  onView: () => void;
-}) {
+function GrantPolicyCell({ grant }: { grant: SelfServiceDelegationGrantOut }) {
   return (
     <div className="grants-policy-cell">
       <span className="grants-policy-summary">{grantPolicySummary(grant)}</span>
-      <button type="button" className="ghost-button grants-inline-btn" onClick={onView}>
-        View
-      </button>
     </div>
   );
 }
@@ -935,6 +926,16 @@ function GrantsPage() {
             "grants-col--actions",
           ]}
           rowKey={(rowIndex) => grants[rowIndex]?.id ?? rowIndex}
+          onRowClick={(rowIndex) => {
+            const id = grants[rowIndex]?.id;
+            if (id) setGrantDetailId(id);
+          }}
+          getRowAriaLabel={(rowIndex) => {
+            const grant = grants[rowIndex];
+            if (!grant) return "Open details";
+            const app = grant.service_client_display_name ?? "Any app";
+            return `Access details for ${app}`;
+          }}
           columns={["App", "Integration", "Connection", "Status", "Expires", "Limits", "Actions"]}
           rows={grants.map((grant) => {
             const clientLabel = grant.service_client_display_name ?? "Any app";
@@ -949,14 +950,21 @@ function GrantsPage() {
               <GrantConnectionCell grant={grant} />,
               <StatusBadge tone={grantTone(grant)}>{grantState(grant)}</StatusBadge>,
               <GrantExpiresCell grant={grant} />,
-              <GrantPolicyCell grant={grant} onView={() => setGrantDetailId(grant.id)} />,
+              <GrantPolicyCell grant={grant} />,
               <div className="grants-actions-cell">
                 {grant.revoked_at ? (
                   <span className="grants-action-placeholder muted" aria-label="No action">
                     —
                   </span>
                 ) : (
-                  <button type="button" className="ghost-button grants-inline-btn" onClick={() => setGrantRevokeConfirmId(grant.id)}>
+                  <button
+                    type="button"
+                    className="ghost-button grants-inline-btn"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setGrantRevokeConfirmId(grant.id);
+                    }}
+                  >
                     Remove access
                   </button>
                 )}
@@ -979,8 +987,8 @@ function GrantsPage() {
               The credential is shown <strong>once</strong> when you create access. Save it immediately; it is not stored in this screen.
             </p>
             <p className="lede">
-              Open <strong>View</strong> on a row for concrete HTTP examples: requesting a provider token, relaying Miro MCP through the broker,
-              and how that differs from the profile URL plus relay key from Integrations.
+              Open a row for concrete HTTP examples: requesting a provider token, relaying Miro MCP through the broker, and how that differs from
+              the profile URL plus relay key from Integrations.
             </p>
           </div>
         </Modal>

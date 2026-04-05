@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { Card, StatusBadge } from "../components";
 import type { BrokerCallbackUrls, ConnectedAccountOut, ProviderAppOut, ProviderInstanceOut, TokenIssueEventOut } from "../types";
+import { oauthIntegrationConfigured } from "../oauthIntegrationStatus";
 import { formatDateTime } from "../utils";
 import { TEMPLATE_MS_GRAPH, TEMPLATE_MS_LOGIN, TEMPLATE_MIRO } from "./constants";
 
@@ -137,27 +138,17 @@ function redirectUriForApp(
 function oauthConfigured(
   app: ProviderAppOut,
   instance: ProviderInstanceOut,
+  needsTenant: boolean,
 ): { ok: boolean; detail: string } {
-  const pkce = Boolean((instance.settings as { use_pkce?: boolean }).use_pkce);
-  const cid = (app.client_id ?? "").trim();
-  const authz = (instance.authorization_endpoint ?? "").trim();
-  const tok = (instance.token_endpoint ?? "").trim();
-  if (!cid) {
-    return { ok: false, detail: "Client ID missing" };
+  const r = oauthIntegrationConfigured(app, instance, { needsTenant });
+  if (r.ok) {
+    const pkce = Boolean((instance.settings as { use_pkce?: boolean }).use_pkce);
+    return {
+      ok: true,
+      detail: pkce ? "Client ID, endpoints, PKCE" : "Client ID, endpoints, secret stored",
+    };
   }
-  if (!authz) {
-    return { ok: false, detail: "Authorize URL missing" };
-  }
-  if (!tok) {
-    return { ok: false, detail: "Token URL missing" };
-  }
-  if (pkce) {
-    return { ok: true, detail: "Client ID, endpoints, PKCE" };
-  }
-  if (app.has_client_secret) {
-    return { ok: true, detail: "Client ID, endpoints, secret stored" };
-  }
-  return { ok: false, detail: "Client secret or PKCE required" };
+  return { ok: false, detail: r.reason ?? "Not configured" };
 }
 
 function scopesSummary(app: ProviderAppOut): string {
@@ -232,7 +223,7 @@ export function IntegrationOverview({
 }) {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const rc = (app.relay_config ?? {}) as Record<string, unknown>;
-  const oauth = oauthConfigured(app, instance);
+  const oauth = oauthConfigured(app, instance, needsTenant);
   const tenant = (instance.settings as { tenant_id?: string })?.tenant_id;
   const tenantDisplay =
     typeof tenant === "string" && tenant.trim()

@@ -4,6 +4,7 @@ import { SetupDrawer, SummaryRow, type WizardStep } from "./admin/SetupDrawer";
 import { useAppContext } from "./app-context";
 import { api } from "./api";
 import { TEMPLATE_MS_LOGIN } from "./admin/constants";
+import { integrationNeedsTenantForStatus, oauthIntegrationConfigured } from "./oauthIntegrationStatus";
 import {
   Card,
   ConfirmModal,
@@ -115,7 +116,7 @@ export function UserIntegrationsPage() {
   );
 
   const connectableApps = useMemo(
-    () => providerApps.filter((app) => app.template_key && app.template_key !== TEMPLATE_MS_LOGIN),
+    () => providerApps.filter((app) => app.template_key !== TEMPLATE_MS_LOGIN),
     [providerApps],
   );
 
@@ -247,11 +248,16 @@ export function UserIntegrationsPage() {
             const connection = connections.find(
               (c) => c.provider_app_id === app.id && c.status !== "revoked",
             );
-            const desc = templateDescription(definitions, app.template_key) || "Sign in to connect your account.";
+            const desc =
+              templateDescription(definitions, app.template_key) ||
+              (app.template_key === null ? "Custom OAuth integration." : "Sign in to connect your account.");
+            const needsTenant = integrationNeedsTenantForStatus(app.template_key);
+            const cfg = oauthIntegrationConfigured(app, undefined, { needsTenant });
             const primaryDisabled = busy.has(`oauth:${app.id}`);
             const isConnected = Boolean(connection && connection.status === "connected");
             const canDisconnect = Boolean(isConnected && connection);
             const showReconnect = Boolean(connection && connection.status !== "revoked");
+            const connectBlocked = !cfg.ok;
 
             return (
               <article key={app.id} className="integration-card user-integration-card">
@@ -265,13 +271,18 @@ export function UserIntegrationsPage() {
                 </div>
                 <div className="integration-card-body">
                   <p className="integration-card-desc">{desc}</p>
+                  {connectBlocked ? (
+                    <p className="field-hint field-hint--flush integration-card-meta-warn">
+                      Not ready: {cfg.reason ?? "Incomplete OAuth settings."} An administrator must finish setup.
+                    </p>
+                  ) : null}
                 </div>
 
                 <div className="integration-card-actions user-integration-actions">
                   <button
                     type="button"
                     className="primary-button"
-                    disabled={primaryDisabled || !app.is_enabled}
+                    disabled={primaryDisabled || !app.is_enabled || connectBlocked}
                     onClick={() => openConnectWizard(app.id)}
                   >
                     {primaryDisabled ? "Redirecting…" : showReconnect ? "Reconnect" : "Connect"}
@@ -324,7 +335,13 @@ export function UserIntegrationsPage() {
                   <button
                     type="button"
                     className="primary-button"
-                    disabled={busy.has(`oauth:${connectWizardApp.id}`) || !connectWizardApp.is_enabled}
+                    disabled={
+                      busy.has(`oauth:${connectWizardApp.id}`) ||
+                      !connectWizardApp.is_enabled ||
+                      !oauthIntegrationConfigured(connectWizardApp, undefined, {
+                        needsTenant: integrationNeedsTenantForStatus(connectWizardApp.template_key),
+                      }).ok
+                    }
                     onClick={() => void startConnect(connectWizardApp, connectWizardConnection)}
                   >
                     {busy.has(`oauth:${connectWizardApp.id}`) ? "Redirecting…" : "Continue to sign in"}

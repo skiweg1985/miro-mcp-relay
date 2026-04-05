@@ -10,6 +10,12 @@ from starlette.responses import RedirectResponse
 from app.core.config import get_settings
 from app.database import get_db
 from app.deps import coalesce_service_access_headers, diagnose_service_access, get_current_user, record_audit, record_service_access_decision, require_csrf, service_access_audit_actor
+from app.generic_oauth import (
+    finalize_generic_provider_callback,
+    probe_generic_connection,
+    refresh_generic_provider_connection,
+    start_generic_provider_connection,
+)
 from app.microsoft_graph import (
     fetch_graph_me,
     finalize_microsoft_graph_callback,
@@ -69,6 +75,10 @@ def _provider_app_out(provider_app: ProviderApp, provider_instance: ProviderInst
         allowed_connection_types=effective_allowed_connection_types(provider_app),
         relay_config=relay_config_from_storage(provider_app),
         is_enabled=provider_app.is_enabled,
+        oauth_authorization_endpoint=provider_instance.authorization_endpoint if provider_instance else None,
+        oauth_token_endpoint=provider_instance.token_endpoint if provider_instance else None,
+        oauth_userinfo_endpoint=provider_instance.userinfo_endpoint if provider_instance else None,
+        oauth_instance_settings=loads_json(provider_instance.settings_json, {}) if provider_instance else {},
     )
 
 
@@ -152,6 +162,13 @@ async def start_provider_connect(
             user=current_user,
             connected_account=connected_account,
         )
+    elif provider_app.template_key is None:
+        state, auth_url = await start_generic_provider_connection(
+            db=db,
+            user=current_user,
+            provider_app=provider_app,
+            connected_account=connected_account,
+        )
     else:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Provider app does not support self-service connect")
 
@@ -199,12 +216,33 @@ async def start_miro(
 
 
 @router.get("/connections/provider-oauth/callback")
-def provider_oauth_callback():
+async def provider_oauth_callback(
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+    error_description: str | None = None,
+    db: Session = Depends(get_db),
+):
     settings = get_settings()
-    return RedirectResponse(
-        url=f"{settings.frontend_base_url.rstrip('/')}/workspace/integrations?oauth_callback=unsupported",
-        status_code=302,
-    )
+    fe = settings.frontend_base_url.rstrip("/")
+    if error:
+        message = error_description or error or "Authorization was denied."
+        return RedirectResponse(
+            url=f"{fe}/workspace/integrations?provider_status=error&message={quote(message)}",
+            status_code=302,
+        )
+    if not code or not state:
+        return RedirectResponse(
+            url=f"{fe}/workspace/integrations?provider_status=error&message={quote('Missing OAuth callback parameters')}",
+            status_code=302,
+        )
+    try:
+        return await finalize_generic_provider_callback(db, state, code)
+    except HTTPException as exc:
+        return RedirectResponse(
+            url=f"{fe}/workspace/integrations?provider_status=error&message={quote(str(exc.detail))}",
+            status_code=302,
+        )
 
 
 @router.get("/connections/miro/callback")
@@ -284,6 +322,9 @@ async def refresh_connection(
     elif provider_app_matches_template(provider_app, MICROSOFT_GRAPH_DIRECT_TEMPLATE):
         await refresh_microsoft_graph_connection(db, connection)
         action = "microsoft_graph.connection.refresh"
+    elif provider_app.template_key is None:
+        await refresh_generic_provider_connection(db, connection)
+        action = "generic_provider.connection.refresh"
     else:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Connection refresh is not supported for this provider")
     record_audit(
@@ -367,6 +408,18 @@ async def probe_connection(
                 context = {"ok": False, "error": str(exc.detail)}
         external_user_id = str(context.get("id") or "") or None
         external_user_name = str(context.get("displayName") or context.get("userPrincipalName") or "") or None
+    elif provider_app.template_key is None:
+        provider_instance = db.get(ProviderInstance, provider_app.provider_instance_id)
+        if not provider_instance:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Connection probe is not supported for this provider")
+        gctx = await probe_generic_connection(
+            connected_account=connection,
+            access_token=access_token,
+            provider_instance=provider_instance,
+        )
+        external_user_id = str(gctx.get("external_user_id") or "") or None
+        external_user_name = str(gctx.get("external_user_name") or "") or None
+        context = {"ok": True}
     else:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Connection probe is not supported for this provider")
 

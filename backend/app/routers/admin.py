@@ -91,6 +91,10 @@ def _provider_app_out(provider_app: ProviderApp, provider_instance: ProviderInst
         allowed_connection_types=effective_allowed_connection_types(provider_app),
         relay_config=relay_config_from_storage(provider_app),
         is_enabled=provider_app.is_enabled,
+        oauth_authorization_endpoint=provider_instance.authorization_endpoint if provider_instance else None,
+        oauth_token_endpoint=provider_instance.token_endpoint if provider_instance else None,
+        oauth_userinfo_endpoint=provider_instance.userinfo_endpoint if provider_instance else None,
+        oauth_instance_settings=loads_json(provider_instance.settings_json, {}) if provider_instance else {},
     )
 
 

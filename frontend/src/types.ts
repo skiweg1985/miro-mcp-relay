@@ -142,6 +142,10 @@ export type ProviderAppOut = {
   allowed_connection_types: string[];
   relay_config: Record<string, unknown>;
   is_enabled: boolean;
+  oauth_authorization_endpoint?: string | null;
+  oauth_token_endpoint?: string | null;
+  oauth_userinfo_endpoint?: string | null;
+  oauth_instance_settings?: Record<string, unknown>;
 };
 
 export type ServiceClientOut = {

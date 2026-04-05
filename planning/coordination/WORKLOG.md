@@ -26,6 +26,35 @@
 - Follow-ups:
   - keine
 
+## 2026-04-05 – Cursor Agent – Generic OAuth Custom Self-Service
+
+- Done:
+  - Backend: `generic_oauth.py` (Start, Callback, Refresh, Probe); `connections.py` Branch für `template_key is None`; Callback-Route ersetzt „unsupported“; `ProviderAppOut` OAuth-Felder; Admin `_provider_app_out` befüllt dieselben Felder.
+  - Pending: bestehende `oauth_pending_states` + Flow `generic_provider_connect` (kein neues Model).
+  - Refresh/Probe: **Option MVP+** — generischer Refresh (PKCE ohne Secret vs. mit Secret); Probe über UserInfo bzw. gespeicherte Referenz.
+  - Frontend: `oauthIntegrationStatus.ts`; `UserIntegrationsPage`, `IntegrationsPage`, `IntegrationOverview`, Workspace-Metrik; `App.tsx` connectableCount inkl. Custom.
+  - Tests: `backend/test_generic_oauth.py`; Smoke + npm test + `npm run build`.
+  - `docs/CHANGELOG.md`, `planning/coordination/WORKLOG.md`; `frontend/dist`.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - backend/app/generic_oauth.py, routers/connections.py, routers/admin.py, schemas.py, test_generic_oauth.py
+  - frontend/src/oauthIntegrationStatus.ts, UserIntegrationsPage.tsx, App.tsx, admin/IntegrationsPage.tsx, admin/IntegrationOverview.tsx, types.ts
+  - docs/CHANGELOG.md, planning/coordination/WORKLOG.md, frontend/dist/*
+- Test notes:
+  - commands: `python3 -m unittest backend/test_generic_oauth.py backend/test_welle1_smoke.py`, `npm test`, `cd frontend && npm run build`
+  - endpoints: provider-connect/start, provider-oauth/callback
+  - UI path: /workspace/integrations
+- Changelog updated:
+  - yes (Unreleased Added/Changed)
+- Follow-ups:
+  - optional: `client_secret_basic` für Token-Endpoint
+
 ## 2026-04-05 – Cursor Agent – Client-Terminologie & Auto-Key
 
 - Done:

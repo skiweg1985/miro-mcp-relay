@@ -1140,7 +1140,7 @@ function WorkspacePage() {
 
   if (loading) return <LoadingScreen label="Loading your workspace..." />;
 
-  const connectableCount = providerApps.filter((app) => app.template_key && app.template_key !== "microsoft-broker-login").length;
+  const connectableCount = providerApps.filter((app) => app.template_key !== "microsoft-broker-login").length;
 
   return (
     <>

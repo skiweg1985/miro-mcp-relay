@@ -6,6 +6,9 @@
 
 - Datenbank-Seed: Provider-Definition **`generic_oauth`** für im Admin angelegte Custom-OAuth-Instanzen (statt stiller Zuordnung zur Miro-Definition).
 - Admin-API: `ProviderAppUpdate.clear_client_secret` entfernt das gespeicherte Client-Secret (z. B. bei PKCE-only).
+- **Custom OAuth (Self-Service)**: `POST /api/v1/connections/provider-connect/start` startet für `template_key=null` einen generischen Authorize-Flow; `GET /api/v1/connections/provider-oauth/callback` tauscht den Code (PKCE/`client_secret_post`), legt `ConnectedAccount`/`TokenMaterial` an bzw. aktualisiert bei Reconnect; Pending-State über bestehende Tabelle **`oauth_pending_states`** (Flow `generic_provider_connect`). Refresh (`generic_provider.connection.refresh`) und Probe (UserInfo, Fallback gespeicherte Identität) für Custom.
+- **API** `GET /api/v1/provider-apps`: Zusatzfelder `oauth_authorization_endpoint`, `oauth_token_endpoint`, `oauth_userinfo_endpoint`, `oauth_instance_settings` (für Nutzer-UI und konfiguriert-Prüfung).
+- Frontend: `oauthIntegrationStatus.ts` — gemeinsame OAuth-Konfigurationsprüfung; Workspace **Integrations** listet Custom-Apps; Connect deaktiviert bei unvollständiger Konfiguration mit Hinweis.
 
 ### Changed
 

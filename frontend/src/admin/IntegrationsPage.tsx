@@ -4,6 +4,7 @@ import { api } from "../api";
 import { Card, EmptyState, Field, LoadingScreen, PageIntro, StatusBadge } from "../components";
 import { useAppContext } from "../app-context";
 import { isApiError } from "../errors";
+import { integrationCardStatus, oauthIntegrationConfigured } from "../oauthIntegrationStatus";
 import type { BrokerCallbackUrls, ConnectedAccountOut, ProviderAppOut, ProviderInstanceOut, TokenIssueEventOut } from "../types";
 import {
   IntegrationOverview,
@@ -88,24 +89,6 @@ const CARDS: CardModel[] = [
   },
 ];
 
-function statusLabel(
-  app: ProviderAppOut | undefined,
-  instance: ProviderInstanceOut | undefined,
-  needsTenant: boolean,
-): { label: string; tone: "neutral" | "success" | "warn" | "danger" } {
-  if (!app || !instance) return { label: "Not configured", tone: "neutral" };
-  const tenantOk = !needsTenant || Boolean((instance.settings as { tenant_id?: string }).tenant_id?.toString().trim());
-  const pkce = Boolean((instance.settings as { use_pkce?: boolean }).use_pkce);
-  const hasClientId = Boolean(app.client_id?.trim());
-  const hasAuthz = Boolean(instance.authorization_endpoint?.trim());
-  const hasToken = Boolean(instance.token_endpoint?.trim());
-  const secretOrPkce = app.has_client_secret || pkce;
-  const configured = tenantOk && hasClientId && hasAuthz && hasToken && secretOrPkce;
-  if (!configured) return { label: "Not configured", tone: "neutral" };
-  if (!app.is_enabled || !instance.is_enabled) return { label: "Disabled", tone: "danger" };
-  return { label: "Active", tone: "success" };
-}
-
 function defaultConnectionTypesForTemplate(templateKey: string): string[] {
   if (templateKey === TEMPLATE_MIRO) return ["relay"];
   if (templateKey === TEMPLATE_MS_GRAPH) return ["direct_token", "relay"];
@@ -139,8 +122,11 @@ function mergeCustomRelayConfig(
 
 function cardMeta(app: ProviderAppOut | undefined, instance: ProviderInstanceOut | undefined, needsTenant: boolean): string {
   if (!app || !instance) return "No application record yet.";
-  const st = statusLabel(app, instance, needsTenant);
-  if (st.label === "Not configured") return "Complete setup to enable this integration.";
+  const st = integrationCardStatus(app, instance, needsTenant);
+  if (st.label === "Not configured") {
+    const r = oauthIntegrationConfigured(app, instance, { needsTenant });
+    return r.reason ?? "Complete setup to enable this integration.";
+  }
   const tid = (instance.settings as { tenant_id?: string })?.tenant_id;
   if (needsTenant && tid) {
     if (tid === "common") return "Directory: multi-tenant";
@@ -745,7 +731,7 @@ export function IntegrationsPage({
             app={detailApp}
             instance={detailInstance}
             urls={urls}
-            statusLabel={statusLabel(detailApp, detailInstance, detailApp.template_key !== TEMPLATE_MIRO).label}
+            statusLabel={integrationCardStatus(detailApp, detailInstance, detailApp.template_key !== TEMPLATE_MIRO).label}
             needsTenant={detailApp.template_key !== TEMPLATE_MIRO}
             stats={buildOverviewStats(detailApp.id, connections, tokenIssues)}
             health={buildOverviewHealth(connections.filter((c) => c.provider_app_id === detailApp.id))}
@@ -806,7 +792,10 @@ export function IntegrationsPage({
               const app = findAppByTemplate(apps, card.templateKey);
               const instance = app ? instanceById[app.provider_instance_id] : undefined;
               const needsTenant = card.templateKey !== TEMPLATE_MIRO;
-              const st = statusLabel(app, instance, needsTenant);
+              const st =
+                app && instance
+                  ? integrationCardStatus(app, instance, needsTenant)
+                  : { label: "Not configured", tone: "neutral" as const };
               const hasRecord = Boolean(app);
               return (
                 <article key={card.id} className="integration-card">
@@ -844,7 +833,7 @@ export function IntegrationsPage({
             })}
             {customApps.map((app) => {
               const instance = instanceById[app.provider_instance_id];
-              const st = statusLabel(app, instance, false);
+              const st = integrationCardStatus(app, instance, false);
               return (
                 <article key={app.id} className="integration-card">
                   <div className="integration-card-head">

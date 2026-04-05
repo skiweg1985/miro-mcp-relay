@@ -168,6 +168,10 @@ class ProviderAppOut(BaseModel):
     allowed_connection_types: list[str] = Field(default_factory=list)
     relay_config: dict[str, Any] = Field(default_factory=dict)
     is_enabled: bool
+    oauth_authorization_endpoint: str | None = None
+    oauth_token_endpoint: str | None = None
+    oauth_userinfo_endpoint: str | None = None
+    oauth_instance_settings: dict[str, Any] = Field(default_factory=dict)
 
 
 class ServiceClientCreate(BaseModel):

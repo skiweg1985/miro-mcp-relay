@@ -124,6 +124,15 @@ class ProviderAppCreate(BaseModel):
     allowed_connection_types: list[str] | None = None
     relay_config: dict[str, Any] | None = None
     is_enabled: bool = True
+    oauth_dynamic_client_registration_enabled: bool = False
+    oauth_registration_endpoint: str | None = None
+    oauth_registration_auth_method: str = "none"
+
+    @model_validator(mode="after")
+    def validate_dcr_create(self):
+        if self.oauth_dynamic_client_registration_enabled and not (self.oauth_registration_endpoint or "").strip():
+            raise ValueError("oauth_registration_endpoint is required when dynamic client registration is enabled")
+        return self
 
 
 class ProviderInstanceUpdate(BaseModel):
@@ -153,6 +162,15 @@ class ProviderAppUpdate(BaseModel):
     allowed_connection_types: list[str] | None = None
     relay_config: dict[str, Any] | None = None
     is_enabled: bool = True
+    oauth_dynamic_client_registration_enabled: bool = False
+    oauth_registration_endpoint: str | None = None
+    oauth_registration_auth_method: str = "none"
+
+    @model_validator(mode="after")
+    def validate_dcr_update(self):
+        if self.oauth_dynamic_client_registration_enabled and not (self.oauth_registration_endpoint or "").strip():
+            raise ValueError("oauth_registration_endpoint is required when dynamic client registration is enabled")
+        return self
 
 
 class ProviderAppOut(BaseModel):
@@ -180,6 +198,9 @@ class ProviderAppOut(BaseModel):
     oauth_token_endpoint: str | None = None
     oauth_userinfo_endpoint: str | None = None
     oauth_instance_settings: dict[str, Any] = Field(default_factory=dict)
+    oauth_dynamic_client_registration_enabled: bool = False
+    oauth_registration_endpoint: str | None = None
+    oauth_registration_auth_method: str = "none"
 
 
 class ServiceClientCreate(BaseModel):

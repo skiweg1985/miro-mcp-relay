@@ -155,6 +155,9 @@ export type ProviderAppOut = {
   oauth_token_endpoint?: string | null;
   oauth_userinfo_endpoint?: string | null;
   oauth_instance_settings?: Record<string, unknown>;
+  oauth_dynamic_client_registration_enabled?: boolean;
+  oauth_registration_endpoint?: string | null;
+  oauth_registration_auth_method?: string;
 };
 
 export type ServiceClientOut = {

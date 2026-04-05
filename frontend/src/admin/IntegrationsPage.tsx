@@ -128,6 +128,14 @@ function customAccessFields(connectionTypes: string[]) {
   return { allowRelay, allowDirect, accessMode };
 }
 
+function oauthDcrFieldsFromApp(app: ProviderAppOut) {
+  return {
+    oauth_dynamic_client_registration_enabled: Boolean(app.oauth_dynamic_client_registration_enabled),
+    oauth_registration_endpoint: app.oauth_registration_endpoint ?? null,
+    oauth_registration_auth_method: app.oauth_registration_auth_method ?? "none",
+  };
+}
+
 function mergeCustomRelayConfig(
   existing: Record<string, unknown>,
   draft: Record<string, unknown>,
@@ -154,6 +162,9 @@ function cardMeta(app: ProviderAppOut | undefined, instance: ProviderInstanceOut
   if (needsTenant && tid) {
     if (tid === "common") return "Directory: multi-tenant";
     return "Directory: single tenant";
+  }
+  if (app.oauth_dynamic_client_registration_enabled && String(app.oauth_registration_endpoint ?? "").trim()) {
+    return "Registration endpoint configured.";
   }
   if (app.client_id?.trim()) return "App settings saved.";
   return st.label;
@@ -210,6 +221,11 @@ export function IntegrationsPage({
   const [connectionTypes, setConnectionTypes] = useState<string[]>(["relay"]);
   const [relayDraft, setRelayDraft] = useState<Record<string, unknown>>({});
   const [pending, setPending] = useState(false);
+
+  const [miroDcrEnabled, setMiroDcrEnabled] = useState(false);
+  const [miroRegEndpoint, setMiroRegEndpoint] = useState("");
+  const [customDcrEnabled, setCustomDcrEnabled] = useState(false);
+  const [customRegEndpoint, setCustomRegEndpoint] = useState("");
 
   const load = useCallback(async () => {
     if (session.status !== "authenticated") return;
@@ -295,6 +311,8 @@ export function IntegrationsPage({
     setCustomPkce(Boolean((instance.settings as { use_pkce?: boolean }).use_pkce));
     setCustomClientId(app.client_id ?? "");
     setCustomSecret("");
+    setCustomDcrEnabled(Boolean(app.oauth_dynamic_client_registration_enabled));
+    setCustomRegEndpoint(app.oauth_registration_endpoint ?? "");
     setCustomIntegrationEnabled(Boolean(app.is_enabled && instance.is_enabled));
     setCustomRelayProtocol(app.relay_protocol ?? "mcp_streamable_http");
     const rc = (app.relay_config as Record<string, unknown>) || {};
@@ -322,6 +340,8 @@ export function IntegrationsPage({
       setCustomPkce(false);
       setCustomClientId("");
       setCustomSecret("");
+      setCustomDcrEnabled(false);
+      setCustomRegEndpoint("");
       setCustomIntegrationEnabled(true);
       setCustomRelayProtocol("mcp_streamable_http");
       setRelayDraft({
@@ -340,6 +360,10 @@ export function IntegrationsPage({
     setTenant(typeof tid === "string" ? tid : "");
     setClientId(app?.client_id ?? "");
     setClientSecret("");
+    if (templateKey === TEMPLATE_MIRO) {
+      setMiroDcrEnabled(Boolean(app?.oauth_dynamic_client_registration_enabled));
+      setMiroRegEndpoint(app?.oauth_registration_endpoint ?? "");
+    }
     if (app && templateKey === TEMPLATE_MS_GRAPH) {
       setGraphClaims(scopesToGraphClaims(app.default_scopes));
     } else {
@@ -411,6 +435,7 @@ export function IntegrationsPage({
           token_transport: relayDraft.token_transport,
         },
         is_enabled: app.is_enabled,
+        ...oauthDcrFieldsFromApp(app),
       });
 
       notify({ tone: "success", title: "Settings saved", description: "The integration was updated." });
@@ -454,6 +479,9 @@ export function IntegrationsPage({
           token_transport: relayDraft.token_transport,
         },
         is_enabled: app.is_enabled,
+        oauth_dynamic_client_registration_enabled: miroDcrEnabled,
+        oauth_registration_endpoint: miroRegEndpoint.trim() || null,
+        oauth_registration_auth_method: "none",
       });
       notify({ tone: "success", title: "Settings saved", description: "Miro was updated." });
       closeDrawer();
@@ -499,6 +527,7 @@ export function IntegrationsPage({
         allowed_connection_types: app.allowed_connection_types,
         relay_config: app.relay_config,
         is_enabled: next,
+        ...oauthDcrFieldsFromApp(app),
       });
       notify({
         tone: "success",
@@ -527,7 +556,16 @@ export function IntegrationsPage({
       notify({ tone: "error", title: "Display name required", description: "Enter a name for this integration." });
       return;
     }
-    if (!clientIdVal) {
+    if (customDcrEnabled) {
+      if (!customRegEndpoint.trim()) {
+        notify({
+          tone: "error",
+          title: "Registration URL required",
+          description: "Enter the client registration endpoint URL.",
+        });
+        return;
+      }
+    } else if (!clientIdVal) {
       notify({ tone: "error", title: "Client ID required", description: "Enter the OAuth client ID." });
       return;
     }
@@ -549,7 +587,12 @@ export function IntegrationsPage({
     }
     const editingId = customEditAppId;
     const existingApp = editingId ? apps.find((a) => a.id === editingId) : undefined;
-    if (!customPkce && !customSecret.trim() && !(editingId && existingApp?.has_client_secret)) {
+    if (
+      !customDcrEnabled &&
+      !customPkce &&
+      !customSecret.trim() &&
+      !(editingId && existingApp?.has_client_secret)
+    ) {
       notify({
         tone: "error",
         title: "Client secret required",
@@ -605,6 +648,9 @@ export function IntegrationsPage({
           allowed_connection_types: connectionTypes,
           relay_config: mergedRelay,
           is_enabled: customIntegrationEnabled,
+          oauth_dynamic_client_registration_enabled: customDcrEnabled,
+          oauth_registration_endpoint: customRegEndpoint.trim() || null,
+          oauth_registration_auth_method: "none",
         });
         notify({ tone: "success", title: "Integration updated", description: "Changes were saved." });
         closeDrawer();
@@ -662,6 +708,9 @@ export function IntegrationsPage({
         allowed_connection_types: connectionTypes,
         relay_config: mergeCustomRelayConfig({}, relayDraft as Record<string, unknown>),
         is_enabled: customIntegrationEnabled,
+        oauth_dynamic_client_registration_enabled: customDcrEnabled,
+        oauth_registration_endpoint: customRegEndpoint.trim() || null,
+        oauth_registration_auth_method: "none",
       });
       notify({
         tone: "success",
@@ -732,7 +781,16 @@ export function IntegrationsPage({
       return;
     }
     if (wizardStep === 1) {
-      if (!customClientId.trim()) {
+      if (customDcrEnabled) {
+        if (!customRegEndpoint.trim()) {
+          notify({
+            tone: "error",
+            title: "Registration URL required",
+            description: "Enter the client registration endpoint URL.",
+          });
+          return;
+        }
+      } else if (!customClientId.trim()) {
         notify({ tone: "error", title: "Client ID required", description: "Enter the OAuth client ID." });
         return;
       }
@@ -1215,12 +1273,46 @@ export function IntegrationsPage({
           <div className="wizard-step-body">
             {wizardStep === 0 ? (
               <>
-                <Field label="Client ID">
-                  <input value={clientId} onChange={(e) => setClientId(e.target.value)} autoComplete="off" />
-                </Field>
-                <Field label="Client secret" hint="Leave blank to keep the current secret.">
-                  <input type="password" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} autoComplete="new-password" />
-                </Field>
+                <div className="field">
+                  <span className="field-label">Dynamic client registration</span>
+                  <label className="check-option">
+                    <input
+                      type="checkbox"
+                      checked={miroDcrEnabled}
+                      onChange={(e) => setMiroDcrEnabled(e.target.checked)}
+                    />
+                    <span>Enable dynamic client registration</span>
+                  </label>
+                </div>
+                {miroDcrEnabled ? (
+                  <>
+                    <Field label="Registration endpoint">
+                      <input
+                        value={miroRegEndpoint}
+                        onChange={(e) => setMiroRegEndpoint(e.target.value)}
+                        placeholder="https://mcp.miro.com/register"
+                        autoComplete="off"
+                      />
+                    </Field>
+                    <p className="field-hint field-hint--flush">
+                      Client credentials are created when users connect; no static client ID is required.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <Field label="Client ID">
+                      <input value={clientId} onChange={(e) => setClientId(e.target.value)} autoComplete="off" />
+                    </Field>
+                    <Field label="Client secret" hint="Leave blank to keep the current secret.">
+                      <input
+                        type="password"
+                        value={clientSecret}
+                        onChange={(e) => setClientSecret(e.target.value)}
+                        autoComplete="new-password"
+                      />
+                    </Field>
+                  </>
+                )}
                 <Field label="Relay type">
                   <select
                     value={String(relayDraft.relay_type ?? "streamable_http")}
@@ -1254,8 +1346,14 @@ export function IntegrationsPage({
             {wizardStep === 1 ? <ReadOnlyCopyField label="Redirect URI" value={urls.miro} /> : null}
             {wizardStep === 2 ? (
               <div className="summary-panel">
-                <SummaryRow label="Client ID" value={clientId.trim() || "—"} />
-                <SummaryRow label="Client secret" value={clientSecret.trim() ? "New value entered" : "Unchanged"} />
+                <SummaryRow
+                  label="Client credentials"
+                  value={
+                    miroDcrEnabled
+                      ? "Dynamic (registration endpoint)"
+                      : `${clientId.trim() || "—"} / ${clientSecret.trim() ? "New secret" : "unchanged"}`
+                  }
+                />
               </div>
             ) : null}
           </div>
@@ -1326,20 +1424,63 @@ export function IntegrationsPage({
             ) : null}
             {wizardStep === 1 ? (
               <>
-                <Field label="Client ID">
-                  <input value={customClientId} onChange={(e) => setCustomClientId(e.target.value)} autoComplete="off" />
-                </Field>
                 <div className="field">
+                  <span className="field-label">Dynamic client registration</span>
                   <label className="check-option">
-                    <input type="checkbox" checked={customPkce} onChange={(e) => setCustomPkce(e.target.checked)} />
-                    <span>Use PKCE (no client secret)</span>
+                    <input
+                      type="checkbox"
+                      checked={customDcrEnabled}
+                      onChange={(e) => setCustomDcrEnabled(e.target.checked)}
+                    />
+                    <span>Enable dynamic client registration</span>
                   </label>
                 </div>
-                {!customPkce ? (
-                  <Field label="Client secret" hint="Required when PKCE is off. Leave blank when editing to keep the stored secret.">
-                    <input type="password" value={customSecret} onChange={(e) => setCustomSecret(e.target.value)} autoComplete="new-password" />
-                  </Field>
-                ) : null}
+                {customDcrEnabled ? (
+                  <>
+                    <Field label="Registration endpoint">
+                      <input
+                        value={customRegEndpoint}
+                        onChange={(e) => setCustomRegEndpoint(e.target.value)}
+                        placeholder="https://authorization-server.example/register"
+                        autoComplete="off"
+                      />
+                    </Field>
+                    <p className="field-hint field-hint--flush">
+                      Client credentials are created when users connect; no static client ID is required.
+                    </p>
+                    <div className="field">
+                      <label className="check-option">
+                        <input type="checkbox" checked={customPkce} onChange={(e) => setCustomPkce(e.target.checked)} />
+                        <span>Use PKCE (no client secret)</span>
+                      </label>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <Field label="Client ID">
+                      <input value={customClientId} onChange={(e) => setCustomClientId(e.target.value)} autoComplete="off" />
+                    </Field>
+                    <div className="field">
+                      <label className="check-option">
+                        <input type="checkbox" checked={customPkce} onChange={(e) => setCustomPkce(e.target.checked)} />
+                        <span>Use PKCE (no client secret)</span>
+                      </label>
+                    </div>
+                    {!customPkce ? (
+                      <Field
+                        label="Client secret"
+                        hint="Required when PKCE is off. Leave blank when editing to keep the stored secret."
+                      >
+                        <input
+                          type="password"
+                          value={customSecret}
+                          onChange={(e) => setCustomSecret(e.target.value)}
+                          autoComplete="new-password"
+                        />
+                      </Field>
+                    ) : null}
+                  </>
+                )}
                 <div className="field">
                   <span className="field-label">Connection types</span>
                   <label className="check-option">

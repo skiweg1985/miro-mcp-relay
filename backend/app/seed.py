@@ -80,6 +80,7 @@ def init_db() -> None:
             microsoft_definition_id=microsoft.id,
         )
         _backfill_legacy_templates(db, organization_id=org.id, miro_definition_id=miro.id, microsoft_definition_id=microsoft.id)
+        _backfill_miro_dcr_settings(db, organization_id=org.id)
         _backfill_relay_config_json(db, organization_id=org.id)
         db.commit()
 
@@ -103,6 +104,9 @@ def reconcile_schema() -> None:
                 "template_key": "VARCHAR(120)",
                 "relay_config_json": "TEXT DEFAULT '{}'",
                 "deleted_at": "TIMESTAMP NULL",
+                "oauth_dynamic_client_registration_enabled": "BOOLEAN DEFAULT FALSE",
+                "oauth_registration_endpoint": "VARCHAR(512)",
+                "oauth_registration_auth_method": "VARCHAR(32) DEFAULT 'none'",
             },
         )
         _ensure_columns(
@@ -294,6 +298,13 @@ def _seed_builtin_provider_apps(
         )
         db.add(provider_instance)
         db.flush()
+        dcr_kwargs: dict = {}
+        if template_key == MIRO_RELAY_TEMPLATE:
+            dcr_kwargs = {
+                "oauth_dynamic_client_registration_enabled": True,
+                "oauth_registration_endpoint": "https://mcp.miro.com/register",
+                "oauth_registration_auth_method": "none",
+            }
         provider_app = ProviderApp(
             organization_id=organization_id,
             provider_instance_id=provider_instance.id,
@@ -309,9 +320,26 @@ def _seed_builtin_provider_apps(
             allow_direct_token_return=app["allow_direct_token_return"],
             relay_protocol=app.get("relay_protocol"),
             is_enabled=True,
+            **dcr_kwargs,
         )
         db.add(provider_app)
     db.flush()
+
+
+def _backfill_miro_dcr_settings(db: Session, *, organization_id: str) -> None:
+    app = db.scalar(
+        select(ProviderApp).where(
+            ProviderApp.organization_id == organization_id,
+            ProviderApp.key == "miro-default",
+        )
+    )
+    if not app or app.template_key != MIRO_RELAY_TEMPLATE:
+        return
+    if not (app.oauth_registration_endpoint or "").strip():
+        app.oauth_dynamic_client_registration_enabled = True
+        app.oauth_registration_endpoint = "https://mcp.miro.com/register"
+    if not (app.oauth_registration_auth_method or "").strip():
+        app.oauth_registration_auth_method = "none"
 
 
 def _backfill_relay_config_json(db: Session, *, organization_id: str) -> None:

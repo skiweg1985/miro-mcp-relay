@@ -1746,3 +1746,29 @@
   - yes ([Unreleased] Changed)
 - Follow-ups:
   - keine
+
+## 2026-04-05 – Cursor Agent – Dynamic Client Registration (DCR)
+
+- Done:
+  - `provider_apps`: `oauth_dynamic_client_registration_enabled`, `oauth_registration_endpoint`, `oauth_registration_auth_method`; Reconcile in `seed.py`; Pydantic-Validierung bei DCR an.
+  - `oauth_integration_status.py`, `oauth_dcr.py` (RFC7591-ähnliche Registrierung); `generic_oauth.py`: DCR-Pfad mit Pending-State; Refresh bevorzugt `ConnectedAccount`-OAuth-Felder.
+  - `miro.py`: Registrierung über konfigurierbaren Endpoint / statischer Client bei DCR aus; Seed/Backfill Miro-Default DCR + `https://mcp.miro.com/register`.
+  - Admin/User `ProviderAppOut` erweitert; Integrations-Wizard Miro + Custom: DCR-Toggle, Registration-URL; `oauthIntegrationConfigured` abgestimmt.
+  - `backend/test_oauth_integration_status.py`; `docs/CHANGELOG.md` [Unreleased] Added.
+- Next:
+  - Bei Bedarf: Registration `bearer`/`basic` in `oauth_dcr` implementieren.
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - backend/app/models.py, schemas.py, seed.py, generic_oauth.py, miro.py, routers/admin.py, routers/connections.py, oauth_dcr.py, oauth_integration_status.py, test_oauth_integration_status.py
+  - frontend/src/types.ts, oauthIntegrationStatus.ts, admin/IntegrationsPage.tsx, dist/* (gebaute Assets)
+  - docs/CHANGELOG.md, planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `PYTHONPATH=backend python3 -m unittest discover -s backend -p "test_*.py"`, `cd frontend && npm run build`
+- Changelog updated:
+  - yes ([Unreleased] Added)
+- Follow-ups:
+  - keine

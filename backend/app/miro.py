@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from starlette.responses import RedirectResponse
 
 from app.core.config import get_settings
+from app.oauth_dcr import register_oauth_client_rfc7591
 from app.oauth_pending_store import pop_oauth_pending_payload, put_oauth_pending
 from app.models import ConnectedAccount, Organization, ProviderApp, ProviderInstance, TokenMaterial, User
 from app.provider_templates import MIRO_RELAY_TEMPLATE, get_provider_app_by_template
@@ -126,23 +127,20 @@ async def fetch_miro_token_context(access_token: str) -> dict[str, Any]:
     }
 
 
-async def register_dynamic_client() -> dict[str, str]:
-    redirect_uri = callback_url()
-    payload = {
-        "client_name": f"oauth-broker-miro-{make_state()}",
-        "redirect_uris": [redirect_uri],
-        "grant_types": ["authorization_code", "refresh_token"],
-        "response_types": ["code"],
-        "token_endpoint_auth_method": "client_secret_post",
-    }
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        response = await client.post(miro_register_url(), json=payload)
-    if response.status_code >= 400:
-        raise HTTPException(status_code=502, detail=f"miro_client_registration_failed:{response.status_code}")
-    data = response.json()
+async def register_miro_dynamic_client(*, registration_endpoint: str | None, redirect_uri: str) -> dict[str, str]:
+    ep = (registration_endpoint or "").strip() or miro_register_url()
+    data = await register_oauth_client_rfc7591(
+        registration_endpoint=ep,
+        redirect_uri=redirect_uri,
+        auth_method="none",
+        client_name_prefix="oauth-broker-miro",
+    )
+    secret = data.get("client_secret")
+    if not secret:
+        raise HTTPException(status_code=502, detail="miro_client_registration_missing_secret")
     return {
-        "client_id": data["client_id"],
-        "client_secret": data["client_secret"],
+        "client_id": str(data["client_id"]),
+        "client_secret": str(secret),
         "redirect_uri": redirect_uri,
     }
 
@@ -176,11 +174,25 @@ async def start_miro_connection(
         client_id = connected_account.oauth_client_id
         client_secret = decrypt_text(connected_account.encrypted_oauth_client_secret) or ""
         redirect_uri = connected_account.oauth_redirect_uri
-    else:
-        registration = await register_dynamic_client()
+    elif provider_app.oauth_dynamic_client_registration_enabled:
+        registration = await register_miro_dynamic_client(
+            registration_endpoint=provider_app.oauth_registration_endpoint,
+            redirect_uri=callback_url(),
+        )
         client_id = registration["client_id"]
         client_secret = registration["client_secret"]
         redirect_uri = registration["redirect_uri"]
+    else:
+        cid = (provider_app.client_id or "").strip()
+        sec = decrypt_text(provider_app.encrypted_client_secret) if provider_app.encrypted_client_secret else None
+        if not cid or not sec:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Client ID and client secret are required when dynamic registration is disabled",
+            )
+        client_id = cid
+        client_secret = sec
+        redirect_uri = callback_url()
 
     put_oauth_pending(
         db,

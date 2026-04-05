@@ -79,6 +79,9 @@ def _provider_app_out(provider_app: ProviderApp, provider_instance: ProviderInst
         oauth_token_endpoint=provider_instance.token_endpoint if provider_instance else None,
         oauth_userinfo_endpoint=provider_instance.userinfo_endpoint if provider_instance else None,
         oauth_instance_settings=loads_json(provider_instance.settings_json, {}) if provider_instance else {},
+        oauth_dynamic_client_registration_enabled=bool(provider_app.oauth_dynamic_client_registration_enabled),
+        oauth_registration_endpoint=provider_app.oauth_registration_endpoint,
+        oauth_registration_auth_method=str(provider_app.oauth_registration_auth_method or "none"),
     )
 
 

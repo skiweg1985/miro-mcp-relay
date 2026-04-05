@@ -104,6 +104,9 @@ def _provider_app_out(provider_app: ProviderApp, provider_instance: ProviderInst
         oauth_token_endpoint=provider_instance.token_endpoint if provider_instance else None,
         oauth_userinfo_endpoint=provider_instance.userinfo_endpoint if provider_instance else None,
         oauth_instance_settings=loads_json(provider_instance.settings_json, {}) if provider_instance else {},
+        oauth_dynamic_client_registration_enabled=bool(provider_app.oauth_dynamic_client_registration_enabled),
+        oauth_registration_endpoint=provider_app.oauth_registration_endpoint,
+        oauth_registration_auth_method=str(provider_app.oauth_registration_auth_method or "none"),
     )
 
 
@@ -149,6 +152,9 @@ def _apply_provider_app_payload(
     allow_direct_token_return: bool,
     relay_protocol: str | None,
     is_enabled: bool,
+    oauth_dynamic_client_registration_enabled: bool = False,
+    oauth_registration_endpoint: str | None = None,
+    oauth_registration_auth_method: str = "none",
 ) -> None:
     provider_app.template_key = template_key
     provider_app.display_name = display_name
@@ -165,6 +171,9 @@ def _apply_provider_app_payload(
     provider_app.allow_direct_token_return = allow_direct_token_return
     provider_app.relay_protocol = relay_protocol
     provider_app.is_enabled = is_enabled
+    provider_app.oauth_dynamic_client_registration_enabled = oauth_dynamic_client_registration_enabled
+    provider_app.oauth_registration_endpoint = (oauth_registration_endpoint or "").strip() or None
+    provider_app.oauth_registration_auth_method = (oauth_registration_auth_method or "none").strip() or "none"
 
 
 def _finalize_provider_app_relay(
@@ -328,6 +337,9 @@ def create_provider_app(payload: ProviderAppCreate, admin: User = Depends(requir
         allow_direct_token_return=payload.allow_direct_token_return,
         relay_protocol=payload.relay_protocol,
         is_enabled=payload.is_enabled,
+        oauth_dynamic_client_registration_enabled=payload.oauth_dynamic_client_registration_enabled,
+        oauth_registration_endpoint=payload.oauth_registration_endpoint,
+        oauth_registration_auth_method=payload.oauth_registration_auth_method,
     )
     _finalize_provider_app_relay(
         provider_app,
@@ -381,6 +393,9 @@ def update_provider_app(
         allow_direct_token_return=payload.allow_direct_token_return,
         relay_protocol=payload.relay_protocol,
         is_enabled=payload.is_enabled,
+        oauth_dynamic_client_registration_enabled=payload.oauth_dynamic_client_registration_enabled,
+        oauth_registration_endpoint=payload.oauth_registration_endpoint,
+        oauth_registration_auth_method=payload.oauth_registration_auth_method,
     )
     _finalize_provider_app_relay(
         provider_app,

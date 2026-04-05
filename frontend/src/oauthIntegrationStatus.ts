@@ -33,17 +33,24 @@ export function oauthIntegrationConfigured(
   const authz = String(inst.authorization_endpoint ?? app.oauth_authorization_endpoint ?? "").trim();
   const tok = String(inst.token_endpoint ?? app.oauth_token_endpoint ?? "").trim();
   const pkce = Boolean((settings as { use_pkce?: boolean }).use_pkce);
+  const dcr = Boolean(app.oauth_dynamic_client_registration_enabled);
   if (!tenantOk) {
     return { ok: false, reason: "Directory (tenant) not set" };
-  }
-  if (!String(app.client_id ?? "").trim()) {
-    return { ok: false, reason: "Client ID missing" };
   }
   if (!authz) {
     return { ok: false, reason: "Authorize URL missing" };
   }
   if (!tok) {
     return { ok: false, reason: "Token URL missing" };
+  }
+  if (dcr) {
+    if (!String(app.oauth_registration_endpoint ?? "").trim()) {
+      return { ok: false, reason: "Registration URL missing" };
+    }
+    return { ok: true, reason: null };
+  }
+  if (!String(app.client_id ?? "").trim()) {
+    return { ok: false, reason: "Client ID missing" };
   }
   if (!app.has_client_secret && !pkce) {
     return { ok: false, reason: "Client secret or PKCE required" };

@@ -16,6 +16,8 @@ from app.core.config import get_settings
 from app.deps import record_audit
 from app.miro import decode_jwt_payload, make_pkce, make_state, parse_email_like
 from app.models import ConnectedAccount, ProviderApp, ProviderInstance, TokenMaterial, User
+from app.oauth_dcr import register_oauth_client_rfc7591
+from app.oauth_integration_status import oauth_integration_configured
 from app.oauth_pending_store import pop_oauth_pending_payload, put_oauth_pending
 from app.security import decrypt_text, dumps_json, encrypt_text, loads_json, utcnow
 
@@ -30,6 +32,20 @@ class PendingGenericProviderConnect:
     connected_account_id: str | None
     redirect_uri: str
     code_verifier: str | None
+    dynamic_client_id: str | None = None
+    encrypted_dynamic_client_secret: str | None = None
+
+
+def _pending_generic_from_raw(raw: dict[str, Any]) -> PendingGenericProviderConnect:
+    return PendingGenericProviderConnect(
+        user_id=str(raw["user_id"]),
+        provider_app_id=str(raw["provider_app_id"]),
+        connected_account_id=raw.get("connected_account_id"),
+        redirect_uri=str(raw["redirect_uri"]),
+        code_verifier=raw.get("code_verifier"),
+        dynamic_client_id=raw.get("dynamic_client_id"),
+        encrypted_dynamic_client_secret=raw.get("encrypted_dynamic_client_secret"),
+    )
 
 
 def generic_provider_oauth_callback_url() -> str:
@@ -63,20 +79,13 @@ def assert_canonical_redirect_registered(provider_app: ProviderApp, canonical: s
 def validate_generic_provider_ready_for_connect(provider_app: ProviderApp, instance: ProviderInstance) -> None:
     if not instance.is_enabled:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Provider instance is disabled")
-    authz = (instance.authorization_endpoint or "").strip()
-    token_ep = (instance.token_endpoint or "").strip()
-    if not authz:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Authorization endpoint is not configured")
-    if not token_ep:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Token endpoint is not configured")
-    if not (provider_app.client_id or "").strip():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Client ID is not configured")
-    pkce = _use_pkce(instance)
-    if not pkce and not provider_app.encrypted_client_secret:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Client secret is required when PKCE is not enabled",
-        )
+    ok, reason = oauth_integration_configured(
+        provider_app=provider_app,
+        provider_instance=instance,
+        needs_tenant=False,
+    )
+    if not ok:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=reason or "Integration is not configured")
 
 
 async def start_generic_provider_connection(
@@ -108,6 +117,25 @@ async def start_generic_provider_connection(
     else:
         code_verifier, challenge = None, None
 
+    dynamic_client_id: str | None = None
+    encrypted_dynamic_client_secret: str | None = None
+    if provider_app.oauth_dynamic_client_registration_enabled:
+        reg_data = await register_oauth_client_rfc7591(
+            registration_endpoint=str(provider_app.oauth_registration_endpoint or "").strip(),
+            redirect_uri=canonical,
+            auth_method=str(provider_app.oauth_registration_auth_method or "none"),
+            client_name_prefix="broker-generic",
+        )
+        dynamic_client_id = str(reg_data.get("client_id") or "").strip()
+        sec_raw = reg_data.get("client_secret")
+        if sec_raw:
+            encrypted_dynamic_client_secret = encrypt_text(str(sec_raw))
+        elif not pkce:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Dynamic registration did not return a client secret; enable PKCE on the provider instance",
+            )
+
     put_oauth_pending(
         db,
         state,
@@ -119,6 +147,8 @@ async def start_generic_provider_connection(
                 connected_account_id=connected_account.id if connected_account else None,
                 redirect_uri=canonical,
                 code_verifier=code_verifier,
+                dynamic_client_id=dynamic_client_id,
+                encrypted_dynamic_client_secret=encrypted_dynamic_client_secret,
             )
         ),
     )
@@ -126,9 +156,12 @@ async def start_generic_provider_connection(
     scopes = loads_json(provider_app.default_scopes_json, [])
     scope_str = " ".join(str(s) for s in scopes if str(s).strip())
 
+    effective_client_id = (
+        dynamic_client_id if dynamic_client_id else str(provider_app.client_id or "").strip()
+    )
     params: dict[str, str] = {
         "response_type": "code",
-        "client_id": str(provider_app.client_id).strip(),
+        "client_id": effective_client_id,
         "redirect_uri": canonical,
         "scope": scope_str,
         "state": state,
@@ -230,7 +263,7 @@ async def finalize_generic_provider_callback(db: Session, state: str, code: str)
             status_code=302,
         )
 
-    pending = PendingGenericProviderConnect(**raw)
+    pending = _pending_generic_from_raw(raw)
     provider_app = db.get(ProviderApp, pending.provider_app_id)
     user = db.get(User, pending.user_id)
     if not provider_app or not user:
@@ -247,7 +280,14 @@ async def finalize_generic_provider_callback(db: Session, state: str, code: str)
         )
 
     pkce = _use_pkce(instance)
-    client_secret = decrypt_text(provider_app.encrypted_client_secret) if provider_app.encrypted_client_secret else None
+    eff_client_id = (
+        str(pending.dynamic_client_id or "").strip()
+        or str(provider_app.client_id or "").strip()
+    )
+    if pending.encrypted_dynamic_client_secret:
+        client_secret = decrypt_text(pending.encrypted_dynamic_client_secret)
+    else:
+        client_secret = decrypt_text(provider_app.encrypted_client_secret) if provider_app.encrypted_client_secret else None
     if not pkce and not client_secret:
         return RedirectResponse(
             url=f"{fe}/workspace/integrations?provider_status=error&message={quote('Client secret is missing for this integration')}",
@@ -259,7 +299,7 @@ async def finalize_generic_provider_callback(db: Session, state: str, code: str)
             token_endpoint=instance.token_endpoint.strip(),
             code=code,
             redirect_uri=pending.redirect_uri,
-            client_id=str(provider_app.client_id or "").strip(),
+            client_id=eff_client_id,
             client_secret=client_secret,
             code_verifier=pending.code_verifier,
         )
@@ -308,8 +348,12 @@ async def finalize_generic_provider_callback(db: Session, state: str, code: str)
     connected_account.external_account_ref = ext_ref
     connected_account.external_email = email
     connected_account.display_name = display_name
-    connected_account.oauth_client_id = provider_app.client_id
-    connected_account.encrypted_oauth_client_secret = provider_app.encrypted_client_secret
+    if pending.dynamic_client_id:
+        connected_account.oauth_client_id = pending.dynamic_client_id
+        connected_account.encrypted_oauth_client_secret = pending.encrypted_dynamic_client_secret
+    else:
+        connected_account.oauth_client_id = provider_app.client_id
+        connected_account.encrypted_oauth_client_secret = provider_app.encrypted_client_secret
     connected_account.oauth_redirect_uri = pending.redirect_uri
     connected_account.consented_scopes_json = dumps_json(str(token_data.get("scope") or "").split())
     connected_account.status = "connected"
@@ -356,7 +400,7 @@ async def finalize_generic_provider_callback(db: Session, state: str, code: str)
 
 async def refresh_generic_provider_connection(db: Session, connected_account: ConnectedAccount) -> TokenMaterial:
     provider_app = db.get(ProviderApp, connected_account.provider_app_id)
-    if not provider_app or not provider_app.client_id:
+    if not provider_app:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Provider app not found")
     instance = db.get(ProviderInstance, provider_app.provider_instance_id)
     if not instance or not instance.token_endpoint:
@@ -371,8 +415,13 @@ async def refresh_generic_provider_connection(db: Session, connected_account: Co
         raise HTTPException(status_code=400, detail="Refresh token not available")
 
     pkce = _use_pkce(instance)
-    client_id = str(provider_app.client_id).strip()
-    client_secret = decrypt_text(provider_app.encrypted_client_secret) if provider_app.encrypted_client_secret else None
+    client_id = str((connected_account.oauth_client_id or provider_app.client_id or "")).strip()
+    if not client_id:
+        raise HTTPException(status_code=400, detail="OAuth client ID missing for refresh")
+    if connected_account.encrypted_oauth_client_secret:
+        client_secret = decrypt_text(connected_account.encrypted_oauth_client_secret)
+    else:
+        client_secret = decrypt_text(provider_app.encrypted_client_secret) if provider_app.encrypted_client_secret else None
 
     form: dict[str, str] = {
         "grant_type": "refresh_token",

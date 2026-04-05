@@ -63,6 +63,15 @@ def init_db() -> None:
             supports_downstream_oauth=True,
             metadata=definition_metadata.get("microsoft", {}),
         )
+        _ensure_provider_definition(
+            db,
+            key="generic_oauth",
+            display_name="Generic OAuth 2.0",
+            protocol="oauth2",
+            supports_broker_auth=False,
+            supports_downstream_oauth=True,
+            metadata={},
+        )
 
         _seed_builtin_provider_apps(
             db,

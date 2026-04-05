@@ -134,6 +134,7 @@ class ProviderAppUpdate(BaseModel):
     template_key: str | None = None
     client_id: str | None = None
     client_secret: str | None = None
+    clear_client_secret: bool = False
     redirect_uris: list[str] = Field(default_factory=list)
     default_scopes: list[str] = Field(default_factory=list)
     scope_ceiling: list[str] = Field(default_factory=list)

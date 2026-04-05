@@ -5,6 +5,9 @@ export const TEMPLATE_MS_LOGIN = "microsoft-broker-login";
 export const TEMPLATE_MS_GRAPH = "microsoft-graph-direct";
 export const TEMPLATE_MIRO = "miro-relay";
 
+/** Provider definition key for admin-created custom OAuth instances (not the Miro product integration). */
+export const PROVIDER_DEFINITION_GENERIC_OAUTH = "generic_oauth";
+
 export const LEGACY_APP_KEYS: Record<string, string> = {
   [TEMPLATE_MIRO]: "miro-default",
   [TEMPLATE_MS_LOGIN]: "microsoft-broker-default",

@@ -2,13 +2,20 @@
 
 ## [Unreleased]
 
+### Added
+
+- Datenbank-Seed: Provider-Definition **`generic_oauth`** für im Admin angelegte Custom-OAuth-Instanzen (statt stiller Zuordnung zur Miro-Definition).
+- Admin-API: `ProviderAppUpdate.clear_client_secret` entfernt das gespeicherte Client-Secret (z. B. bei PKCE-only).
+
 ### Changed
 
+- Admin **Integrations** · **Custom integration**: Wizard und Bearbeiten speichern Endpoints, Issuer, Default-Scopes, Scope-Ceiling, PKCE, Connection Types (direct/relay), Relay (`relay_type`, `token_transport`, Upstream-URL), `relay_protocol`, Aktiviert; bestehende `relay_config`- und Instance-`settings`-Felder werden zusammengeführt statt verworfen.
 - Self-Service **Access** (`/grants`) und **Activity**: Spalten und Texte sprechen durchgängig von **Client** (gebundener Service-Client), nicht „App“; direkte Nutzung als „Direct“ / „Direct access“.
 - **Clients** (`/workspace/clients`): Anlegen nur noch **Name**; technischer Unique-Key (`key`) wird serverseitig per UUID vergeben; optional weiterhin manuelles `key` in der API; Tabelle **Client ID**; Bearbeiten zeigt Client-ID read-only.
 
 ### Fixed
 
+- Admin **Integrations**: Status „Configured“ / **Active** setzt kein gespeichertes Client-Secret mehr zwingend voraus, wenn PKCE aktiv ist und Authorize-/Token-URL sowie Client-ID gesetzt sind; Detail **OAuth**-Zeile entspricht dieser Logik.
 - `diagnose_service_access`: Delegation Grants mit gebundenem `service_client_id` werden ohne `X-Service-Secret` abgewiesen (**401** `Service client secret required`); direkte Grants (`service_client_id` **NULL**) bleiben mit `X-Access-Key` allein nutzbar.
 
 - Frontend: Self-Service **Access**-Modal **cURL** für **Direct** (z. B. Microsoft Graph, `POST …/token-issues/provider-access`): fehlender Header `X-Access-Key: <access key>` ergänzt (entspricht der API; zuvor nur Relay-Zweig).

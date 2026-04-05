@@ -127,6 +127,7 @@ def _apply_provider_app_payload(
     display_name: str,
     client_id: str | None,
     client_secret: str | None,
+    clear_client_secret: bool = False,
     redirect_uris: list[str],
     default_scopes: list[str],
     scope_ceiling: list[str],
@@ -139,7 +140,9 @@ def _apply_provider_app_payload(
     provider_app.template_key = template_key
     provider_app.display_name = display_name
     provider_app.client_id = client_id
-    if client_secret:
+    if clear_client_secret:
+        provider_app.encrypted_client_secret = None
+    elif client_secret:
         provider_app.encrypted_client_secret = encrypt_text(client_secret)
     provider_app.redirect_uris_json = dumps_json(redirect_uris)
     provider_app.default_scopes_json = dumps_json(default_scopes)
@@ -299,6 +302,7 @@ def create_provider_app(payload: ProviderAppCreate, admin: User = Depends(requir
         display_name=payload.display_name,
         client_id=payload.client_id,
         client_secret=payload.client_secret,
+        clear_client_secret=False,
         redirect_uris=payload.redirect_uris,
         default_scopes=payload.default_scopes,
         scope_ceiling=payload.scope_ceiling,
@@ -349,6 +353,7 @@ def update_provider_app(
         display_name=payload.display_name,
         client_id=payload.client_id,
         client_secret=payload.client_secret,
+        clear_client_secret=payload.clear_client_secret,
         redirect_uris=payload.redirect_uris,
         default_scopes=payload.default_scopes,
         scope_ceiling=payload.scope_ceiling,

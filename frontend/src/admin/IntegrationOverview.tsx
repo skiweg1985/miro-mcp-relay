@@ -139,16 +139,25 @@ function oauthConfigured(
   instance: ProviderInstanceOut,
 ): { ok: boolean; detail: string } {
   const pkce = Boolean((instance.settings as { use_pkce?: boolean }).use_pkce);
-  if (pkce && app.client_id?.trim()) {
-    return { ok: true, detail: "Client ID and PKCE" };
+  const cid = (app.client_id ?? "").trim();
+  const authz = (instance.authorization_endpoint ?? "").trim();
+  const tok = (instance.token_endpoint ?? "").trim();
+  if (!cid) {
+    return { ok: false, detail: "Client ID missing" };
   }
-  if (app.client_id?.trim() && app.has_client_secret) {
-    return { ok: true, detail: "Client ID and secret stored" };
+  if (!authz) {
+    return { ok: false, detail: "Authorize URL missing" };
   }
-  if (app.client_id?.trim()) {
-    return { ok: false, detail: "Client ID only (secret or PKCE missing)" };
+  if (!tok) {
+    return { ok: false, detail: "Token URL missing" };
   }
-  return { ok: false, detail: "Not configured" };
+  if (pkce) {
+    return { ok: true, detail: "Client ID, endpoints, PKCE" };
+  }
+  if (app.has_client_secret) {
+    return { ok: true, detail: "Client ID, endpoints, secret stored" };
+  }
+  return { ok: false, detail: "Client secret or PKCE required" };
 }
 
 function scopesSummary(app: ProviderAppOut): string {

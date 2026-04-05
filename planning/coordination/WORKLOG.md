@@ -1,3 +1,31 @@
+## 2026-04-05 – Cursor Agent – Custom-Integration Wizard & PKCE-Status
+
+- Done:
+  - `statusLabel` / `IntegrationOverview.oauthConfigured`: OAuth konfiguriert mit Client-ID + Authorize-/Token-URL + (Secret oder PKCE); Microsoft-Tenant-Logik unverändert.
+  - Custom-Wizard: Felder für Endpoints, Issuer, Scopes/Ceiling, PKCE, Connection Types, Relay (`relay_config` + `relay_protocol`), Enabled; Merge von `settings`/`relay_config` beim Update; Create mit `provider_definition_key: generic_oauth`.
+  - Backend: Seed `generic_oauth`; `ProviderAppUpdate.clear_client_secret`; `_apply_provider_app_payload` löscht Secret bei Flag.
+  - `docs/CHANGELOG.md`, `planning/coordination/WORKLOG.md`; `frontend/dist` (index.html + JS mit `git add -f`).
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - backend/app/schemas.py, backend/app/routers/admin.py, backend/app/seed.py
+  - frontend/src/admin/IntegrationsPage.tsx, IntegrationOverview.tsx, constants.ts
+  - frontend/dist/index.html, frontend/dist/assets/index-CSIneTnr.js
+  - docs/CHANGELOG.md, planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `python3 -m py_compile …`, `python3 -m unittest backend/test_welle1_smoke.py`, `cd frontend && npm run build`
+  - endpoints: Admin PATCH provider-apps mit `clear_client_secret`
+  - UI path: /app/integrations → Custom integration
+- Changelog updated:
+  - yes (Unreleased Added/Changed/Fixed)
+- Follow-ups:
+  - keine
+
 ## 2026-04-05 – Cursor Agent – Client-Terminologie & Auto-Key
 
 - Done:

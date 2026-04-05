@@ -17,6 +17,7 @@ import {
   TEMPLATE_MIRO,
   TEMPLATE_MS_GRAPH,
   TEMPLATE_MS_LOGIN,
+  PROVIDER_DEFINITION_GENERIC_OAUTH,
   type GraphClaimId,
   findAppByTemplate,
   graphClaimsToScopes,
@@ -94,7 +95,12 @@ function statusLabel(
 ): { label: string; tone: "neutral" | "success" | "warn" | "danger" } {
   if (!app || !instance) return { label: "Not configured", tone: "neutral" };
   const tenantOk = !needsTenant || Boolean((instance.settings as { tenant_id?: string }).tenant_id?.toString().trim());
-  const configured = Boolean(app.client_id?.trim()) && app.has_client_secret && tenantOk && instance.authorization_endpoint && instance.token_endpoint;
+  const pkce = Boolean((instance.settings as { use_pkce?: boolean }).use_pkce);
+  const hasClientId = Boolean(app.client_id?.trim());
+  const hasAuthz = Boolean(instance.authorization_endpoint?.trim());
+  const hasToken = Boolean(instance.token_endpoint?.trim());
+  const secretOrPkce = app.has_client_secret || pkce;
+  const configured = tenantOk && hasClientId && hasAuthz && hasToken && secretOrPkce;
   if (!configured) return { label: "Not configured", tone: "neutral" };
   if (!app.is_enabled || !instance.is_enabled) return { label: "Disabled", tone: "danger" };
   return { label: "Active", tone: "success" };
@@ -104,6 +110,31 @@ function defaultConnectionTypesForTemplate(templateKey: string): string[] {
   if (templateKey === TEMPLATE_MIRO) return ["relay"];
   if (templateKey === TEMPLATE_MS_GRAPH) return ["direct_token", "relay"];
   return ["direct_token"];
+}
+
+function customAccessFields(connectionTypes: string[]) {
+  const allowRelay = connectionTypes.includes("relay");
+  const allowDirect = connectionTypes.includes("direct_token");
+  let accessMode = "relay";
+  if (allowRelay && allowDirect) accessMode = "hybrid";
+  else if (allowDirect) accessMode = "direct_token";
+  else if (allowRelay) accessMode = "relay";
+  return { allowRelay, allowDirect, accessMode };
+}
+
+function mergeCustomRelayConfig(
+  existing: Record<string, unknown>,
+  draft: Record<string, unknown>,
+): Record<string, unknown> {
+  const up = draft.upstream_base_url;
+  const upstream =
+    typeof up === "string" ? (up.trim() || undefined) : existing.upstream_base_url;
+  return {
+    ...existing,
+    relay_type: typeof draft.relay_type === "string" ? draft.relay_type : existing.relay_type,
+    token_transport: typeof draft.token_transport === "string" ? draft.token_transport : existing.token_transport,
+    upstream_base_url: upstream,
+  };
 }
 
 function cardMeta(app: ProviderAppOut | undefined, instance: ProviderInstanceOut | undefined, needsTenant: boolean): string {
@@ -160,7 +191,10 @@ export function IntegrationsPage({
   const [customPkce, setCustomPkce] = useState(false);
   const [customClientId, setCustomClientId] = useState("");
   const [customSecret, setCustomSecret] = useState("");
-  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [customIssuer, setCustomIssuer] = useState("");
+  const [customScopeCeiling, setCustomScopeCeiling] = useState("");
+  const [customIntegrationEnabled, setCustomIntegrationEnabled] = useState(true);
+  const [customRelayProtocol, setCustomRelayProtocol] = useState("mcp_streamable_http");
   const [connectionTypes, setConnectionTypes] = useState<string[]>(["relay"]);
   const [relayDraft, setRelayDraft] = useState<Record<string, unknown>>({});
   const [pending, setPending] = useState(false);
@@ -216,11 +250,21 @@ export function IntegrationsPage({
     setCustomAuthUrl(instance.authorization_endpoint ?? "");
     setCustomTokenUrl(instance.token_endpoint ?? "");
     setCustomScopes((app.default_scopes ?? []).join(" "));
+    setCustomScopeCeiling((app.scope_ceiling ?? []).join(" "));
     setCustomUserinfo(instance.userinfo_endpoint ?? "");
+    setCustomIssuer(instance.issuer ?? "");
     setCustomPkce(Boolean((instance.settings as { use_pkce?: boolean }).use_pkce));
     setCustomClientId(app.client_id ?? "");
     setCustomSecret("");
-    setAdvancedOpen(Boolean((instance.userinfo_endpoint ?? "").trim()));
+    setCustomIntegrationEnabled(Boolean(app.is_enabled && instance.is_enabled));
+    setCustomRelayProtocol(app.relay_protocol ?? "mcp_streamable_http");
+    const rc = (app.relay_config as Record<string, unknown>) || {};
+    setRelayDraft({
+      upstream_base_url: typeof rc.upstream_base_url === "string" ? rc.upstream_base_url : "",
+      relay_type: typeof rc.relay_type === "string" ? rc.relay_type : "generic_http",
+      token_transport: typeof rc.token_transport === "string" ? rc.token_transport : "authorization_bearer",
+    });
+    setConnectionTypes(app.allowed_connection_types?.length ? [...app.allowed_connection_types] : ["relay"]);
     setModal("custom");
   };
 
@@ -233,11 +277,20 @@ export function IntegrationsPage({
       setCustomAuthUrl("");
       setCustomTokenUrl("");
       setCustomScopes("openid profile email");
+      setCustomScopeCeiling("");
+      setCustomIssuer("");
       setCustomUserinfo("");
       setCustomPkce(false);
       setCustomClientId("");
       setCustomSecret("");
-      setAdvancedOpen(false);
+      setCustomIntegrationEnabled(true);
+      setCustomRelayProtocol("mcp_streamable_http");
+      setRelayDraft({
+        upstream_base_url: "",
+        relay_type: "generic_http",
+        token_transport: "authorization_bearer",
+      });
+      setConnectionTypes(["relay"]);
       setModal("custom");
       return;
     }
@@ -430,53 +483,89 @@ export function IntegrationsPage({
     const name = customName.trim();
     const authUrl = customAuthUrl.trim();
     const tokenUrl = customTokenUrl.trim();
-    if (!name || !authUrl || !tokenUrl) {
-      notify({ tone: "error", title: "Missing fields", description: "Name, authorize URL, and token URL are required." });
+    const clientIdVal = customClientId.trim();
+    if (!name) {
+      notify({ tone: "error", title: "Display name required", description: "Enter a name for this integration." });
+      return;
+    }
+    if (!clientIdVal) {
+      notify({ tone: "error", title: "Client ID required", description: "Enter the OAuth client ID." });
+      return;
+    }
+    if (!authUrl) {
+      notify({ tone: "error", title: "Authorize URL required", description: "Enter the authorization endpoint URL." });
+      return;
+    }
+    if (!tokenUrl) {
+      notify({ tone: "error", title: "Token URL required", description: "Enter the token endpoint URL." });
+      return;
+    }
+    if (!connectionTypes.length) {
+      notify({
+        tone: "error",
+        title: "Connection type required",
+        description: "Select at least one of: Direct connection, Relay through broker.",
+      });
       return;
     }
     const editingId = customEditAppId;
     const existingApp = editingId ? apps.find((a) => a.id === editingId) : undefined;
     if (!customPkce && !customSecret.trim() && !(editingId && existingApp?.has_client_secret)) {
-      notify({ tone: "error", title: "Client secret required", description: "Enter a client secret or enable PKCE." });
+      notify({
+        tone: "error",
+        title: "Client secret required",
+        description: "Enter a new client secret or enable PKCE. PKCE allows saving without a stored secret.",
+      });
       return;
     }
+    const scopes = customScopes.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
+    const ceilingRaw = customScopeCeiling.trim();
+    const ceiling = ceilingRaw ? ceilingRaw.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean) : scopes;
+    const { allowRelay, allowDirect, accessMode } = customAccessFields(connectionTypes);
+    let issuerResolved = customIssuer.trim();
+    if (!issuerResolved) {
+      try {
+        issuerResolved = new URL(authUrl).origin;
+      } catch {
+        issuerResolved = "";
+      }
+    }
+    const baseRelay = (existingApp?.relay_config ?? {}) as Record<string, unknown>;
+    const mergedRelay = mergeCustomRelayConfig(baseRelay, relayDraft as Record<string, unknown>);
+
     if (editingId && existingApp) {
       const inst = instanceById[existingApp.provider_instance_id];
       if (!inst) return;
       setPending(true);
       try {
-        const scopes = customScopes.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
-        let issuer = "";
-        try {
-          issuer = new URL(authUrl).origin;
-        } catch {
-          issuer = inst.issuer ?? "";
-        }
+        const prevSettings = { ...(inst.settings as Record<string, unknown>) };
+        const nextSettings = { ...prevSettings, use_pkce: customPkce };
         await api.updateProviderInstance(session.csrfToken, inst.id, {
           display_name: customProvider.trim() || name,
           role: inst.role,
-          issuer: issuer || null,
+          issuer: issuerResolved || null,
           authorization_endpoint: authUrl,
           token_endpoint: tokenUrl,
           userinfo_endpoint: customUserinfo.trim() || null,
-          settings: customPkce ? { use_pkce: true } : {},
-          is_enabled: inst.is_enabled,
+          settings: nextSettings,
+          is_enabled: customIntegrationEnabled,
         });
         await api.updateProviderApp(session.csrfToken, existingApp.id, {
           display_name: name,
           template_key: null,
-          client_id: customClientId.trim() || null,
+          client_id: clientIdVal || null,
           client_secret: customPkce ? null : customSecret.trim() || null,
+          clear_client_secret: customPkce,
           redirect_uris: existingApp.redirect_uris,
           default_scopes: scopes,
-          scope_ceiling: scopes,
-          access_mode: existingApp.access_mode,
-          allow_relay: existingApp.allow_relay,
-          allow_direct_token_return: existingApp.allow_direct_token_return,
-          relay_protocol: existingApp.relay_protocol,
-          allowed_connection_types: existingApp.allowed_connection_types,
-          relay_config: existingApp.relay_config,
-          is_enabled: existingApp.is_enabled,
+          scope_ceiling: ceiling,
+          access_mode: accessMode,
+          allow_relay: allowRelay,
+          allow_direct_token_return: allowDirect,
+          relay_protocol: customRelayProtocol || null,
+          allowed_connection_types: connectionTypes,
+          relay_config: mergedRelay,
+          is_enabled: customIntegrationEnabled,
         });
         notify({ tone: "success", title: "Integration updated", description: "Changes were saved." });
         closeDrawer();
@@ -497,44 +586,49 @@ export function IntegrationsPage({
       const slug = slugKey(name);
       const instanceKey = `${slug}-oauth`;
       const appKey = `${slug}-app`;
-      const scopes = customScopes.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
-      let issuer = "";
-      try {
-        issuer = new URL(authUrl).origin;
-      } catch {
-        issuer = "";
+      let issuer = issuerResolved;
+      if (!issuer) {
+        try {
+          issuer = new URL(authUrl).origin;
+        } catch {
+          issuer = "";
+        }
       }
       await api.createProviderInstance(session.csrfToken, {
         key: instanceKey,
         display_name: customProvider.trim() || name,
-        provider_definition_key: "miro",
+        provider_definition_key: PROVIDER_DEFINITION_GENERIC_OAUTH,
         role: "downstream_oauth",
         issuer: issuer || null,
         authorization_endpoint: authUrl,
         token_endpoint: tokenUrl,
         userinfo_endpoint: customUserinfo.trim() || null,
-        settings: customPkce ? { use_pkce: true } : {},
-        is_enabled: true,
+        settings: { use_pkce: customPkce },
+        is_enabled: customIntegrationEnabled,
       });
       await api.createProviderApp(session.csrfToken, {
         provider_instance_key: instanceKey,
         key: appKey,
         template_key: null,
         display_name: name,
-        client_id: customClientId.trim() || null,
+        client_id: clientIdVal || null,
         client_secret: customPkce ? null : customSecret.trim(),
         redirect_uris: [urls.custom_oauth],
         default_scopes: scopes,
-        scope_ceiling: scopes,
-        access_mode: "relay",
-        allow_relay: true,
-        allow_direct_token_return: false,
-        relay_protocol: "mcp_streamable_http",
-        allowed_connection_types: ["relay"],
-        relay_config: { relay_type: "generic_http", token_transport: "authorization_bearer" },
-        is_enabled: true,
+        scope_ceiling: ceiling,
+        access_mode: accessMode,
+        allow_relay: allowRelay,
+        allow_direct_token_return: allowDirect,
+        relay_protocol: customRelayProtocol || null,
+        allowed_connection_types: connectionTypes,
+        relay_config: mergeCustomRelayConfig({}, relayDraft as Record<string, unknown>),
+        is_enabled: customIntegrationEnabled,
       });
-      notify({ tone: "success", title: "Integration created", description: "It is available for access rules and user connections." });
+      notify({
+        tone: "success",
+        title: "Integration created",
+        description: "It is available for access rules and user connections.",
+      });
       closeDrawer();
       await load();
     } catch (error) {
@@ -595,8 +689,22 @@ export function IntegrationsPage({
 
   const goNextCustom = () => {
     if (wizardStep === 0 && !customName.trim()) {
-      notify({ tone: "error", title: "Name required", description: "Enter an integration name." });
+      notify({ tone: "error", title: "Name required", description: "Enter a display name." });
       return;
+    }
+    if (wizardStep === 1) {
+      if (!customClientId.trim()) {
+        notify({ tone: "error", title: "Client ID required", description: "Enter the OAuth client ID." });
+        return;
+      }
+      if (!connectionTypes.length) {
+        notify({
+          tone: "error",
+          title: "Connection type required",
+          description: "Select Direct connection and/or Relay through broker.",
+        });
+        return;
+      }
     }
     if (wizardStep === 2) {
       if (!customAuthUrl.trim() || !customTokenUrl.trim()) {
@@ -1142,12 +1250,22 @@ export function IntegrationsPage({
                 <Field label="Provider name" hint="Shown in lists; optional.">
                   <input value={customProvider} onChange={(e) => setCustomProvider(e.target.value)} placeholder="Same as display name if empty" />
                 </Field>
+                <div className="field">
+                  <label className="check-option">
+                    <input
+                      type="checkbox"
+                      checked={customIntegrationEnabled}
+                      onChange={(e) => setCustomIntegrationEnabled(e.target.checked)}
+                    />
+                    <span>Integration enabled</span>
+                  </label>
+                </div>
               </>
             ) : null}
             {wizardStep === 1 ? (
               <>
                 <Field label="Client ID">
-                  <input value={customClientId} onChange={(e) => setCustomClientId(e.target.value)} />
+                  <input value={customClientId} onChange={(e) => setCustomClientId(e.target.value)} autoComplete="off" />
                 </Field>
                 <div className="field">
                   <label className="check-option">
@@ -1156,9 +1274,63 @@ export function IntegrationsPage({
                   </label>
                 </div>
                 {!customPkce ? (
-                  <Field label="Client secret">
+                  <Field label="Client secret" hint="Required when PKCE is off. Leave blank when editing to keep the stored secret.">
                     <input type="password" value={customSecret} onChange={(e) => setCustomSecret(e.target.value)} autoComplete="new-password" />
                   </Field>
+                ) : null}
+                <div className="field">
+                  <span className="field-label">Connection types</span>
+                  <label className="check-option">
+                    <input
+                      type="checkbox"
+                      checked={connectionTypes.includes("direct_token")}
+                      onChange={() => toggleConnectionType("direct_token")}
+                    />
+                    <span>Direct connection</span>
+                  </label>
+                  <label className="check-option">
+                    <input type="checkbox" checked={connectionTypes.includes("relay")} onChange={() => toggleConnectionType("relay")} />
+                    <span>Relay through broker</span>
+                  </label>
+                </div>
+                <Field label="Relay protocol">
+                  <select value={customRelayProtocol} onChange={(e) => setCustomRelayProtocol(e.target.value)}>
+                    <option value="mcp_streamable_http">MCP streamable HTTP</option>
+                    <option value="rest_proxy">REST proxy</option>
+                    <option value="generic_http">Generic HTTP</option>
+                  </select>
+                </Field>
+                {connectionTypes.includes("relay") ? (
+                  <>
+                    <Field label="Relay type">
+                      <select
+                        value={String(relayDraft.relay_type ?? "generic_http")}
+                        onChange={(e) => setRelayDraft((d) => ({ ...d, relay_type: e.target.value }))}
+                      >
+                        <option value="streamable_http">Streamable HTTP</option>
+                        <option value="rest_proxy">REST proxy</option>
+                        <option value="generic_http">Generic HTTP</option>
+                      </select>
+                    </Field>
+                    <Field label="Upstream URL">
+                      <input
+                        value={String(relayDraft.upstream_base_url ?? "")}
+                        onChange={(e) => setRelayDraft((d) => ({ ...d, upstream_base_url: e.target.value }))}
+                        placeholder="https://…"
+                        autoComplete="off"
+                      />
+                    </Field>
+                    <Field label="Authorization">
+                      <select
+                        value={String(relayDraft.token_transport ?? "authorization_bearer")}
+                        onChange={(e) => setRelayDraft((d) => ({ ...d, token_transport: e.target.value }))}
+                      >
+                        <option value="authorization_bearer">Bearer</option>
+                        <option value="header">Header</option>
+                        <option value="query">Query</option>
+                      </select>
+                    </Field>
+                  </>
                 ) : null}
               </>
             ) : null}
@@ -1170,17 +1342,18 @@ export function IntegrationsPage({
                 <Field label="Token URL">
                   <input value={customTokenUrl} onChange={(e) => setCustomTokenUrl(e.target.value)} required placeholder="https://…" />
                 </Field>
-                <Field label="Scopes">
+                <Field label="Issuer" hint="Uses the authorize URL origin when empty.">
+                  <input value={customIssuer} onChange={(e) => setCustomIssuer(e.target.value)} placeholder="https://…" autoComplete="off" />
+                </Field>
+                <Field label="User info URL">
+                  <input value={customUserinfo} onChange={(e) => setCustomUserinfo(e.target.value)} autoComplete="off" />
+                </Field>
+                <Field label="Default scopes">
                   <input value={customScopes} onChange={(e) => setCustomScopes(e.target.value)} placeholder="space-separated" />
                 </Field>
-                <button type="button" className="ghost-button advanced-toggle" onClick={() => setAdvancedOpen((v) => !v)}>
-                  User info endpoint
-                </button>
-                {advancedOpen ? (
-                  <Field label="User info URL" hint="Optional.">
-                    <input value={customUserinfo} onChange={(e) => setCustomUserinfo(e.target.value)} />
-                  </Field>
-                ) : null}
+                <Field label="Scope ceiling" hint="When empty, default scopes apply.">
+                  <input value={customScopeCeiling} onChange={(e) => setCustomScopeCeiling(e.target.value)} placeholder="space-separated" />
+                </Field>
               </>
             ) : null}
             {wizardStep === 3 ? (
@@ -1189,9 +1362,23 @@ export function IntegrationsPage({
                 <div className="summary-panel">
                   <SummaryRow label="Name" value={customName.trim() || "—"} />
                   <SummaryRow label="Provider" value={customProvider.trim() || customName.trim() || "—"} />
+                  <SummaryRow label="Enabled" value={customIntegrationEnabled ? "Yes" : "No"} />
                   <SummaryRow label="PKCE" value={customPkce ? "Yes" : "No"} />
+                  <SummaryRow label="Client ID" value={customClientId.trim() || "—"} />
+                  <SummaryRow
+                    label="Connections"
+                    value={
+                      [
+                        connectionTypes.includes("direct_token") ? "Direct" : null,
+                        connectionTypes.includes("relay") ? "Relay" : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ") || "—"
+                    }
+                  />
                   <SummaryRow label="Authorize URL" value={customAuthUrl.trim() || "—"} />
                   <SummaryRow label="Token URL" value={customTokenUrl.trim() || "—"} />
+                  <SummaryRow label="Issuer" value={customIssuer.trim() || "(from authorize URL)"} />
                 </div>
               </>
             ) : null}

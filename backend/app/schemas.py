@@ -58,6 +58,14 @@ class IntegrationTestOut(BaseModel):
     message: str
 
 
+class IntegrationDeleteConflictDetail(BaseModel):
+    code: str = "integration_in_use"
+    message: str
+    active_delegation_grants: int = 0
+    active_connected_accounts: int = 0
+    pending_oauth_flows: int = 0
+
+
 class ProviderDefinitionOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

@@ -1,3 +1,32 @@
+## 2026-04-05 – Cursor Agent – Custom Integration Soft-Delete
+
+- Done:
+  - Soft-Delete: `provider_apps.deleted_at`, `is_enabled=false`, Client-Secret entfernt, `key` mit Suffix für Unique-Constraint; `ProviderInstance` ohne verbleibende aktive App deaktiviert.
+  - Blocker: aktive Delegation Grants (nicht revoked, nicht abgelaufen), nicht widerrufene `ConnectedAccount`, offene `oauth_pending_states` (Flow `generic_provider_connect`).
+  - API `DELETE /api/v1/admin/provider-apps/{id}`; 409 mit strukturiertem `detail`; Audit-Events; `GET` user/admin Listen filtern gelöschte Apps; `deps`/`generic_oauth`/`provider_templates` angepasst.
+  - Frontend: Remove + `ConfirmModal`, API `deleteProviderApp`, 409-Toast; `api.ts` parst `detail`-Objekte.
+  - Tests `backend/test_provider_app_delete.py`; `docs/CHANGELOG.md`.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - backend/app/models.py, seed.py, schemas.py, provider_app_delete.py, routers/admin.py, connections.py, user.py, deps.py, provider_templates.py, generic_oauth.py
+  - backend/test_provider_app_delete.py
+  - frontend/src/api.ts, types.ts, admin/IntegrationsPage.tsx, admin/IntegrationOverview.tsx
+  - docs/CHANGELOG.md, planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `python3 -m py_compile …`, `python3 -m unittest test_provider_app_delete test_generic_oauth`, `cd frontend && npm run build`
+  - endpoints: `DELETE /api/v1/admin/provider-apps/{id}` (CSRF)
+  - UI path: /app/integrations → Custom-Karte / Detail „Remove“
+- Changelog updated:
+  - yes (Unreleased Added)
+- Follow-ups:
+  - keine
+
 ## 2026-04-05 – Cursor Agent – Custom-Integration Wizard & PKCE-Status
 
 - Done:

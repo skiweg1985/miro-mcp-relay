@@ -126,6 +126,7 @@ class ProviderApp(Base):
     relay_protocol: Mapped[str | None] = mapped_column(String(120), nullable=True)
     relay_config_json: Mapped[str] = mapped_column(Text, default="{}")
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
 

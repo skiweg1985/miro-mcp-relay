@@ -165,6 +165,8 @@ def get_provider_app_by_template(
         select(ProviderApp).where(ProviderApp.organization_id == organization_id).order_by(ProviderApp.created_at.desc())
     ).all()
     for provider_app in provider_apps:
+        if provider_app.deleted_at is not None:
+            continue
         if enabled_only and not provider_app.is_enabled:
             continue
         if provider_app_matches_template(provider_app, template_key):
@@ -209,7 +211,9 @@ def enforce_singleton_template(
         (
             provider_app
             for provider_app in provider_apps
-            if provider_app.id != current_app_id and provider_app_matches_template(provider_app, template_key)
+            if provider_app.deleted_at is None
+            and provider_app.id != current_app_id
+            and provider_app_matches_template(provider_app, template_key)
         ),
         None,
     )

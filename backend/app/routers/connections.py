@@ -88,6 +88,7 @@ def list_provider_apps(db: Session = Depends(get_db), current_user: User = Depen
         select(ProviderApp).where(
             ProviderApp.organization_id == current_user.organization_id,
             ProviderApp.is_enabled.is_(True),
+            ProviderApp.deleted_at.is_(None),
         ).order_by(ProviderApp.display_name.asc())
     ).all()
     provider_instances = {
@@ -138,6 +139,7 @@ async def start_provider_connect(
             ProviderApp.organization_id == current_user.organization_id,
             ProviderApp.key == payload.provider_app_key,
             ProviderApp.is_enabled.is_(True),
+            ProviderApp.deleted_at.is_(None),
         )
     )
     if not provider_app:

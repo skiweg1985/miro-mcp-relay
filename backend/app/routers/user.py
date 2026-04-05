@@ -304,6 +304,7 @@ def create_my_delegation_grant(
             ProviderApp.organization_id == current_user.organization_id,
             ProviderApp.key == payload.provider_app_key,
             ProviderApp.is_enabled.is_(True),
+            ProviderApp.deleted_at.is_(None),
         )
     )
     if not provider_app:

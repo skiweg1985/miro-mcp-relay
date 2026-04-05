@@ -123,6 +123,15 @@ export type ProviderInstanceOut = {
   is_enabled: boolean;
 };
 
+/** Structured body for HTTP 409 on custom integration delete (see IntegrationDeleteConflictDetail). */
+export type IntegrationDeleteConflictDetail = {
+  code?: string;
+  message: string;
+  active_delegation_grants: number;
+  active_connected_accounts: number;
+  pending_oauth_flows: number;
+};
+
 export type ProviderAppOut = {
   id: string;
   key: string;

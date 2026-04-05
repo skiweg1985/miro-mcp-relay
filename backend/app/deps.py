@@ -171,7 +171,12 @@ def diagnose_service_access(
         return auth_context, HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Delegation expired")
 
     auth_context.provider_app = db.scalar(select(ProviderApp).where(ProviderApp.id == auth_context.grant.provider_app_id))
-    if not auth_context.provider_app or auth_context.provider_app.key != provider_app_key or not auth_context.provider_app.is_enabled:
+    if (
+        not auth_context.provider_app
+        or auth_context.provider_app.key != provider_app_key
+        or not auth_context.provider_app.is_enabled
+        or auth_context.provider_app.deleted_at is not None
+    ):
         return auth_context, HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Provider app not allowed")
 
     allowed = set(effective_allowed_connection_types(auth_context.provider_app))

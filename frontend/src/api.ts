@@ -57,12 +57,20 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     let message = `Request failed with status ${response.status}`;
     if (text) {
       try {
-        detail = JSON.parse(text) as unknown;
-        if (typeof detail === "object" && detail !== null && "detail" in detail) {
-          const detailMessage = (detail as { detail?: unknown }).detail;
-          if (typeof detailMessage === "string") {
-            message = detailMessage;
-          }
+        const body = JSON.parse(text) as unknown;
+        detail = body;
+        if (typeof body === "object" && body !== null && "detail" in body) {
+          detail = (body as { detail: unknown }).detail;
+        }
+        if (typeof detail === "string") {
+          message = detail;
+        } else if (
+          typeof detail === "object" &&
+          detail !== null &&
+          "message" in detail &&
+          typeof (detail as { message?: unknown }).message === "string"
+        ) {
+          message = (detail as { message: string }).message;
         }
       } catch {
         message = text;
@@ -261,10 +269,16 @@ export const api = {
     });
   },
   updateProviderApp(csrfToken: string, providerAppId: string, body: unknown) {
-    return request<ProviderAppOut>(`/api/v1/admin/provider-apps/${providerAppId}`, {
+    return request<ProviderAppOut>(`/api/v1/admin/provider-apps/${encodeURIComponent(providerAppId)}`, {
       method: "PATCH",
       csrfToken,
       body,
+    });
+  },
+  deleteProviderApp(csrfToken: string, providerAppId: string) {
+    return request<void>(`/api/v1/admin/provider-apps/${encodeURIComponent(providerAppId)}`, {
+      method: "DELETE",
+      csrfToken,
     });
   },
   connectedAccounts(csrfToken: string) {

@@ -102,6 +102,7 @@ def reconcile_schema() -> None:
             {
                 "template_key": "VARCHAR(120)",
                 "relay_config_json": "TEXT DEFAULT '{}'",
+                "deleted_at": "TIMESTAMP NULL",
             },
         )
         _ensure_columns(

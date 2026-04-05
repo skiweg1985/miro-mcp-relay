@@ -1,11 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { api } from "../api";
-import { Card, EmptyState, Field, LoadingScreen, PageIntro, StatusBadge } from "../components";
+import { Card, ConfirmModal, EmptyState, Field, LoadingScreen, PageIntro, StatusBadge } from "../components";
 import { useAppContext } from "../app-context";
 import { isApiError } from "../errors";
 import { integrationCardStatus, oauthIntegrationConfigured } from "../oauthIntegrationStatus";
-import type { BrokerCallbackUrls, ConnectedAccountOut, ProviderAppOut, ProviderInstanceOut, TokenIssueEventOut } from "../types";
+import type {
+  BrokerCallbackUrls,
+  ConnectedAccountOut,
+  IntegrationDeleteConflictDetail,
+  ProviderAppOut,
+  ProviderInstanceOut,
+  TokenIssueEventOut,
+} from "../types";
 import {
   IntegrationOverview,
   buildOverviewHealth,
@@ -54,6 +61,22 @@ const STEPS_CUSTOM: WizardStep[] = [
   { id: "endpoints", label: "Endpoints" },
   { id: "review", label: "Review" },
 ];
+
+function describeIntegrationDeleteConflict(detail: unknown): string {
+  if (typeof detail !== "object" || detail === null) {
+    return "Die Integration ist noch in Benutzung.";
+  }
+  const d = detail as Partial<IntegrationDeleteConflictDetail>;
+  const g = d.active_delegation_grants ?? 0;
+  const c = d.active_connected_accounts ?? 0;
+  const p = d.pending_oauth_flows ?? 0;
+  const parts: string[] = [];
+  if (g > 0) parts.push(`${g} aktive Zugriffsregel${g === 1 ? "" : "n"}`);
+  if (c > 0) parts.push(`${c} aktive Verbindung${c === 1 ? "" : "en"}`);
+  if (p > 0) parts.push(`${p} offene OAuth-Anmeldung${p === 1 ? "" : "en"}`);
+  if (parts.length) return `Noch aktiv: ${parts.join(", ")}.`;
+  return typeof d.message === "string" ? d.message : "Die Integration ist noch in Benutzung.";
+}
 
 type CardModel = {
   id: string;
@@ -162,6 +185,8 @@ export function IntegrationsPage({
   const [testing, setTesting] = useState<string | null>(null);
   const [toggling, setToggling] = useState(false);
   const [customEditAppId, setCustomEditAppId] = useState<string | null>(null);
+  const [removeConfirmApp, setRemoveConfirmApp] = useState<ProviderAppOut | null>(null);
+  const [removeBusy, setRemoveBusy] = useState(false);
 
   const [tenant, setTenant] = useState("");
   const [clientId, setClientId] = useState("");
@@ -200,6 +225,32 @@ export function IntegrationsPage({
     setConnections(connData);
     setTokenIssues(issuesData);
   }, [session]);
+
+  const confirmRemoveCustomIntegration = useCallback(async () => {
+    if (session.status !== "authenticated" || !removeConfirmApp) return;
+    const removedId = removeConfirmApp.id;
+    const fromDetail = detailAppId === removedId;
+    setRemoveBusy(true);
+    try {
+      await api.deleteProviderApp(session.csrfToken, removedId);
+      notify({ tone: "success", title: "Integration entfernt" });
+      setRemoveConfirmApp(null);
+      if (fromDetail) {
+        navigate("/app/integrations");
+      }
+      await load();
+    } catch (e) {
+      if (isApiError(e) && e.status === 409) {
+        notify({ tone: "error", title: "Entfernen nicht möglich", description: describeIntegrationDeleteConflict(e.detail) });
+      } else if (isApiError(e)) {
+        notify({ tone: "error", title: "Entfernen fehlgeschlagen", description: e.message });
+      } else {
+        notify({ tone: "error", title: "Entfernen fehlgeschlagen", description: "Unerwarteter Fehler." });
+      }
+    } finally {
+      setRemoveBusy(false);
+    }
+  }, [session, removeConfirmApp, detailAppId, navigate, load, notify]);
 
   useEffect(() => {
     setLoading(true);
@@ -746,6 +797,8 @@ export function IntegrationsPage({
               if (detailTestKey) void runTest(detailTestKey);
             }}
             onToggleEnabled={() => void toggleIntegrationEnabled(detailApp, detailInstance)}
+            onRemove={detailApp.template_key === null ? () => setRemoveConfirmApp(detailApp) : undefined}
+            removing={removeBusy && removeConfirmApp?.id === detailApp.id}
             testing={Boolean(detailTestKey && testing === detailTestKey)}
             toggling={toggling}
             testAvailable={Boolean(detailTestKey)}
@@ -849,6 +902,14 @@ export function IntegrationsPage({
                   <div className="integration-card-actions">
                     <button type="button" className="primary-button" onClick={() => navigate(`/app/integrations/${app.id}`)}>
                       Open
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      disabled={removeBusy && removeConfirmApp?.id === app.id}
+                      onClick={() => setRemoveConfirmApp(app)}
+                    >
+                      Remove
                     </button>
                   </div>
                 </article>
@@ -1373,6 +1434,24 @@ export function IntegrationsPage({
             ) : null}
           </div>
         </SetupDrawer>
+      ) : null}
+
+      {removeConfirmApp ? (
+        <ConfirmModal
+          title="Integration entfernen"
+          confirmLabel="Entfernen"
+          cancelLabel="Abbrechen"
+          confirmBusy={removeBusy}
+          onCancel={() => {
+            if (!removeBusy) setRemoveConfirmApp(null);
+          }}
+          onConfirm={() => void confirmRemoveCustomIntegration()}
+        >
+          <p>Aktive Zugriffsregeln, Verbindungen oder eine laufende OAuth-Anmeldung verhindern das Entfernen.</p>
+          <p className="muted">
+            <strong>{removeConfirmApp.display_name}</strong>
+          </p>
+        </ConfirmModal>
       ) : null}
     </>
   );

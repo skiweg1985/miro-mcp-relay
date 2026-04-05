@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, select, update
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -12,6 +12,13 @@ from app.deps import record_audit, require_admin, require_csrf
 from app.miro import import_legacy_miro_data, migration_status
 from app.connection_serializers import serialize_connected_account
 from app.models import AuditEvent, ConnectedAccount, DelegationGrant, GrantedCapability, ProviderApp, ProviderDefinition, ProviderInstance, ServiceClient, TokenIssueEvent, TokenMaterial, User
+from app.provider_app_delete import (
+    count_active_delegation_grants,
+    count_blocking_connected_accounts,
+    count_pending_oauth_flows_for_app,
+    freed_key_after_soft_delete,
+    maybe_disable_orphaned_provider_instance,
+)
 from app.provider_templates import (
     MICROSOFT_BROKER_LOGIN_TEMPLATE,
     MICROSOFT_GRAPH_DIRECT_TEMPLATE,
@@ -30,6 +37,7 @@ from app.schemas import (
     DelegationGrantCreate,
     DelegationGrantOut,
     DelegationGrantSecretResponse,
+    IntegrationDeleteConflictDetail,
     IntegrationTestOut,
     IntegrationTestRequest,
     MiroMigrationImportResponse,
@@ -271,7 +279,11 @@ def update_provider_instance(
 
 @router.get("/provider-apps", response_model=list[ProviderAppOut], dependencies=[Depends(require_csrf)])
 def list_provider_apps(_admin: User = Depends(require_admin), db: Session = Depends(get_db)):
-    provider_apps = db.scalars(select(ProviderApp).where(ProviderApp.organization_id == _admin.organization_id).order_by(ProviderApp.created_at.desc())).all()
+    provider_apps = db.scalars(
+        select(ProviderApp)
+        .where(ProviderApp.organization_id == _admin.organization_id, ProviderApp.deleted_at.is_(None))
+        .order_by(ProviderApp.created_at.desc())
+    ).all()
     provider_instances = {
         instance.id: instance
         for instance in db.scalars(select(ProviderInstance).where(ProviderInstance.organization_id == _admin.organization_id)).all()
@@ -338,6 +350,8 @@ def update_provider_app(
     provider_app = db.get(ProviderApp, provider_app_id)
     if not provider_app or provider_app.organization_id != admin.organization_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider app not found")
+    if provider_app.deleted_at is not None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider app not found")
     provider_instance = db.get(ProviderInstance, provider_app.provider_instance_id)
     if not provider_instance:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider instance not found")
@@ -383,6 +397,75 @@ def update_provider_app(
     db.commit()
     db.refresh(provider_app)
     return _provider_app_out(provider_app, provider_instance)
+
+
+@router.delete("/provider-apps/{provider_app_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_csrf)])
+def delete_provider_app(provider_app_id: str, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    provider_app = db.get(ProviderApp, provider_app_id)
+    if not provider_app or provider_app.organization_id != admin.organization_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider app not found")
+    if provider_app.deleted_at is not None:
+        return None
+    if provider_app.template_key is not None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Built-in template integrations cannot be removed with this action",
+        )
+
+    grants = count_active_delegation_grants(db, provider_app_id=provider_app.id)
+    connections = count_blocking_connected_accounts(db, provider_app_id=provider_app.id)
+    pending_oauth = count_pending_oauth_flows_for_app(db, provider_app_id=provider_app.id)
+    if grants or connections or pending_oauth:
+        detail = IntegrationDeleteConflictDetail(
+            message="Integration is still in use; revoke access rules, disconnect accounts, or wait for OAuth flows to finish.",
+            active_delegation_grants=grants,
+            active_connected_accounts=connections,
+            pending_oauth_flows=pending_oauth,
+        )
+        record_audit(
+            db,
+            action="admin.integration.delete.blocked",
+            actor_type="user",
+            actor_id=admin.id,
+            organization_id=admin.organization_id,
+            metadata={
+                "org_id": admin.organization_id,
+                "provider_app_id": provider_app.id,
+                "template_key": provider_app.template_key,
+                "active_delegation_grants": grants,
+                "active_connected_accounts": connections,
+                "pending_oauth_flows": pending_oauth,
+            },
+        )
+        db.commit()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail.model_dump())
+
+    instance_id = provider_app.provider_instance_id
+    previous_key = provider_app.key
+    provider_app.key = freed_key_after_soft_delete(previous_key=previous_key, provider_app_id=provider_app.id)
+    provider_app.is_enabled = False
+    provider_app.deleted_at = utcnow()
+    provider_app.encrypted_client_secret = None
+
+    maybe_disable_orphaned_provider_instance(db, provider_instance_id=instance_id)
+
+    record_audit(
+        db,
+        action="admin.integration.deleted",
+        actor_type="user",
+        actor_id=admin.id,
+        organization_id=admin.organization_id,
+        metadata={
+            "org_id": admin.organization_id,
+            "provider_app_id": provider_app.id,
+            "template_key": provider_app.template_key,
+            "deletion_kind": "soft",
+            "provider_instance_id": instance_id,
+            "previous_key": previous_key,
+        },
+    )
+    db.commit()
+    return None
 
 
 @router.get("/service-clients", response_model=list[ServiceClientOut], dependencies=[Depends(require_csrf)])

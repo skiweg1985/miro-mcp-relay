@@ -86,6 +86,8 @@ async def start_generic_provider_connection(
     provider_app: ProviderApp,
     connected_account: ConnectedAccount | None,
 ) -> tuple[str, str]:
+    if provider_app.deleted_at is not None or not provider_app.is_enabled:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Provider app is not available")
     if provider_app.template_key is not None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Not a custom provider app")
     instance = db.get(ProviderInstance, provider_app.provider_instance_id)

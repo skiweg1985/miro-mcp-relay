@@ -200,8 +200,10 @@ export function IntegrationOverview({
   onEdit,
   onTest,
   onToggleEnabled,
+  onRemove,
   testing,
   toggling,
+  removing,
   testAvailable,
   lastUpdated,
 }: {
@@ -216,8 +218,10 @@ export function IntegrationOverview({
   onEdit: () => void;
   onTest: () => void;
   onToggleEnabled: () => void;
+  onRemove?: () => void;
   testing: boolean;
   toggling: boolean;
+  removing?: boolean;
   testAvailable: boolean;
   lastUpdated: string | null;
 }) {
@@ -257,6 +261,11 @@ export function IntegrationOverview({
           <button type="button" className="secondary-button" onClick={onEdit}>
             Edit
           </button>
+          {onRemove ? (
+            <button type="button" className="secondary-button" disabled={removing} onClick={onRemove}>
+              {removing ? "Removing…" : "Remove"}
+            </button>
+          ) : null}
           <button
             type="button"
             className="secondary-button"

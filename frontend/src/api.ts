@@ -275,8 +275,9 @@ export const api = {
       body,
     });
   },
-  deleteProviderApp(csrfToken: string, providerAppId: string) {
-    return request<void>(`/api/v1/admin/provider-apps/${encodeURIComponent(providerAppId)}`, {
+  deleteProviderApp(csrfToken: string, providerAppId: string, options?: { force?: boolean }) {
+    const q = options?.force ? "?force=true" : "";
+    return request<void>(`/api/v1/admin/provider-apps/${encodeURIComponent(providerAppId)}${q}`, {
       method: "DELETE",
       csrfToken,
     });

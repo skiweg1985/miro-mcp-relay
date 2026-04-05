@@ -140,6 +140,13 @@ class ProviderAppDeleteTests(unittest.TestCase):
         self.assertEqual(body["detail"]["code"], "integration_in_use")
         self.assertGreaterEqual(body["detail"]["active_connected_accounts"], 1)
 
+        force = self.client.delete(
+            f"/api/v1/admin/provider-apps/{app_id}",
+            headers={"X-CSRF-Token": csrf},
+            params={"force": "true"},
+        )
+        self.assertEqual(force.status_code, 204)
+
     def test_custom_delete_blocked_by_active_grant(self) -> None:
         csrf = self._login_admin()
         app_id = self._create_custom_app(csrf)

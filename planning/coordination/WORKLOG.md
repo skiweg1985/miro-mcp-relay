@@ -1,3 +1,17 @@
+## 2026-04-05 – Cursor Agent – Force-Delete Custom Integration
+
+- Done:
+  - `DELETE …/provider-apps/{id}?force=true`: Grants widerrufen, Verbindungen widerrufen, `TokenMaterial` entfernen, OAuth-Pending-Zeilen löschen, dann Soft-Delete; Audit `cleared_dependencies`.
+  - Admin-Modal: Checkbox für automatisches Widerrufen; API `deleteProviderApp(..., { force })`.
+  - Test: 409 ohne Force, 204 mit Force bei aktiver Verbindung; `docs/CHANGELOG.md`.
+- Next: keine
+- Blockers: keine
+- Branch/PR: branch `codex/oauth-broker-redesign`, PR none
+- Files touched: `backend/app/provider_app_delete.py`, `backend/app/routers/admin.py`, `backend/test_provider_app_delete.py`, `frontend/src/api.ts`, `frontend/src/admin/IntegrationsPage.tsx`, `docs/CHANGELOG.md`, `planning/coordination/WORKLOG.md`, `frontend/dist/*`
+- Test notes: `python3 -m unittest test_provider_app_delete`, `npm run build`
+- Changelog updated: yes (Unreleased Added)
+- Follow-ups: keine
+
 ## 2026-04-05 – Cursor Agent – Custom Integration Soft-Delete
 
 - Done:

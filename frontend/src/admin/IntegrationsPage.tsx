@@ -187,6 +187,7 @@ export function IntegrationsPage({
   const [customEditAppId, setCustomEditAppId] = useState<string | null>(null);
   const [removeConfirmApp, setRemoveConfirmApp] = useState<ProviderAppOut | null>(null);
   const [removeBusy, setRemoveBusy] = useState(false);
+  const [removeRevokeDependencies, setRemoveRevokeDependencies] = useState(false);
 
   const [tenant, setTenant] = useState("");
   const [clientId, setClientId] = useState("");
@@ -232,9 +233,10 @@ export function IntegrationsPage({
     const fromDetail = detailAppId === removedId;
     setRemoveBusy(true);
     try {
-      await api.deleteProviderApp(session.csrfToken, removedId);
+      await api.deleteProviderApp(session.csrfToken, removedId, { force: removeRevokeDependencies });
       notify({ tone: "success", title: "Integration entfernt" });
       setRemoveConfirmApp(null);
+      setRemoveRevokeDependencies(false);
       if (fromDetail) {
         navigate("/app/integrations");
       }
@@ -250,7 +252,7 @@ export function IntegrationsPage({
     } finally {
       setRemoveBusy(false);
     }
-  }, [session, removeConfirmApp, detailAppId, navigate, load, notify]);
+  }, [session, removeConfirmApp, removeRevokeDependencies, detailAppId, navigate, load, notify]);
 
   useEffect(() => {
     setLoading(true);
@@ -797,7 +799,14 @@ export function IntegrationsPage({
               if (detailTestKey) void runTest(detailTestKey);
             }}
             onToggleEnabled={() => void toggleIntegrationEnabled(detailApp, detailInstance)}
-            onRemove={detailApp.template_key === null ? () => setRemoveConfirmApp(detailApp) : undefined}
+            onRemove={
+              detailApp.template_key === null
+                ? () => {
+                    setRemoveRevokeDependencies(false);
+                    setRemoveConfirmApp(detailApp);
+                  }
+                : undefined
+            }
             removing={removeBusy && removeConfirmApp?.id === detailApp.id}
             testing={Boolean(detailTestKey && testing === detailTestKey)}
             toggling={toggling}
@@ -907,7 +916,10 @@ export function IntegrationsPage({
                       type="button"
                       className="secondary-button"
                       disabled={removeBusy && removeConfirmApp?.id === app.id}
-                      onClick={() => setRemoveConfirmApp(app)}
+                      onClick={() => {
+                        setRemoveRevokeDependencies(false);
+                        setRemoveConfirmApp(app);
+                      }}
                     >
                       Remove
                     </button>
@@ -1443,12 +1455,27 @@ export function IntegrationsPage({
           cancelLabel="Abbrechen"
           confirmBusy={removeBusy}
           onCancel={() => {
-            if (!removeBusy) setRemoveConfirmApp(null);
+            if (!removeBusy) {
+              setRemoveConfirmApp(null);
+              setRemoveRevokeDependencies(false);
+            }
           }}
           onConfirm={() => void confirmRemoveCustomIntegration()}
         >
-          <p>Aktive Zugriffsregeln, Verbindungen oder eine laufende OAuth-Anmeldung verhindern das Entfernen.</p>
-          <p className="muted">
+          <p>
+            Ohne die Option unten schlägt das Entfernen fehl, solange noch Zugriffsregeln, Verbindungen oder eine laufende OAuth-Anmeldung
+            bestehen.
+          </p>
+          <label className="check-option" style={{ display: "flex", alignItems: "flex-start", gap: "0.5rem", marginTop: "0.75rem" }}>
+            <input
+              type="checkbox"
+              checked={removeRevokeDependencies}
+              disabled={removeBusy}
+              onChange={(e) => setRemoveRevokeDependencies(e.target.checked)}
+            />
+            <span>Zugriffsregeln und Verbindungen automatisch widerrufen.</span>
+          </label>
+          <p className="muted" style={{ marginTop: "0.75rem" }}>
             <strong>{removeConfirmApp.display_name}</strong>
           </p>
         </ConfirmModal>

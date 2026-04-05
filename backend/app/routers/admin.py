@@ -16,6 +16,7 @@ from app.provider_app_delete import (
     count_active_delegation_grants,
     count_blocking_connected_accounts,
     count_pending_oauth_flows_for_app,
+    force_clear_provider_app_dependencies,
     freed_key_after_soft_delete,
     maybe_disable_orphaned_provider_instance,
 )
@@ -400,7 +401,12 @@ def update_provider_app(
 
 
 @router.delete("/provider-apps/{provider_app_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_csrf)])
-def delete_provider_app(provider_app_id: str, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+def delete_provider_app(
+    provider_app_id: str,
+    force: bool = Query(default=False, description="Revoke related grants and connections, then soft-delete"),
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
     provider_app = db.get(ProviderApp, provider_app_id)
     if not provider_app or provider_app.organization_id != admin.organization_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider app not found")
@@ -410,6 +416,14 @@ def delete_provider_app(provider_app_id: str, admin: User = Depends(require_admi
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Built-in template integrations cannot be removed with this action",
+        )
+
+    cleared: dict[str, int] | None = None
+    if force:
+        cleared = force_clear_provider_app_dependencies(
+            db,
+            provider_app_id=provider_app.id,
+            organization_id=admin.organization_id,
         )
 
     grants = count_active_delegation_grants(db, provider_app_id=provider_app.id)
@@ -462,6 +476,8 @@ def delete_provider_app(provider_app_id: str, admin: User = Depends(require_admi
             "deletion_kind": "soft",
             "provider_instance_id": instance_id,
             "previous_key": previous_key,
+            "force": bool(force),
+            "cleared_dependencies": cleared,
         },
     )
     db.commit()

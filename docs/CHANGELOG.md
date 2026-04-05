@@ -5,7 +5,8 @@
 ### Added
 
 - **Custom Integration entfernen (Soft-Delete)**: `DELETE /api/v1/admin/provider-apps/{id}` nur für `template_key is null`; Blocker **409** mit Zählern (`active_delegation_grants`, `active_connected_accounts`, `pending_oauth_flows`); Template-Apps **403**; Erfolg **204**; Audit `admin.integration.delete.blocked` / `admin.integration.deleted`. Modell `provider_apps.deleted_at`; Schema-Reconcile; Schlüssel wird mit `-deleted-<uuid>` freigegeben; optionale Deaktivierung der `ProviderInstance`, wenn keine aktive App mehr verweist.
-- Admin-UI **Integrations**: „Remove“ für Custom-Integrationen mit Bestätigungsdialog; **409** mit deutscher Zusammenfassung der Blocker.
+- **`force=true`** (Query): vor dem Löschen alle zugehörigen **Delegation Grants** widerrufen, **Connected Accounts** widerrufen und zugehörige **TokenMaterial**-Zeilen entfernen, passende **oauth_pending_states** löschen; danach Soft-Delete (Audit `cleared_dependencies`).
+- Admin-UI **Integrations**: „Remove“ mit Option „Zugriffsregeln und Verbindungen automatisch widerrufen“; **409** mit deutscher Zusammenfassung der Blocker.
 - Datenbank-Seed: Provider-Definition **`generic_oauth`** für im Admin angelegte Custom-OAuth-Instanzen (statt stiller Zuordnung zur Miro-Definition).
 - Admin-API: `ProviderAppUpdate.clear_client_secret` entfernt das gespeicherte Client-Secret (z. B. bei PKCE-only).
 - **Custom OAuth (Self-Service)**: `POST /api/v1/connections/provider-connect/start` startet für `template_key=null` einen generischen Authorize-Flow; `GET /api/v1/connections/provider-oauth/callback` tauscht den Code (PKCE/`client_secret_post`), legt `ConnectedAccount`/`TokenMaterial` an bzw. aktualisiert bei Reconnect; Pending-State über bestehende Tabelle **`oauth_pending_states`** (Flow `generic_provider_connect`). Refresh (`generic_provider.connection.refresh`) und Probe (UserInfo, Fallback gespeicherte Identität) für Custom.

@@ -22,7 +22,6 @@ export function MyClientsPage() {
   const [createdResult, setCreatedResult] = useState<ServiceClientCreateResult | null>(null);
   const [rotatedSecret, setRotatedSecret] = useState<string | null>(null);
   const [form, setForm] = useState<ServiceClientFormValues>({
-    key: "",
     display_name: "",
     environment: "",
     allowed_provider_app_keys: [],
@@ -84,7 +83,6 @@ export function MyClientsPage() {
     setPending(true);
     try {
       const body: Record<string, unknown> = {
-        key: form.key.trim(),
         display_name: form.display_name.trim(),
         environment: form.environment.trim() || null,
         allowed_provider_app_keys: form.allowed_provider_app_keys,
@@ -94,7 +92,6 @@ export function MyClientsPage() {
       const result = await api.createMyServiceClient(session.csrfToken, body);
       setCreatedResult(result);
       setForm({
-        key: "",
         display_name: "",
         environment: "",
         allowed_provider_app_keys: [],
@@ -242,7 +239,7 @@ export function MyClientsPage() {
 
       <Card title="Your clients">
         <DataTable
-          columns={["Name", "Key", "Status", "Environment", "Created", ""]}
+          columns={["Name", "Client ID", "Status", "Environment", "Created", ""]}
           rowKey={(rowIndex) => clients[rowIndex]?.id ?? rowIndex}
           rows={clients.map((client) => [
             client.display_name,
@@ -276,10 +273,7 @@ export function MyClientsPage() {
         >
           <form className="stack-form" onSubmit={handleSubmit}>
             <div className="form-grid">
-              <Field label="Key" hint="Unique in your organization">
-                <input value={form.key} onChange={(event) => setForm((current) => ({ ...current, key: event.target.value }))} required />
-              </Field>
-              <Field label="Display name">
+              <Field label="Name" hint="Shown in lists and when you bind access">
                 <input
                   value={form.display_name}
                   onChange={(event) => setForm((current) => ({ ...current, display_name: event.target.value }))}
@@ -332,10 +326,13 @@ export function MyClientsPage() {
       ) : null}
 
       {editId && editTarget ? (
-        <Modal title="Edit client" description={editTarget.key} wide onClose={() => setEditId(null)}>
+        <Modal title="Edit client" description={editTarget.display_name} wide onClose={() => setEditId(null)}>
           <form className="stack-form" onSubmit={handleEditSubmit}>
             <div className="form-grid">
-              <Field label="Display name">
+              <Field label="Client ID">
+                <code className="inline-code">{editTarget.key}</code>
+              </Field>
+              <Field label="Name">
                 <input
                   value={editForm.display_name}
                   onChange={(event) => setEditForm((current) => ({ ...current, display_name: event.target.value }))}

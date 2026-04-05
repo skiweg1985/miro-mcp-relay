@@ -1,3 +1,28 @@
+## 2026-04-05 – Cursor Agent – Client-Terminologie & Auto-Key
+
+- Done:
+  - `ServiceClientCreate`: `key` optional; ohne Eingabe UUID via `new_id()`; manuelles `key` weiter erlaubt (API).
+  - `MyClientsPage`: nur **Name** beim Anlegen; Tabelle **Client ID**; Edit-Modal mit read-only Client-ID.
+  - `App.tsx` (Access, Activity, Filter): „App“ → „Client“ / „Direct“ / „Callers“ wo Service-Client gemeint.
+  - `docs/CHANGELOG.md`, `planning/coordination/WORKLOG.md`; `frontend/dist` Build.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - backend/app/schemas.py, backend/app/routers/user.py
+  - frontend/src/App.tsx, MyClientsPage.tsx, types.ts, frontend/dist/*
+  - docs/CHANGELOG.md, planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `python3 -m unittest backend/test_welle1_smoke.py`, `cd frontend && npm run build`
+- Changelog updated:
+  - yes ([Unreleased] Changed)
+- Follow-ups:
+  - keine
+
 ## 2026-04-04 – Cursor Agent – Access-Modal Layout (SaaS)
 
 - Done:

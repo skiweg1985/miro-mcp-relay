@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_user, record_audit, require_csrf
-from app.models import ConnectedAccount, DelegationGrant, GrantedCapability, ProviderApp, ServiceClient, TokenIssueEvent, User
+from app.models import ConnectedAccount, DelegationGrant, GrantedCapability, ProviderApp, ServiceClient, TokenIssueEvent, User, new_id
 from app.relay_config import effective_allowed_connection_types
 from app.schemas import (
     AccessCredentialRotateOut,
@@ -86,14 +86,18 @@ def create_my_service_client(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    key = payload.key.strip()
-    if not key:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid client key")
-    dup = db.scalar(
-        select(ServiceClient).where(ServiceClient.organization_id == current_user.organization_id, ServiceClient.key == key)
-    )
-    if dup:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Client key already in use")
+    raw_key = (payload.key or "").strip()
+    if raw_key:
+        if len(raw_key) > 120:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Client key too long")
+        key = raw_key
+        dup = db.scalar(
+            select(ServiceClient).where(ServiceClient.organization_id == current_user.organization_id, ServiceClient.key == key)
+        )
+        if dup:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Client key already in use")
+    else:
+        key = new_id()
     raw_secret = (payload.client_secret or "").strip()
     secret = raw_secret if raw_secret else issue_plain_secret()
     if len(secret) < 16:

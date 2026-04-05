@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Self-Service **Access** (`/grants`) und **Activity**: Spalten und Texte sprechen durchgängig von **Client** (gebundener Service-Client), nicht „App“; direkte Nutzung als „Direct“ / „Direct access“.
+- **Clients** (`/workspace/clients`): Anlegen nur noch **Name**; technischer Unique-Key (`key`) wird serverseitig per UUID vergeben; optional weiterhin manuelles `key` in der API; Tabelle **Client ID**; Bearbeiten zeigt Client-ID read-only.
+
 ### Fixed
 
 - `diagnose_service_access`: Delegation Grants mit gebundenem `service_client_id` werden ohne `X-Service-Secret` abgewiesen (**401** `Service client secret required`); direkte Grants (`service_client_id` **NULL**) bleiben mit `X-Access-Key` allein nutzbar.

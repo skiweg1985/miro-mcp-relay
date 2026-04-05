@@ -348,7 +348,6 @@ export type ConnectedAccountFormValues = {
 };
 
 export type ServiceClientFormValues = {
-  key: string;
   display_name: string;
   environment: string;
   allowed_provider_app_keys: string[];

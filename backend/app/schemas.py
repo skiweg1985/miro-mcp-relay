@@ -170,8 +170,8 @@ class ProviderAppOut(BaseModel):
 
 
 class ServiceClientCreate(BaseModel):
-    key: str
-    display_name: str
+    key: str | None = None
+    display_name: str = Field(min_length=1, max_length=255)
     environment: str | None = None
     allowed_provider_app_keys: list[str] = Field(default_factory=list)
     client_secret: str | None = None

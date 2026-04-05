@@ -739,7 +739,7 @@ function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
         <div className="grant-detail-disclosure-body access-modal-dev">
           {grant.service_client_key ? (
             <p className="muted access-modal-dev-lede">
-              Named apps may require <code className="grant-inline-code">X-Service-Secret</code> from the service settings.
+              Named clients must send <code className="grant-inline-code">X-Service-Secret</code> with that client’s secret.
             </p>
           ) : null}
 
@@ -783,8 +783,8 @@ function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
             <h4 className="access-modal-dev-heading">This access</h4>
             <div className="grant-detail-meta stack-list access-modal-meta">
               <div className="stack-cell">
-                <strong>App</strong>
-                <span>{grant.service_client_display_name ?? "Any app (no name)"}</span>
+                <strong>Client</strong>
+                <span>{grant.service_client_display_name ?? "Direct (no client)"}</span>
               </div>
               <div className="stack-cell">
                 <strong>Integration</strong>
@@ -1216,7 +1216,7 @@ function GrantsPage() {
     } catch (error) {
       notify({
         tone: "error",
-        title: "Could not load app access",
+        title: "Could not load access",
         description: isApiError(error) ? error.message : "Something went wrong while loading.",
       });
     } finally {
@@ -1279,11 +1279,11 @@ function GrantsPage() {
   }, [grants, showInactiveGrants]);
 
   const grantsEmptyTitle =
-    grants.length === 0 ? "Nothing here yet" : visibleGrants.length === 0 ? "No active app access yet" : "";
+    grants.length === 0 ? "Nothing here yet" : visibleGrants.length === 0 ? "No active access yet" : "";
 
   const grantsEmptyBody =
     grants.length === 0
-      ? "Connect an integration, then add access for an app."
+      ? "Connect an integration, then add access."
       : visibleGrants.length === 0
         ? "Connect an integration or add access. Use the button below to show expired or paused entries."
         : "";
@@ -1305,7 +1305,7 @@ function GrantsPage() {
         capabilities: parseLines(form.capabilities_text),
       });
       setCreatedResult(result);
-      notify({ tone: "success", title: "App access added" });
+      notify({ tone: "success", title: "Access added" });
       setGrantModalOpen(false);
       setForm((current) => ({
         ...current,
@@ -1319,7 +1319,7 @@ function GrantsPage() {
     } catch (error) {
       notify({
         tone: "error",
-        title: "Could not add app access",
+        title: "Could not add access",
         description: isApiError(error) ? error.message : "Something went wrong while saving.",
       });
     } finally {
@@ -1346,13 +1346,13 @@ function GrantsPage() {
     }
   };
 
-  if (loading) return <LoadingScreen label="Loading app access…" />;
+  if (loading) return <LoadingScreen label="Loading access…" />;
 
   return (
     <>
       <PageIntro
         title="Access"
-        description="Choose which apps may use your connected accounts. Optional: restrict to one named app."
+        description="Choose which callers may use your connected accounts. Optional: restrict to one named client."
         actions={
           <button type="button" className="primary-button" onClick={() => setGrantModalOpen(true)}>
             Add access
@@ -1421,12 +1421,12 @@ function GrantsPage() {
           getRowAriaLabel={(rowIndex) => {
             const grant = visibleGrants[rowIndex];
             if (!grant) return "Open details";
-            const app = grant.service_client_display_name ?? "Any app";
-            return `Details for ${app}`;
+            const client = grant.service_client_display_name ?? "Direct access";
+            return `Details for ${client}`;
           }}
-          columns={["App", "Integration", "Connection", "Status", "Expires", ""]}
+          columns={["Client", "Integration", "Connection", "Status", "Expires", ""]}
           rows={visibleGrants.map((grant) => {
-            const clientLabel = grant.service_client_display_name ?? "Any app";
+            const clientLabel = grant.service_client_display_name ?? "Direct";
             const providerLabel = grant.provider_app_display_name;
             return [
               <span className="grants-cell-ellipsis" title={clientLabel}>
@@ -1466,7 +1466,7 @@ function GrantsPage() {
       {grantListHelpOpen ? (
         <Modal
           title="How access works"
-          description="Each entry links an app (or any app) to an integration. An access key is shown once when you create access—store it safely. Open a row for details and examples."
+          description="Each entry links a client (or direct access) to an integration. An access key is shown once when you create access—store it safely. Open a row for details and examples."
           onClose={() => setGrantListHelpOpen(false)}
         />
       ) : null}
@@ -1480,14 +1480,14 @@ function GrantsPage() {
       {grantModalOpen ? (
         <Modal
           title="Add access"
-          description="Optionally pick one app. Leave empty to allow any permitted app."
+          description="Optionally pick one client. Leave direct access selected to allow any permitted caller."
           wide
           onClose={() => setGrantModalOpen(false)}
         >
           <form className="stack-form" onSubmit={handleSubmit}>
             <div className="form-grid">
               <Field
-                label="App"
+                label="Client"
                 hint={
                   form.service_client_key.trim()
                     ? "Callers must send X-Service-Secret with this client’s secret."
@@ -1595,11 +1595,11 @@ function GrantsPage() {
           <p className="lede">
             {grantRevokeTarget ? (
               <>
-                Apps that used this access for <strong>{grantRevokeTarget.provider_app_display_name}</strong> stop working until you add
+                Callers that used this access for <strong>{grantRevokeTarget.provider_app_display_name}</strong> stop working until you add
                 access again.
               </>
             ) : (
-              "Apps that used this access stop working until you add access again."
+              "Callers that used this access stop working until you add access again."
             )}
           </p>
         </ConfirmModal>
@@ -1708,7 +1708,7 @@ function TokenAccessPage() {
     <>
       <PageIntro
         title="Activity"
-        description="When apps use your access, it appears here. Open a row for full detail."
+        description="When callers use your access, it appears here. Open a row for full detail."
         actions={
           <div className="inline-actions">
             <button type="button" className="ghost-button" onClick={() => setFilterModalOpen(true)}>
@@ -1739,7 +1739,7 @@ function TokenAccessPage() {
             if (!issue) return "Open details";
             return `Activity at ${formatDateTime(issue.created_at)}`;
           }}
-          columns={["Time", "App", "Integration", "Outcome", "Scopes"]}
+          columns={["Time", "Client", "Integration", "Outcome", "Scopes"]}
           rows={filteredIssues.map((issue) => [
             <span key={`${issue.id}-t`} className="activity-cell-time">
               {formatDateTime(issue.created_at)}
@@ -1758,7 +1758,7 @@ function TokenAccessPage() {
             </span>,
           ])}
           emptyTitle="No activity yet"
-          emptyBody="When an app uses your access, a row appears here."
+          emptyBody="When a caller uses your access, a row appears here."
         />
       </Card>
 
@@ -1770,7 +1770,7 @@ function TokenAccessPage() {
               <span>{formatDateTime(selectedIssue.created_at)}</span>
             </div>
             <div className="stack-cell">
-              <strong>App</strong>
+              <strong>Client</strong>
               <span>{selectedIssue.service_client_display_name ?? selectedIssue.service_client_id ?? "—"}</span>
             </div>
             <div className="stack-cell">
@@ -1813,7 +1813,7 @@ function TokenAccessPage() {
       {filterModalOpen ? (
         <Modal title="Filters" description="Narrow the list below." onClose={() => setFilterModalOpen(false)}>
           <div className="stack-form">
-            <Field label="App">
+            <Field label="Client">
               <select value={serviceClientFilter} onChange={(event) => setServiceClientFilter(event.target.value)}>
                 <option value="">All</option>
                 {serviceClients.map((client) => (
@@ -1828,7 +1828,7 @@ function TokenAccessPage() {
                 <option value="">All</option>
                 {grants.map((grant) => (
                   <option key={grant.id} value={grant.id}>
-                    {(grant.service_client_display_name ?? "Any app") + " · " + grant.provider_app_display_name}
+                    {(grant.service_client_display_name ?? "Direct") + " · " + grant.provider_app_display_name}
                   </option>
                 ))}
               </select>

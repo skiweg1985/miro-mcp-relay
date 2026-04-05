@@ -40,9 +40,7 @@ from app.schemas import (
     ProviderInstanceOut,
     ProviderAppUpdate,
     ProviderInstanceUpdate,
-    ServiceClientCreate,
     ServiceClientOut,
-    ServiceClientSecretResponse,
     TokenIssueEventOut,
     UserOut,
 )
@@ -385,79 +383,17 @@ def list_service_clients(_admin: User = Depends(require_admin), db: Session = De
     ).all()
 
 
-@router.post("/service-clients", response_model=ServiceClientSecretResponse, dependencies=[Depends(require_csrf)])
-def create_service_client(payload: ServiceClientCreate, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
-    secret = issue_plain_secret()
-    service_client = ServiceClient(
-        organization_id=admin.organization_id,
-        key=payload.key,
-        display_name=payload.display_name,
-        secret_hash=hash_secret(secret),
-        secret_lookup_hash=lookup_secret_hash(secret),
-        environment=payload.environment,
-        allowed_provider_app_keys_json=dumps_json(payload.allowed_provider_app_keys),
-    )
-    db.add(service_client)
-    record_audit(db, action="admin.service_client.created", actor_type="user", actor_id=admin.id, organization_id=admin.organization_id, metadata={"key": payload.key})
-    db.commit()
-    db.refresh(service_client)
-    return ServiceClientSecretResponse(service_client=ServiceClientOut.model_validate(service_client), client_secret=secret)
-
-
-@router.delete("/service-clients/{service_client_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_csrf)])
-def delete_service_client(service_client_id: str, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
-    service_client = db.scalar(
+@router.get("/users/{user_id}/service-clients", response_model=list[ServiceClientOut], dependencies=[Depends(require_csrf)])
+def list_service_clients_for_user(user_id: str, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    subject = db.get(User, user_id)
+    if not subject or subject.organization_id != admin.organization_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    return db.scalars(
         select(ServiceClient).where(
-            ServiceClient.id == service_client_id,
             ServiceClient.organization_id == admin.organization_id,
-        )
-    )
-    if not service_client:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Service not found")
-
-    active_access = db.scalar(
-        select(func.count())
-        .select_from(DelegationGrant)
-        .where(
-            DelegationGrant.organization_id == admin.organization_id,
-            DelegationGrant.service_client_id == service_client_id,
-            DelegationGrant.revoked_at.is_(None),
-        )
-    )
-    active_access = int(active_access or 0)
-    if active_access > 0:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Remove access rules for this service on Access first ({active_access} active).",
-        )
-
-    db.execute(
-        update(DelegationGrant)
-        .where(
-            DelegationGrant.organization_id == admin.organization_id,
-            DelegationGrant.service_client_id == service_client_id,
-        )
-        .values(service_client_id=None)
-    )
-    db.execute(
-        update(TokenIssueEvent)
-        .where(
-            TokenIssueEvent.organization_id == admin.organization_id,
-            TokenIssueEvent.service_client_id == service_client_id,
-        )
-        .values(service_client_id=None)
-    )
-    record_audit(
-        db,
-        action="admin.service_client.deleted",
-        actor_type="user",
-        actor_id=admin.id,
-        organization_id=admin.organization_id,
-        metadata={"key": service_client.key, "service_client_id": service_client_id},
-    )
-    db.delete(service_client)
-    db.commit()
-    return None
+            ServiceClient.created_by_user_id == user_id,
+        ).order_by(ServiceClient.display_name.asc())
+    ).all()
 
 
 @router.get("/connected-accounts", response_model=list[ConnectedAccountOut], dependencies=[Depends(require_csrf)])
@@ -568,6 +504,8 @@ def create_delegation_grant(payload: DelegationGrantCreate, admin: User = Depend
         )
         if not service_client:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Service client not found")
+        if service_client.created_by_user_id is not None and service_client.created_by_user_id != user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Service client does not belong to this user")
 
     provider_app = db.scalar(
         select(ProviderApp).where(ProviderApp.organization_id == admin.organization_id, ProviderApp.key == payload.provider_app_key)

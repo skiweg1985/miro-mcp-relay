@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -15,8 +15,11 @@ from app.schemas import (
     SelfServiceDelegationGrantCreate,
     SelfServiceDelegationGrantOut,
     SelfServiceDelegationGrantSecretResponse,
+    ServiceClientCreate,
+    ServiceClientOut,
+    ServiceClientSecretResponse,
+    ServiceClientUpdate,
     TokenIssueEventOut,
-    VisibleServiceClientOut,
 )
 from app.security import decrypt_text, dumps_json, encrypt_text, hash_secret, issue_plain_secret, loads_json, lookup_secret_hash, utcnow
 
@@ -57,14 +60,183 @@ def _grant_to_out(
     )
 
 
-@router.get("/service-clients", response_model=list[VisibleServiceClientOut])
-def list_service_clients(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def _get_owned_service_client(db: Session, *, service_client_id: str, current_user: User) -> ServiceClient | None:
+    return db.scalar(
+        select(ServiceClient).where(
+            ServiceClient.id == service_client_id,
+            ServiceClient.organization_id == current_user.organization_id,
+            ServiceClient.created_by_user_id == current_user.id,
+        )
+    )
+
+
+@router.get("/service-clients", response_model=list[ServiceClientOut])
+def list_my_service_clients(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     return db.scalars(
         select(ServiceClient).where(
             ServiceClient.organization_id == current_user.organization_id,
-            ServiceClient.is_enabled.is_(True),
+            ServiceClient.created_by_user_id == current_user.id,
         ).order_by(ServiceClient.display_name.asc())
     ).all()
+
+
+@router.post("/service-clients", response_model=ServiceClientSecretResponse, dependencies=[Depends(require_csrf)])
+def create_my_service_client(
+    payload: ServiceClientCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    key = payload.key.strip()
+    if not key:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid client key")
+    dup = db.scalar(
+        select(ServiceClient).where(ServiceClient.organization_id == current_user.organization_id, ServiceClient.key == key)
+    )
+    if dup:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Client key already in use")
+    raw_secret = (payload.client_secret or "").strip()
+    secret = raw_secret if raw_secret else issue_plain_secret()
+    if len(secret) < 16:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="client_secret must be at least 16 characters when set")
+
+    service_client = ServiceClient(
+        organization_id=current_user.organization_id,
+        created_by_user_id=current_user.id,
+        key=key,
+        display_name=payload.display_name.strip(),
+        secret_hash=hash_secret(secret),
+        secret_lookup_hash=lookup_secret_hash(secret),
+        environment=payload.environment,
+        allowed_provider_app_keys_json=dumps_json(payload.allowed_provider_app_keys),
+    )
+    db.add(service_client)
+    db.flush()
+    record_audit(
+        db,
+        action="user.service_client.created",
+        actor_type="user",
+        actor_id=current_user.id,
+        organization_id=current_user.organization_id,
+        metadata={"key": key, "service_client_id": service_client.id},
+    )
+    db.commit()
+    db.refresh(service_client)
+    return ServiceClientSecretResponse(service_client=ServiceClientOut.model_validate(service_client), client_secret=secret)
+
+
+@router.patch("/service-clients/{service_client_id}", response_model=ServiceClientOut, dependencies=[Depends(require_csrf)])
+def update_my_service_client(
+    service_client_id: str,
+    payload: ServiceClientUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    service_client = _get_owned_service_client(db, service_client_id=service_client_id, current_user=current_user)
+    if not service_client:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Service client not found")
+    if payload.display_name is not None:
+        service_client.display_name = payload.display_name.strip()
+    if payload.environment is not None:
+        service_client.environment = payload.environment
+    if payload.allowed_provider_app_keys is not None:
+        service_client.allowed_provider_app_keys_json = dumps_json(payload.allowed_provider_app_keys)
+    if payload.is_enabled is not None:
+        service_client.is_enabled = payload.is_enabled
+    record_audit(
+        db,
+        action="user.service_client.updated",
+        actor_type="user",
+        actor_id=current_user.id,
+        organization_id=current_user.organization_id,
+        metadata={"service_client_id": service_client_id},
+    )
+    db.commit()
+    db.refresh(service_client)
+    return ServiceClientOut.model_validate(service_client)
+
+
+@router.post(
+    "/service-clients/{service_client_id}/rotate-secret",
+    response_model=ServiceClientSecretResponse,
+    dependencies=[Depends(require_csrf)],
+)
+def rotate_my_service_client_secret(
+    service_client_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    service_client = _get_owned_service_client(db, service_client_id=service_client_id, current_user=current_user)
+    if not service_client:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Service client not found")
+    secret = issue_plain_secret()
+    service_client.secret_hash = hash_secret(secret)
+    service_client.secret_lookup_hash = lookup_secret_hash(secret)
+    record_audit(
+        db,
+        action="user.service_client.secret_rotated",
+        actor_type="user",
+        actor_id=current_user.id,
+        organization_id=current_user.organization_id,
+        metadata={"service_client_id": service_client_id},
+    )
+    db.commit()
+    db.refresh(service_client)
+    return ServiceClientSecretResponse(service_client=ServiceClientOut.model_validate(service_client), client_secret=secret)
+
+
+@router.delete("/service-clients/{service_client_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(require_csrf)])
+def delete_my_service_client(
+    service_client_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    service_client = _get_owned_service_client(db, service_client_id=service_client_id, current_user=current_user)
+    if not service_client:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Service client not found")
+
+    active_access = db.scalar(
+        select(func.count())
+        .select_from(DelegationGrant)
+        .where(
+            DelegationGrant.organization_id == current_user.organization_id,
+            DelegationGrant.service_client_id == service_client_id,
+            DelegationGrant.revoked_at.is_(None),
+        )
+    )
+    active_access = int(active_access or 0)
+    if active_access > 0:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Remove or reassign access rules that use this client first ({active_access} active).",
+        )
+
+    db.execute(
+        update(DelegationGrant)
+        .where(
+            DelegationGrant.organization_id == current_user.organization_id,
+            DelegationGrant.service_client_id == service_client_id,
+        )
+        .values(service_client_id=None)
+    )
+    db.execute(
+        update(TokenIssueEvent)
+        .where(
+            TokenIssueEvent.organization_id == current_user.organization_id,
+            TokenIssueEvent.service_client_id == service_client_id,
+        )
+        .values(service_client_id=None)
+    )
+    record_audit(
+        db,
+        action="user.service_client.deleted",
+        actor_type="user",
+        actor_id=current_user.id,
+        organization_id=current_user.organization_id,
+        metadata={"key": service_client.key, "service_client_id": service_client_id},
+    )
+    db.delete(service_client)
+    db.commit()
+    return None
 
 
 @router.get("/delegation-grants", response_model=list[SelfServiceDelegationGrantOut])
@@ -120,6 +292,8 @@ def create_my_delegation_grant(
         )
         if not service_client:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Service client not found")
+        if service_client.created_by_user_id is not None and service_client.created_by_user_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Service client does not belong to you")
 
     provider_app = db.scalar(
         select(ProviderApp).where(

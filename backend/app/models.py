@@ -196,6 +196,7 @@ class ServiceClient(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    created_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
     key: Mapped[str] = mapped_column(String(120), index=True)
     display_name: Mapped[str] = mapped_column(String(255))
     auth_method: Mapped[str] = mapped_column(String(64), default=ServiceAuthMethod.SHARED_SECRET.value)

@@ -67,7 +67,6 @@ Admin-Routen:
 - `/app`
 - `/app/providers`
 - `/app/connections`
-- `/app/service-clients`
 - `/app/delegation`
 - `/app/audit`
 
@@ -75,6 +74,7 @@ Self-Service-Routen:
 
 - `/workspace`
 - `/workspace/integrations`
+- `/workspace/clients`
 - `/grants`
 - `/token-access`
 
@@ -187,7 +187,7 @@ Die zentralen Tabellen sind in `backend/app/models.py` definiert.
 
 #### ServiceClient
 
-- technischer Verbraucher des Brokers mit Shared Secret
+- technischer Verbraucher des Brokers mit Shared Secret; optional `created_by_user_id` (Besitzer); Verwaltung durch den jeweiligen Nutzer
 
 #### DelegationGrant
 
@@ -349,7 +349,8 @@ Pro Miro-Verbindung liegt der Relay-Key als `legacy_relay_token_hash` (Lookup be
 - `POST /api/v1/connections/{id}/refresh`
 - `POST /api/v1/connections/{id}/revoke`
 - `POST /api/v1/connections/{id}/probe`
-- `GET /api/v1/service-clients`
+- `GET/POST/PATCH/DELETE /api/v1/service-clients` (eigene Clients; Schreibzugriffe mit CSRF)
+- `POST /api/v1/service-clients/{id}/rotate-secret`
 - `GET /api/v1/delegation-grants`
 - `POST /api/v1/delegation-grants`
 - `GET /api/v1/delegation-grants/{id}/access-credential` (Legacy-Pfad: `.../delegated-credential`)
@@ -364,7 +365,8 @@ Pro Miro-Verbindung liegt der Relay-Key als `legacy_relay_token_hash` (Lookup be
 - `GET/POST /api/v1/admin/provider-apps`
 - `GET /api/v1/admin/connected-accounts`
 - `POST /api/v1/admin/connected-accounts/manual`
-- `GET/POST /api/v1/admin/service-clients`
+- `GET /api/v1/admin/service-clients` (Organisation, Leselist)
+- `GET /api/v1/admin/users/{user_id}/service-clients`
 - `GET/POST /api/v1/admin/delegation-grants`
 - `POST /api/v1/admin/delegation-grants/{id}/revoke`
 - `GET /api/v1/admin/audit`

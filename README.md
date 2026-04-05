@@ -234,9 +234,21 @@ These endpoints import legacy file-backed Miro profiles, tokens, and dynamic OAu
 
 ### Service clients and delegation grants
 
+End-user client management (session + CSRF on writes):
+
+```http
+GET /api/v1/service-clients
+POST /api/v1/service-clients
+PATCH /api/v1/service-clients/{service_client_id}
+DELETE /api/v1/service-clients/{service_client_id}
+POST /api/v1/service-clients/{service_client_id}/rotate-secret
+```
+
+Admin (org-wide read + delegation for users):
+
 ```http
 GET /api/v1/admin/service-clients
-POST /api/v1/admin/service-clients
+GET /api/v1/admin/users/{user_id}/service-clients
 GET /api/v1/admin/delegation-grants
 POST /api/v1/admin/delegation-grants
 POST /api/v1/admin/delegation-grants/{grant_id}/revoke
@@ -256,7 +268,7 @@ Content-Type: application/json
 }
 ```
 
-Optional: `X-Service-Secret: <service-client-secret>` when the delegation grant is bound to a service client and you want the previous two-header authentication.
+Required when the delegation grant is bound to a service client: `X-Service-Secret: <service-client-secret>`. Unbound grants work with `X-Access-Key` only.
 
 Refresh tokens are never returned.
 

@@ -3,7 +3,8 @@ import type { RouteMatch } from "./types";
 const LEGACY_ADMIN_PATHS: Record<string, string> = {
   "/app/providers": "/app/integrations",
   "/app/connections": "/app/users",
-  "/app/service-clients": "/app/services",
+  "/app/service-clients": "/workspace/clients",
+  "/app/services": "/workspace/clients",
   "/app/delegation": "/app/access",
   "/app/audit": "/app/logs",
 };
@@ -133,11 +134,11 @@ export function matchesRoute(pathname: string): RouteMatch {
     }
   }
   if (path === "/app/users") return { name: "users", path: "/app/users" };
-  if (path === "/app/services") return { name: "services", path: "/app/services" };
   if (path === "/app/access") return { name: "access", path: "/app/access" };
   if (path === "/app/logs") return { name: "logs", path: "/app/logs" };
   if (path === "/workspace") return { name: "workspace", path: "/workspace" };
   if (path === "/workspace/integrations") return { name: "workspaceIntegrations", path: "/workspace/integrations" };
+  if (path === "/workspace/clients") return { name: "workspaceClients", path: "/workspace/clients" };
   if (path === "/grants") return { name: "grants", path: "/grants" };
   if (path === "/token-access") return { name: "tokenAccess", path: "/token-access" };
   if (path.startsWith("/connect/")) {

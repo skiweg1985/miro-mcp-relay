@@ -68,7 +68,7 @@ export function DashboardPage() {
         <MetricCard label="API" value={health?.ok ? "Online" : "Unavailable"} caption={health?.service ?? "—"} />
         <MetricCard label="Integrations" value={String(providerApps.length)} caption="Registered" />
         <MetricCard label="Connections" value={String(connections.length)} caption="Linked accounts" />
-        <MetricCard label="Services" value={String(serviceClients.length)} caption="Internal apps" />
+        <MetricCard label="Clients" value={String(serviceClients.length)} caption="Registered callers" />
         <MetricCard label="Access" value={String(grants.length)} caption="Active rules" />
       </div>
 

@@ -22,7 +22,6 @@ import type {
   SessionResponse,
   TokenIssueEventOut,
   UserOut,
-  VisibleServiceClientOut,
 } from "./types";
 
 type HttpMethod = "GET" | "POST" | "PATCH" | "DELETE";
@@ -157,8 +156,37 @@ export const api = {
   connectionAccessDetails(connectionId: string) {
     return request<ConnectionAccessDetails>(`/api/v1/connections/${connectionId}/access-details`);
   },
-  visibleServiceClients() {
-    return request<VisibleServiceClientOut[]>("/api/v1/service-clients");
+  myServiceClients() {
+    return request<ServiceClientOut[]>("/api/v1/service-clients");
+  },
+  createMyServiceClient(csrfToken: string, body: unknown) {
+    return request<ServiceClientCreateResult>("/api/v1/service-clients", {
+      method: "POST",
+      csrfToken,
+      body,
+    });
+  },
+  updateMyServiceClient(csrfToken: string, serviceClientId: string, body: unknown) {
+    return request<ServiceClientOut>(`/api/v1/service-clients/${encodeURIComponent(serviceClientId)}`, {
+      method: "PATCH",
+      csrfToken,
+      body,
+    });
+  },
+  deleteMyServiceClient(csrfToken: string, serviceClientId: string) {
+    return request<void>(`/api/v1/service-clients/${encodeURIComponent(serviceClientId)}`, {
+      method: "DELETE",
+      csrfToken,
+    });
+  },
+  rotateMyServiceClientSecret(csrfToken: string, serviceClientId: string) {
+    return request<ServiceClientCreateResult>(
+      `/api/v1/service-clients/${encodeURIComponent(serviceClientId)}/rotate-secret`,
+      {
+        method: "POST",
+        csrfToken,
+      },
+    );
   },
   myDelegationGrants() {
     return request<SelfServiceDelegationGrantOut[]>("/api/v1/delegation-grants");
@@ -268,18 +296,8 @@ export const api = {
   serviceClients(csrfToken: string) {
     return request<ServiceClientOut[]>("/api/v1/admin/service-clients", { csrfToken });
   },
-  createServiceClient(csrfToken: string, body: unknown) {
-    return request<ServiceClientCreateResult>("/api/v1/admin/service-clients", {
-      method: "POST",
-      csrfToken,
-      body,
-    });
-  },
-  deleteServiceClient(csrfToken: string, serviceClientId: string) {
-    return request<void>(`/api/v1/admin/service-clients/${encodeURIComponent(serviceClientId)}`, {
-      method: "DELETE",
-      csrfToken,
-    });
+  adminServiceClientsForUser(csrfToken: string, userId: string) {
+    return request<ServiceClientOut[]>(`/api/v1/admin/users/${encodeURIComponent(userId)}/service-clients`, { csrfToken });
   },
   delegationGrants(csrfToken: string) {
     return request<DelegationGrantOut[]>("/api/v1/admin/delegation-grants", { csrfToken });

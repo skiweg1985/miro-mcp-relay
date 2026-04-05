@@ -4,7 +4,22 @@
 
 ### Fixed
 
+- `diagnose_service_access`: Delegation Grants mit gebundenem `service_client_id` werden ohne `X-Service-Secret` abgewiesen (**401** `Service client secret required`); direkte Grants (`service_client_id` **NULL**) bleiben mit `X-Access-Key` allein nutzbar.
+
 - Frontend: Self-Service **Access**-Modal **cURL** für **Direct** (z. B. Microsoft Graph, `POST …/token-issues/provider-access`): fehlender Header `X-Access-Key: <access key>` ergänzt (entspricht der API; zuvor nur Relay-Zweig).
+
+### Added
+
+- Datenmodell: `service_clients.created_by_user_id` (FK `users`, nullable); `reconcile_schema` + Backfill ältester Nutzer pro Organisation für bestehende Zeilen.
+- API (Session, CSRF bei Schreibzugriffen): `GET/POST/PATCH/DELETE /api/v1/service-clients`, `POST /api/v1/service-clients/{id}/rotate-secret` — nur eigene Clients (`created_by_user_id`); `ServiceClientCreate` optional `client_secret` (mind. 16 Zeichen); `ServiceClientOut` enthält `allowed_provider_app_keys`.
+- API (Admin, CSRF): `GET /api/v1/admin/users/{user_id}/service-clients` — Clients des gewählten Nutzers für Access-Regeln.
+
+### Changed
+
+- API: `GET /api/v1/admin/service-clients` bleibt als **Leselist** für die Organisation; **POST** und **DELETE** `/api/v1/admin/service-clients` entfallen (Verwaltung über User-API).
+- Frontend: Workspace-Navigation **Clients** (`/workspace/clients`), Verwaltung analog **Access**; Admin-Seite **Services** entfällt (Legacy `/app/services` → `/workspace/clients`).
+- Admin **Access**: Client-Auswahl pro **Person** über die Clients des jeweiligen Nutzers; Spalte „Client“ statt „Service“.
+- README: HTTP-Übersicht zu Service-Clients und Pflicht von `X-Service-Secret` bei gebundenem Grant.
 
 ### Changed
 

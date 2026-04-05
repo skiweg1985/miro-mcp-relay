@@ -1552,6 +1552,30 @@
 - Follow-ups:
   - keine
 
+## 2026-04-05 – Cursor Agent – Nutzergesteuerte Service Clients
+
+- Done:
+  - Backend: `service_clients.created_by_user_id`, `reconcile_schema` + Backfill; User-CRUD `/api/v1/service-clients` (+ rotate-secret); Admin nur GET Org-Liste + `GET .../admin/users/{user_id}/service-clients`; Admin POST/DELETE Service-Clients entfernt; `diagnose_service_access` verlangt bei gebundenem Grant `X-Service-Secret`; Delegation-Create prüft Client-Besitz.
+  - Frontend: `/workspace/clients` (`MyClientsPage`), Admin-Services-Seite entfernt; Access-Admin lädt Clients pro gewählter Person; Grants-Dropdown nur aktive eigene Clients + Hinweis `X-Service-Secret`.
+  - Tests: `test_welle1_smoke.py` (gebundener Grant ohne Secret → 401); `docs/CHANGELOG.md`, `docs/technische-referenz.md`, `README.md`.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - backend/app/models.py, seed.py, schemas.py, deps.py, routers/user.py, routers/admin.py, test_welle1_smoke.py
+  - frontend/src/App.tsx, api.ts, types.ts, MyClientsPage.tsx, admin/AccessPage.tsx, admin/DashboardPage.tsx; removed admin/ServicesPage.tsx
+  - docs/CHANGELOG.md, docs/technische-referenz.md, README.md, planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `python3 -m unittest backend/test_welle1_smoke.py`, `cd frontend && npm run build`
+- Changelog updated:
+  - yes ([Unreleased] Fixed/Added/Changed)
+- Follow-ups:
+  - keine
+
 ## 2026-04-04 – Cursor Agent – Unified Key: Legacy Relay entfernt
 
 - Done:

@@ -165,9 +165,7 @@ def diagnose_service_access(
             return auth_context, HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access credential does not match service client")
         auth_context.service_client = resolved_client if auth_context.grant.service_client_id is not None else None
     elif auth_context.grant.service_client_id is not None:
-        auth_context.service_client = db.get(ServiceClient, auth_context.grant.service_client_id)
-        if not auth_context.service_client or not auth_context.service_client.is_enabled:
-            return auth_context, HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Service client not found")
+        return auth_context, HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Service client secret required")
 
     if auth_context.grant.expires_at and ensure_live(auth_context.grant.expires_at) <= utcnow():
         return auth_context, HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Delegation expired")

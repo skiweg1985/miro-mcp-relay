@@ -67,16 +67,14 @@ export function AccessPage() {
 
   const load = async () => {
     if (session.status !== "authenticated") return;
-    const [userData, providerAppData, serviceClientData, connectionData, grantData] = await Promise.all([
+    const [userData, providerAppData, connectionData, grantData] = await Promise.all([
       api.adminUsers(session.csrfToken),
       api.providerApps(session.csrfToken),
-      api.serviceClients(session.csrfToken),
       api.connectedAccounts(session.csrfToken),
       api.delegationGrants(session.csrfToken),
     ]);
     setUsers(userData);
     setProviderApps(providerAppData);
-    setServiceClients(serviceClientData);
     setConnections(connectionData);
     setGrants(grantData);
     setForm((current) => ({
@@ -95,6 +93,36 @@ export function AccessPage() {
       }),
     );
   }, [notify, session]);
+
+  const selectedUser = useMemo(() => {
+    const normalized = form.user_email.trim().toLowerCase();
+    return users.find((user) => user.email.toLowerCase() === normalized) ?? null;
+  }, [users, form.user_email]);
+
+  useEffect(() => {
+    if (session.status !== "authenticated" || !selectedUser) {
+      setServiceClients([]);
+      return;
+    }
+    let cancelled = false;
+    void api
+      .adminServiceClientsForUser(session.csrfToken, selectedUser.id)
+      .then((data) => {
+        if (!cancelled) setServiceClients(data);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          notify({
+            tone: "error",
+            title: "Could not load clients for this person",
+            description: isApiError(error) ? error.message : "Unexpected error.",
+          });
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [notify, session, selectedUser]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -171,6 +199,10 @@ export function AccessPage() {
   const eligibleConnections = connections.filter(
     (connection) => !form.provider_app_key || providerAppById[connection.provider_app_id]?.key === form.provider_app_key,
   );
+  const enabledServiceClients = useMemo(
+    () => serviceClients.filter((client) => client.is_enabled),
+    [serviceClients],
+  );
 
   const visibleGrants = useMemo(() => {
     if (showInactiveRules) return grants;
@@ -220,7 +252,7 @@ export function AccessPage() {
           tableClassName="admin-rules-table"
           wrapClassName="grants-table-wrap grants-table-wrap--animate"
           wrapKey={showInactiveRules ? "all" : "active"}
-          columns={["Person", "Service", "Integration", "Expires", "Status", ""]}
+          columns={["Person", "Client", "Integration", "Expires", "Status", ""]}
           rowKey={(rowIndex) => visibleGrants[rowIndex]?.id ?? rowIndex}
           rowClassName={(rowIndex) => {
             const g = visibleGrants[rowIndex];
@@ -231,7 +263,7 @@ export function AccessPage() {
             userById[grant.user_id]?.email ?? grant.user_id,
             grant.service_client_id
               ? serviceClientById[grant.service_client_id]?.display_name ?? grant.service_client_id
-              : "Any service",
+              : "Direct (no client)",
             providerAppById[grant.provider_app_id]?.display_name ?? grant.provider_app_id,
             <span
               key={`${grant.id}-exp`}
@@ -280,13 +312,20 @@ export function AccessPage() {
                   </datalist>
                 </>
               </Field>
-              <Field label="Service" hint="Optional">
+              <Field
+                label="Client"
+                hint={
+                  form.service_client_key.trim()
+                    ? "Callers must send X-Service-Secret with that client’s secret."
+                    : "Optional"
+                }
+              >
                 <select
                   value={form.service_client_key}
                   onChange={(event) => setForm((current) => ({ ...current, service_client_key: event.target.value }))}
                 >
-                  <option value="">Any service</option>
-                  {serviceClients.map((client) => (
+                  <option value="">Direct use (no client binding)</option>
+                  {enabledServiceClients.map((client) => (
                     <option key={client.id} value={client.key}>
                       {client.display_name}
                     </option>

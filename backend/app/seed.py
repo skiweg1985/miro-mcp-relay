@@ -130,6 +130,7 @@ def reconcile_schema() -> None:
             {
                 "is_enabled": "BOOLEAN DEFAULT TRUE",
                 "secret_lookup_hash": "VARCHAR(64)",
+                "created_by_user_id": "VARCHAR(36)",
             },
         )
         _ensure_columns(
@@ -151,6 +152,35 @@ def reconcile_schema() -> None:
                 "is_active": "BOOLEAN DEFAULT TRUE",
             },
         )
+        _backfill_service_client_created_by_user_id(conn, inspector)
+
+
+def _backfill_service_client_created_by_user_id(conn, inspector) -> None:
+    table_name = "service_clients"
+    column_name = "created_by_user_id"
+    existing_tables = set(inspector.get_table_names())
+    if table_name not in existing_tables or "users" not in existing_tables:
+        return
+    columns = {c["name"] for c in inspector.get_columns(table_name)}
+    if column_name not in columns:
+        return
+    try:
+        conn.execute(
+            text(
+                f"""
+                UPDATE {table_name}
+                SET {column_name} = (
+                    SELECT u.id FROM users u
+                    WHERE u.organization_id = {table_name}.organization_id
+                    ORDER BY u.created_at ASC
+                    LIMIT 1
+                )
+                WHERE {table_name}.{column_name} IS NULL
+                """
+            )
+        )
+    except OperationalError:
+        pass
 
 
 def _ensure_columns(conn, inspector, table_name: str, columns: dict[str, str]) -> None:

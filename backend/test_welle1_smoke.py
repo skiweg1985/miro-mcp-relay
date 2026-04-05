@@ -72,6 +72,7 @@ class Welle1SmokeTest(unittest.TestCase):
             service_secret = "svc-secret"
             service_client = ServiceClient(
                 organization_id=graph_app.organization_id,
+                created_by_user_id=user.id,
                 key="svc-agent",
                 display_name="Service Agent",
                 secret_hash=hash_secret(service_secret),
@@ -216,6 +217,20 @@ class Welle1SmokeTest(unittest.TestCase):
         )
         self.assertEqual(blocked_only.status_code, 200)
         self.assertEqual([entry["decision"] for entry in blocked_only.json()], ["blocked"])
+
+    def test_bound_grant_requires_service_secret(self) -> None:
+        fixture = self._seed_service_access_fixture()
+        missing_secret = self.client.post(
+            "/api/v1/token-issues/provider-access",
+            json={
+                "provider_app_key": "microsoft-graph-default",
+                "connected_account_id": fixture["graph_connection_id"],
+                "requested_scopes": ["Mail.Read"],
+            },
+            headers={"X-Access-Key": fixture["graph_credential"]},
+        )
+        self.assertEqual(missing_secret.status_code, 401)
+        self.assertEqual(missing_secret.json()["detail"], "Service client secret required")
 
     def test_credential_only_grant_issues_token_without_service_secret(self) -> None:
         fixture = self._seed_service_access_fixture()

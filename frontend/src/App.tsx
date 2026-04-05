@@ -15,7 +15,7 @@ import { AccessPage } from "./admin/AccessPage";
 import { DashboardPage } from "./admin/DashboardPage";
 import { IntegrationsPage } from "./admin/IntegrationsPage";
 import { LogsPage } from "./admin/LogsPage";
-import { ServicesPage } from "./admin/ServicesPage";
+import { MyClientsPage } from "./MyClientsPage";
 import { UsersPage } from "./admin/UsersPage";
 import { AccessCredentialSummary, AccessCredentialConnectionHint } from "./AccessCredentialSummary";
 import { api } from "./api";
@@ -51,7 +51,6 @@ import type {
   ServiceClientOut,
   TokenIssueEventOut,
   UserOut,
-  VisibleServiceClientOut,
 } from "./types";
 import { UserIntegrationsPage } from "./UserIntegrationsPage";
 import { isApiError } from "./errors";
@@ -151,6 +150,7 @@ function isWorkspaceSelfServiceRoute(route: RouteMatch): boolean {
     route.name === "workspace" ||
     route.name === "workspaceIntegrations" ||
     route.name === "grants" ||
+    route.name === "workspaceClients" ||
     route.name === "tokenAccess"
   ) {
     return true;
@@ -1169,7 +1169,7 @@ function WorkspacePage() {
 
 function GrantsPage() {
   const { notify, session } = useAppContext();
-  const [serviceClients, setServiceClients] = useState<VisibleServiceClientOut[]>([]);
+  const [serviceClients, setServiceClients] = useState<ServiceClientOut[]>([]);
   const [providerApps, setProviderApps] = useState<ProviderAppOut[]>([]);
   const [connections, setConnections] = useState<ConnectedAccountOut[]>([]);
   const [grants, setGrants] = useState<SelfServiceDelegationGrantOut[]>([]);
@@ -1197,7 +1197,7 @@ function GrantsPage() {
     setLoading(true);
     try {
       const [serviceClientData, providerAppData, connectionData, grantData] = await Promise.all([
-        api.visibleServiceClients(),
+        api.myServiceClients(),
         api.providerAppsForUser(),
         api.myConnections(),
         api.myDelegationGrants(),
@@ -1255,6 +1255,10 @@ function GrantsPage() {
   );
   const eligibleConnections = connections.filter(
     (connection) => !form.provider_app_key || providerAppById[connection.provider_app_id]?.key === form.provider_app_key,
+  );
+  const enabledServiceClients = useMemo(
+    () => serviceClients.filter((client) => client.is_enabled),
+    [serviceClients],
   );
 
   const grantRevokeTarget = useMemo(() => {
@@ -1482,13 +1486,20 @@ function GrantsPage() {
         >
           <form className="stack-form" onSubmit={handleSubmit}>
             <div className="form-grid">
-              <Field label="App" hint="Optional">
+              <Field
+                label="App"
+                hint={
+                  form.service_client_key.trim()
+                    ? "Callers must send X-Service-Secret with this client’s secret."
+                    : "Optional"
+                }
+              >
                 <select
                   value={form.service_client_key}
                   onChange={(event) => setForm((current) => ({ ...current, service_client_key: event.target.value }))}
                 >
-                  <option value="">Any app</option>
-                  {serviceClients.map((client) => (
+                  <option value="">Direct use (no client binding)</option>
+                  {enabledServiceClients.map((client) => (
                     <option key={client.id} value={client.key}>
                       {client.display_name}
                     </option>
@@ -1600,7 +1611,7 @@ function GrantsPage() {
 
 function TokenAccessPage() {
   const { notify, session } = useAppContext();
-  const [serviceClients, setServiceClients] = useState<VisibleServiceClientOut[]>([]);
+  const [serviceClients, setServiceClients] = useState<ServiceClientOut[]>([]);
   const [grants, setGrants] = useState<SelfServiceDelegationGrantOut[]>([]);
   const [connections, setConnections] = useState<ConnectedAccountOut[]>([]);
   const [issues, setIssues] = useState<TokenIssueEventOut[]>([]);
@@ -1619,7 +1630,7 @@ function TokenAccessPage() {
     setLoading(true);
     try {
       const [clientData, grantData, connectionData, issueData] = await Promise.all([
-        api.visibleServiceClients(),
+        api.myServiceClients(),
         api.myDelegationGrants(),
         api.myConnections(),
         api.myTokenIssues({
@@ -1917,6 +1928,7 @@ function NotFoundPage({ onNavigate, fallbackPath }: { onNavigate: (path: string)
 const USER_WORKSPACE_NAV = [
   { href: "/workspace", label: "Home" },
   { href: "/workspace/integrations", label: "Integrations" },
+  { href: "/workspace/clients", label: "Clients" },
   { href: "/grants", label: "Access" },
   { href: "/token-access", label: "Activity" },
 ];
@@ -2019,7 +2031,6 @@ function AuthenticatedApp() {
       route.name === "dashboard" ||
       route.name === "integrations" ||
       route.name === "users" ||
-      route.name === "services" ||
       route.name === "access" ||
       route.name === "logs"
     ) {
@@ -2047,6 +2058,7 @@ function AuthenticatedApp() {
     <>
       {route.name === "workspace" ? <WorkspacePage /> : null}
       {route.name === "workspaceIntegrations" ? <UserIntegrationsPage /> : null}
+      {route.name === "workspaceClients" ? <MyClientsPage /> : null}
       {route.name === "grants" ? <GrantsPage /> : null}
       {route.name === "tokenAccess" ? <TokenAccessPage /> : null}
     </>
@@ -2083,7 +2095,6 @@ function AuthenticatedApp() {
           { href: "/app", label: "Overview" },
           { href: "/app/integrations", label: "Integrations" },
           { href: "/app/users", label: "People" },
-          { href: "/app/services", label: "Services" },
           { href: "/app/access", label: "Access" },
           { href: "/app/logs", label: "Audit" },
         ]}
@@ -2099,7 +2110,6 @@ function AuthenticatedApp() {
           />
         ) : null}
         {route.name === "users" ? <UsersPage /> : null}
-        {route.name === "services" ? <ServicesPage /> : null}
         {route.name === "access" ? <AccessPage /> : null}
         {route.name === "logs" ? <LogsPage /> : null}
       </Shell>
@@ -2114,7 +2124,6 @@ function AuthenticatedApp() {
     route.name === "dashboard" ||
     route.name === "integrations" ||
     route.name === "users" ||
-    route.name === "services" ||
     route.name === "access" ||
     route.name === "logs"
   ) {

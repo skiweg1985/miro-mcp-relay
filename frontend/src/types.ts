@@ -152,6 +152,7 @@ export type ServiceClientOut = {
   environment: string | null;
   is_enabled: boolean;
   created_at: string;
+  allowed_provider_app_keys: string[];
 };
 
 export type ServiceClientCreateResult = {
@@ -193,14 +194,6 @@ export type DelegationGrantCreateResult = {
   ok: boolean;
   delegation_grant: DelegationGrantOut;
   access_credential: string;
-};
-
-export type VisibleServiceClientOut = {
-  id: string;
-  key: string;
-  display_name: string;
-  environment: string | null;
-  created_at: string;
 };
 
 export type SelfServiceDelegationGrantOut = {
@@ -359,6 +352,7 @@ export type ServiceClientFormValues = {
   display_name: string;
   environment: string;
   allowed_provider_app_keys: string[];
+  client_secret: string;
 };
 
 export type DelegationGrantFormValues = {
@@ -388,11 +382,11 @@ export type RouteMatch =
   | { name: "integrations"; path: "/app/integrations" }
   | { name: "integrationDetail"; path: `/app/integrations/${string}`; params: { appId: string } }
   | { name: "users"; path: "/app/users" }
-  | { name: "services"; path: "/app/services" }
   | { name: "access"; path: "/app/access" }
   | { name: "logs"; path: "/app/logs" }
   | { name: "workspace"; path: "/workspace" }
   | { name: "workspaceIntegrations"; path: "/workspace/integrations" }
+  | { name: "workspaceClients"; path: "/workspace/clients" }
   | { name: "grants"; path: "/grants" }
   | { name: "connect"; path: `/connect/${string}`; params: { providerKey: string } }
   | { name: "tokenAccess"; path: "/token-access" }

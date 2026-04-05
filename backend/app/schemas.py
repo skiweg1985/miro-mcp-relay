@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class LoginRequest(BaseModel):
@@ -174,6 +174,14 @@ class ServiceClientCreate(BaseModel):
     display_name: str
     environment: str | None = None
     allowed_provider_app_keys: list[str] = Field(default_factory=list)
+    client_secret: str | None = None
+
+
+class ServiceClientUpdate(BaseModel):
+    display_name: str | None = None
+    environment: str | None = None
+    allowed_provider_app_keys: list[str] | None = None
+    is_enabled: bool | None = None
 
 
 class ServiceClientOut(BaseModel):
@@ -186,6 +194,26 @@ class ServiceClientOut(BaseModel):
     environment: str | None = None
     is_enabled: bool
     created_at: datetime
+    allowed_provider_app_keys: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_from_service_client(cls, data: Any) -> Any:
+        from app.models import ServiceClient
+        from app.security import loads_json
+
+        if isinstance(data, ServiceClient):
+            return {
+                "id": data.id,
+                "key": data.key,
+                "display_name": data.display_name,
+                "auth_method": data.auth_method,
+                "environment": data.environment,
+                "is_enabled": data.is_enabled,
+                "created_at": data.created_at,
+                "allowed_provider_app_keys": loads_json(data.allowed_provider_app_keys_json, []),
+            }
+        return data
 
 
 class ServiceClientSecretResponse(BaseModel):
@@ -348,16 +376,6 @@ class DelegationGrantSecretResponse(BaseModel):
     ok: bool = True
     delegation_grant: DelegationGrantOut
     access_credential: str
-
-
-class VisibleServiceClientOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: str
-    key: str
-    display_name: str
-    environment: str | None = None
-    created_at: datetime
 
 
 class SelfServiceDelegationGrantCreate(BaseModel):

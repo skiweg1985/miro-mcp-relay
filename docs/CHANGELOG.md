@@ -18,6 +18,7 @@
 - Admin **Integrations** · **Custom integration**: Wizard und Bearbeiten speichern Endpoints, Issuer, Default-Scopes, Scope-Ceiling, PKCE, Connection Types (direct/relay), Relay (`relay_type`, `token_transport`, Upstream-URL), `relay_protocol`, Aktiviert; bestehende `relay_config`- und Instance-`settings`-Felder werden zusammengeführt statt verworfen.
 - Self-Service **Access** (`/grants`) und **Activity**: Spalten und Texte sprechen durchgängig von **Client** (gebundener Service-Client), nicht „App“; direkte Nutzung als „Direct“ / „Direct access“.
 - **Clients** (`/workspace/clients`): Anlegen nur noch **Name**; technischer Unique-Key (`key`) wird serverseitig per UUID vergeben; optional weiterhin manuelles `key` in der API; Tabelle **Client ID**; Bearbeiten zeigt Client-ID read-only.
+- Frontend: `tsconfig.tsbuildinfo` um `oauthintegrationstatus.ts` ergänzt.
 
 ### Fixed
 

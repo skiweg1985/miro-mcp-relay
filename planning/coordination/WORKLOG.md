@@ -1724,3 +1724,25 @@
   - yes ([Unreleased] Removed/Changed)
 - Follow-ups:
   - README.md und docs/technische-referenz.md noch auf Legacy-Pfade prüfen
+
+## 2026-04-05 11:06 – Cursor Agent – TypeScript-Build-Info synchronisieren
+
+- Done:
+  - `frontend/tsconfig.tsbuildinfo` nach Projektänderung aktualisiert (`oauthintegrationstatus.ts` in `root`); Commit und Push auf `codex/oauth-broker-redesign`.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - frontend/tsconfig.tsbuildinfo
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build` (optional, zur Verifikation)
+- Changelog updated:
+  - yes ([Unreleased] Changed)
+- Follow-ups:
+  - keine

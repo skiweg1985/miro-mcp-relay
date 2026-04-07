@@ -2243,3 +2243,34 @@
   - yes ([Unreleased] Changed)
 - Follow-ups:
   - none
+
+## 2026-04-07 – Cursor Agent – Consumer MCP streamable HTTP relay
+
+- Done:
+  - `backend/app/mcp_relay_engine.py`: Header-Filter, URL-Join, Gleichheit gegen konfiguriertes Endpoint, kein Literal-IP-Upstream.
+  - `backend/app/services/consumer_access.py`: gemeinsame Grant-/Instance-/Integration-Auflösung für Consumer-APIs.
+  - `backend/app/routers/consumer_mcp_relay.py`: `ANY …/consumer/integration-instances/{id}/mcp` (+ optional `path`), Streaming über httpx, Audit `consumer_mcp_relay`, `GET …/mcp-connection-info`.
+  - `consumer_execution.py` nutzt `resolve_consumer_grant_context`; `main.py` registriert Relay-Router.
+  - `backend/test_smoke.py`: Relay ohne Key → 401.
+  - `frontend/src/AccessGrantUsageModal.tsx`: streamable-http JSON, curl-Beispiele, Abschnitt MCP streamable HTTP.
+  - `docs/CHANGELOG.md` [Unreleased] Added.
+- Next:
+  - none
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: codex/hard-refactor-integration-model
+  - PR: none
+- Files touched:
+  - backend/app/mcp_relay_engine.py, services/consumer_access.py, routers/consumer_mcp_relay.py, routers/consumer_execution.py, main.py, test_smoke.py
+  - frontend/src/AccessGrantUsageModal.tsx
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `PYTHONPATH=backend python3 -m unittest backend.test_smoke -v`, `cd frontend && npm run build`
+  - endpoints: `POST /api/v1/consumer/integration-instances/{id}/mcp`, `GET /api/v1/consumer/integration-instances/{id}/mcp-connection-info`
+  - UI path: `/workspace/broker-access` → Access key → How to use
+- Changelog updated:
+  - yes ([Unreleased] Added)
+- Follow-ups:
+  - none

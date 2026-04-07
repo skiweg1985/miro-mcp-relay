@@ -6,16 +6,15 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.execution_engine_v2 import enforce_consumer_tool_policy, execute_instance_action
-from app.models import AuthMode, Integration, IntegrationInstance, IntegrationTool
+from app.models import AuthMode, IntegrationInstance, IntegrationTool
 from app.schemas import IntegrationExecuteRequest, IntegrationExecuteResponse, IntegrationToolOut
 from app.security import dumps_json, loads_json
 from app.services.access_grants import (
     BROKER_ACCESS_KEY_PREFIX,
-    get_grant_by_presented_key,
-    is_grant_usable,
     resolve_upstream_oauth_token_for_grant,
     touch_grant_used,
 )
+from app.services.consumer_access import resolve_consumer_grant_context
 
 router = APIRouter(tags=["consumer-execution"])
 
@@ -42,25 +41,7 @@ async def consumer_execute(
     raw = _extract_broker_access_key(authorization, x_broker_access_key)
     if not raw:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="missing_broker_access_key")
-    grant = get_grant_by_presented_key(db, raw)
-    if not grant or not is_grant_usable(grant):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid_access_key")
-    if grant.integration_instance_id != instance_id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="grant_instance_mismatch")
-
-    instance = db.scalar(
-        select(IntegrationInstance).where(
-            IntegrationInstance.id == instance_id,
-            IntegrationInstance.organization_id == grant.organization_id,
-        )
-    )
-    if not instance or instance.deleted_at is not None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="access_grant_context_invalid")
-    integration = db.scalar(
-        select(Integration).where(Integration.id == instance.integration_id, Integration.organization_id == grant.organization_id)
-    )
-    if not integration or integration.deleted_at is not None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="access_grant_context_invalid")
+    grant, instance, integration = resolve_consumer_grant_context(db, raw_key=raw, instance_id=instance_id)
 
     allowed = loads_json(grant.allowed_tools_json, [])
     grant_tools = [str(x) for x in allowed] if isinstance(allowed, list) else []
@@ -103,25 +84,7 @@ async def consumer_discover_tools(
     raw = _extract_broker_access_key(authorization, x_broker_access_key)
     if not raw:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="missing_broker_access_key")
-    grant = get_grant_by_presented_key(db, raw)
-    if not grant or not is_grant_usable(grant):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid_access_key")
-    if grant.integration_instance_id != instance_id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="grant_instance_mismatch")
-
-    instance = db.scalar(
-        select(IntegrationInstance).where(
-            IntegrationInstance.id == instance_id,
-            IntegrationInstance.organization_id == grant.organization_id,
-        )
-    )
-    if not instance or instance.deleted_at is not None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="access_grant_context_invalid")
-    integration = db.scalar(
-        select(Integration).where(Integration.id == instance.integration_id, Integration.organization_id == grant.organization_id)
-    )
-    if not integration or integration.deleted_at is not None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="access_grant_context_invalid")
+    grant, instance, integration = resolve_consumer_grant_context(db, raw_key=raw, instance_id=instance_id)
     if not integration.mcp_enabled:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="integration_not_mcp_enabled")
 

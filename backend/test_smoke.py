@@ -52,6 +52,11 @@ class TestSmoke(unittest.TestCase):
             response = client.post("/api/v1/access-grants/validate", json={"token": "bkr_invalid"})
             self.assertEqual(response.status_code, 401)
 
+    def test_consumer_mcp_relay_requires_access_key(self) -> None:
+        with TestClient(app) as client:
+            response = client.post("/api/v1/consumer/integration-instances/x/mcp")
+            self.assertEqual(response.status_code, 401)
+
     def test_integration_oauth_start_requires_session(self) -> None:
         with TestClient(app) as client:
             response = client.post("/api/v1/integration-instances/x/oauth/start")

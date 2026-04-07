@@ -18,7 +18,7 @@ const PLACEHOLDER_KEY = "YOUR_BROKER_ACCESS_KEY";
 function whatThisAccessIsFor(type: IntegrationV2Out["type"] | null | undefined): string {
   switch (type) {
     case "mcp_server":
-      return "This key lets a client call tools exposed by the upstream MCP service through this broker. Use it when your script or service should list or invoke those tools without using the workspace UI.";
+      return "This key lets a client use the upstream MCP service through this broker: streamable HTTP relay for MCP-compatible clients, or structured discover/execute calls for scripts. The broker resolves upstream credentials; the key is only for this broker.";
     case "oauth_provider":
       return "This key lets a client call provider tools (for example Microsoft Graph) through this broker, using the connection’s sign-in where applicable. Use it when an app should run provider actions without an interactive workspace session.";
     case "api":
@@ -31,7 +31,7 @@ function whatThisAccessIsFor(type: IntegrationV2Out["type"] | null | undefined):
 function modalDescription(type: IntegrationV2Out["type"] | null | undefined): string {
   switch (type) {
     case "mcp_server":
-      return "Connect your MCP-oriented client through this broker using the access key. Replace the placeholder with your secret key.";
+      return "Use the access key in headers for broker APIs and for the streamable HTTP MCP relay URL. Replace the placeholder with your secret key.";
     case "oauth_provider":
       return "Connect your client to provider tools through this broker using the access key. Replace the placeholder with your secret key.";
     case "api":
@@ -136,6 +136,7 @@ export function AccessGrantUsageModal({ grant, integration, instance, onClose }:
   const integrationType = integration?.type ?? null;
   const showMcpDiscovery =
     integrationType === "mcp_server" && Boolean(integration?.mcp_enabled);
+  const showMcpStreamRelay = showMcpDiscovery && instance?.access_mode === "relay";
   const authMode = instance?.auth_mode ?? null;
   const showAdvancedUserToken = authMode === "oauth";
 
@@ -145,6 +146,8 @@ export function AccessGrantUsageModal({ grant, integration, instance, onClose }:
 
   const executeUrl = `${apiBase}/consumer/integration-instances/${instanceId}/execute`;
   const discoverUrl = `${apiBase}/consumer/integration-instances/${instanceId}/discover-tools`;
+  const mcpRelayUrl = `${apiBase}/consumer/integration-instances/${instanceId}/mcp`;
+  const mcpConnectionInfoUrl = `${apiBase}/consumer/integration-instances/${instanceId}/mcp-connection-info`;
   const validateUrl = `${apiBase}/access-grants/validate`;
 
   const curlExecute = `curl -sS -X POST '${executeUrl}' \\
@@ -178,9 +181,26 @@ export CONNECTION_ID='${instanceId}'`;
   }
 }`;
 
-  const mcpScriptNote = showMcpDiscovery
-    ? "Use these broker URLs from your scripts or backend. Standard MCP desktop clients expect their own transport; this broker exposes tools through the HTTP API below."
-    : undefined;
+  const mcpStreamableClientJson = `{
+  "mcpServers": {
+    "broker_relay": {
+      "type": "streamable-http",
+      "url": "${mcpRelayUrl}",
+      "headers": {
+        "X-Broker-Access-Key": "${PLACEHOLDER_KEY}"
+      }
+    }
+  }
+}`;
+
+  const curlMcpRelaySse = `curl -sS -N -X POST '${mcpRelayUrl}' \\
+  -H 'Accept: application/json, text/event-stream' \\
+  -H 'Content-Type: application/json' \\
+  -H 'X-Broker-Access-Key: ${PLACEHOLDER_KEY}' \\
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"curl","version":"0.0"}}}'`;
+
+  const curlMcpConnectionInfo = `curl -sS '${mcpConnectionInfoUrl}' \\
+  -H 'X-Broker-Access-Key: ${PLACEHOLDER_KEY}'`;
 
   const oauthExtra =
     authMode === "oauth" ? (
@@ -270,16 +290,43 @@ export CONNECTION_ID='${instanceId}'`;
               tool metadata for policy checks before <code className="usage-inline-code">call_tool</code>.
             </li>
           ) : null}
+          {showMcpStreamRelay ? (
+            <li>
+              <strong>MCP streamable HTTP relay</strong> —{" "}
+              <code className="usage-inline-code">…/consumer/integration-instances/{"{"}id{"}"}/mcp</code> (and optional path
+              suffix for the same host as the configured upstream). Same access key headers; broker injects upstream auth.
+            </li>
+          ) : null}
+          {showMcpStreamRelay ? (
+            <li>
+              <strong>Relay metadata</strong> —{" "}
+              <code className="usage-inline-code">GET …/mcp-connection-info</code> with the access key (JSON transport hint).
+            </li>
+          ) : null}
         </ul>
       </DetailSection>
 
-      {showMcpDiscovery ? (
+      {showMcpStreamRelay ? (
+        <DetailSection title="MCP streamable HTTP (clients)">
+          <p className="usage-prose">
+            Point your MCP client at the broker relay URL below. The broker validates the access key, resolves upstream auth
+            (OAuth, API key, or shared headers), and streams the upstream response including{" "}
+            <code className="usage-inline-code">text/event-stream</code> when the upstream uses it.
+          </p>
+          <p className="usage-prose muted-copy">
+            Use the integration&apos;s configured MCP base URL on the server side only; do not paste upstream secrets into the
+            client. For OAuth connections, ensure a linked workspace sign-in exists, or pass{" "}
+            <code className="usage-inline-code">X-User-Token</code> on each relay request.
+          </p>
+        </DetailSection>
+      ) : null}
+
+      {showMcpDiscovery && !showMcpStreamRelay ? (
         <DetailSection title="MCP connection">
           <p className="usage-prose">
-            The broker calls the upstream MCP HTTP API (tools list and tool calls) using the connection credentials. Your client
-            should call the broker consumer endpoints above, not the upstream MCP base URL, when using this access key.
+            The broker calls the upstream MCP HTTP API using the connection credentials. Use the structured consumer endpoints
+            above unless this connection uses broker relay mode for streamable HTTP.
           </p>
-          {mcpScriptNote ? <p className="usage-prose muted-copy">{mcpScriptNote}</p> : null}
         </DetailSection>
       ) : null}
 
@@ -307,6 +354,23 @@ export CONNECTION_ID='${instanceId}'`;
             code={curlDiscover}
             caption="Response lists tools the connection can expose; call_tool still enforces allowed tools."
           />
+        ) : null}
+        {showMcpStreamRelay ? (
+          <UsageExampleBlock
+            title="MCP client config (streamable-http)"
+            code={mcpStreamableClientJson}
+            caption="Many MCP clients accept a JSON config with type streamable-http and custom headers."
+          />
+        ) : null}
+        {showMcpStreamRelay ? (
+          <UsageExampleBlock
+            title="Relay request (curl)"
+            code={curlMcpRelaySse}
+            caption="Example JSON-RPC initialize; use -N so streamed responses print as they arrive."
+          />
+        ) : null}
+        {showMcpStreamRelay ? (
+          <UsageExampleBlock title="Relay metadata (curl)" code={curlMcpConnectionInfo} />
         ) : null}
         <UsageExampleBlock
           title="Validate access key"

@@ -3,10 +3,17 @@ import unittest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.database import engine
-from app.default_integrations import INTEGRATION_GRAPH_DEFAULT_ID, INTEGRATION_MIRO_DEFAULT_ID
+from app.default_integrations import (
+    INTEGRATION_GRAPH_DEFAULT_ID,
+    INTEGRATION_MIRO_DEFAULT_ID,
+    LEGACY_MIRO_REST_OAUTH_TOKEN_ENDPOINT,
+    reconcile_miro_default_integration_token_endpoint,
+)
 from app.main import app
 from app.models import Integration
+from app.security import dumps_json, loads_json
 from app.seed import init_db
 
 
@@ -68,6 +75,32 @@ class TestSmoke(unittest.TestCase):
         self.assertTrue(miro.mcp_enabled)
         self.assertEqual(graph.type, "oauth_provider")
         self.assertFalse(graph.mcp_enabled)
+
+    def test_miro_default_integration_uses_mcp_token_endpoint(self) -> None:
+        init_db()
+        with Session(engine) as db:
+            miro = db.get(Integration, INTEGRATION_MIRO_DEFAULT_ID)
+        self.assertIsNotNone(miro)
+        cfg = loads_json(miro.config_json, {})
+        base = get_settings().miro_mcp_base.rstrip("/")
+        self.assertEqual(cfg.get("oauth_token_endpoint"), f"{base}/token")
+
+    def test_reconcile_miro_default_updates_legacy_rest_token_endpoint(self) -> None:
+        init_db()
+        with Session(engine) as db:
+            miro = db.get(Integration, INTEGRATION_MIRO_DEFAULT_ID)
+            cfg = loads_json(miro.config_json, {})
+            cfg["oauth_token_endpoint"] = LEGACY_MIRO_REST_OAUTH_TOKEN_ENDPOINT
+            miro.config_json = dumps_json(cfg)
+            db.commit()
+        with Session(engine) as db:
+            reconcile_miro_default_integration_token_endpoint(db)
+            db.commit()
+        with Session(engine) as db:
+            miro = db.get(Integration, INTEGRATION_MIRO_DEFAULT_ID)
+            cfg = loads_json(miro.config_json, {})
+        base = get_settings().miro_mcp_base.rstrip("/")
+        self.assertEqual(cfg.get("oauth_token_endpoint"), f"{base}/token")
 
 
 if __name__ == "__main__":

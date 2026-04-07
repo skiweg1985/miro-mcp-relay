@@ -416,7 +416,8 @@ async def _integration_oauth_callback_impl(
                 cfg=cfg,
                 settings=settings,
             )
-            token_ep = str(cfg.get("oauth_token_endpoint") or "https://api.miro.com/v1/oauth/token").strip()
+            mcp_token_default = f"{settings.miro_mcp_base.rstrip('/')}/token"
+            token_ep = str(cfg.get("oauth_token_endpoint") or mcp_token_default).strip()
             if not client_id or not client_secret:
                 db.commit()
                 return _redirect_workspace(ok=False, message="miro_oauth_not_configured")

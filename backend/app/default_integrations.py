@@ -12,7 +12,7 @@ from app.models import (
     IntegrationInstance,
     IntegrationType,
 )
-from app.security import dumps_json
+from app.security import dumps_json, loads_json
 
 # Feste IDs: idempotenter Seed pro Organisation, keine Geheimnisse.
 INTEGRATION_MIRO_DEFAULT_ID = "00000000-0000-4000-8000-000000000101"
@@ -20,17 +20,42 @@ INTEGRATION_GRAPH_DEFAULT_ID = "00000000-0000-4000-8000-000000000102"
 INSTANCE_MIRO_DEFAULT_ID = "00000000-0000-4000-8000-000000000201"
 INSTANCE_GRAPH_DEFAULT_ID = "00000000-0000-4000-8000-000000000202"
 
+TEMPLATE_KEY_MIRO_DEFAULT = "miro_default"
+# Falscher Default (MCP-DCR-Clients sind dort unbekannt); Reconcile ersetzt durch {miro_mcp_base}/token.
+LEGACY_MIRO_REST_OAUTH_TOKEN_ENDPOINT = "https://api.miro.com/v1/oauth/token"
+
 
 def _miro_integration_config(settings: Settings) -> dict:
     base = settings.miro_mcp_base.rstrip("/")
     return {
-        "template_key": "miro_default",
+        "template_key": TEMPLATE_KEY_MIRO_DEFAULT,
         "oauth_dynamic_client_registration_enabled": True,
         "endpoint": f"{base}/mcp",
         "oauth_registration_endpoint": f"{base}/register",
         "oauth_authorization_endpoint": f"{base}/authorize",
-        "oauth_token_endpoint": "https://api.miro.com/v1/oauth/token",
+        "oauth_token_endpoint": f"{base}/token",
     }
+
+
+def reconcile_miro_default_integration_token_endpoint(db: Session) -> None:
+    """Bestehende Seed-Integrationen: MCP-OAuth-Token nur am Authorization Server (nicht api.miro.com/v1/oauth/token)."""
+    settings = get_settings()
+    row = db.get(Integration, INTEGRATION_MIRO_DEFAULT_ID)
+    if not row:
+        return
+    cfg = loads_json(row.config_json, {})
+    if str(cfg.get("template_key") or "").strip() != TEMPLATE_KEY_MIRO_DEFAULT:
+        return
+    base = settings.miro_mcp_base.rstrip("/")
+    expected = f"{base}/token"
+    current = str(cfg.get("oauth_token_endpoint") or "").strip()
+    if current == expected:
+        return
+    if current not in ("", LEGACY_MIRO_REST_OAUTH_TOKEN_ENDPOINT):
+        return
+    cfg["oauth_token_endpoint"] = expected
+    row.config_json = dumps_json(cfg)
+    db.add(row)
 
 
 def _graph_integration_config(settings: Settings) -> dict:
@@ -110,3 +135,5 @@ def ensure_default_integrations(db: Session, organization_id: str, created_by_us
                 created_by_user_id=created_by_user_id,
             )
         )
+
+    reconcile_miro_default_integration_token_endpoint(db)

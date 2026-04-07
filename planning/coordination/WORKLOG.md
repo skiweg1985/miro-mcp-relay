@@ -1,3 +1,18 @@
+## 2026-04-07 – Cursor Agent – Miro MCP OAuth Token-Endpoint (401 Client not found)
+
+- Done:
+  - `default_integrations.py`: `oauth_token_endpoint` = `{miro_mcp_base}/token`; `LEGACY_MIRO_REST_OAUTH_TOKEN_ENDPOINT`; `reconcile_miro_default_integration_token_endpoint` für leere oder frühere REST-Token-URL; Aufruf am Ende von `ensure_default_integrations`.
+  - `integration_oauth.py`: Fallback Token-URL `{miro_mcp_base}/token`.
+  - `docs/CHANGELOG.md` [Unreleased] Fixed; `docs/technische-referenz.md` (Miro MCP vs. REST Token-URL).
+  - `backend/test_smoke.py`: `test_miro_default_integration_uses_mcp_token_endpoint`, `test_reconcile_miro_default_updates_legacy_rest_token_endpoint`.
+- Next: keine
+- Blockers: keine
+- Branch/PR: branch lokal, PR none
+- Files touched: `backend/app/default_integrations.py`, `backend/app/routers/integration_oauth.py`, `backend/test_smoke.py`, `docs/CHANGELOG.md`, `docs/technische-referenz.md`, `planning/coordination/WORKLOG.md`
+- Test notes: `PYTHONPATH=backend python3 -m unittest backend.test_smoke -v`
+- Changelog updated: yes (Unreleased Fixed)
+- Follow-ups: Nutzer nach Deploy: Connect erneut; bei Bedarf Disconnect vorher
+
 ## 2026-04-07 – Cursor Agent – Integration-OAuth Token-Exchange Diagnose-Logging
 
 - Done:

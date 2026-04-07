@@ -2,6 +2,15 @@ import { useState } from "react";
 
 import { Card, StatusBadge } from "../components";
 import type { BrokerCallbackUrls, ConnectedAccountOut, ProviderAppOut, ProviderInstanceOut, TokenIssueEventOut } from "../types";
+import {
+  brokerUi,
+  formatAccessModeLabel,
+  formatAllowedConnectionTypesSummary,
+  formatAuthenticationToUpstreamSummary,
+  formatRelayProtocolLabel,
+  formatRelayTypeLabel,
+  formatTokenIssueDecisionLabel,
+} from "../brokerTerminology";
 import { oauthIntegrationConfigured } from "../oauthIntegrationStatus";
 import { formatDateTime } from "../utils";
 import { TEMPLATE_MS_GRAPH, TEMPLATE_MS_LOGIN, TEMPLATE_MIRO } from "./constants";
@@ -12,52 +21,6 @@ function toneFromStatus(
   if (label === "Active") return "success";
   if (label === "Disabled") return "danger";
   return "neutral";
-}
-
-function relayTypeLabel(raw: string | undefined): string {
-  const v = (raw ?? "").trim();
-  if (v === "streamable_http") return "Streamable HTTP";
-  if (v === "rest_proxy") return "REST proxy";
-  if (v === "generic_http") return "Generic HTTP";
-  return v || "—";
-}
-
-function tokenTransportLabel(raw: string | undefined): string {
-  const v = (raw ?? "").trim();
-  if (v === "authorization_bearer") return "Bearer";
-  if (v === "header") return "Header";
-  if (v === "query") return "Query";
-  return v || "—";
-}
-
-function connectionTypesSummary(types: string[]): string {
-  if (!types.length) return "None";
-  const parts: string[] = [];
-  if (types.includes("direct_token")) parts.push("Direct");
-  if (types.includes("relay")) parts.push("Relay");
-  if (!parts.length) return types.join(", ");
-  return parts.join(" · ");
-}
-
-function headerMappingSummary(rc: Record<string, unknown>): string {
-  const parts: string[] = [];
-  const tt = rc.token_transport;
-  if (typeof tt === "string") parts.push(`Token: ${tokenTransportLabel(tt)}`);
-  const th = rc.token_header_name;
-  if (typeof th === "string" && th.trim()) parts.push(`Header name: ${th.trim()}`);
-  const tq = rc.token_query_param;
-  if (typeof tq === "string" && tq.trim()) parts.push(`Query param: ${tq.trim()}`);
-  const sh = rc.static_headers;
-  if (sh && typeof sh === "object" && !Array.isArray(sh)) {
-    const n = Object.keys(sh as object).length;
-    if (n) parts.push(`Static headers: ${n}`);
-  }
-  const dh = rc.dynamic_headers;
-  if (dh && typeof dh === "object" && !Array.isArray(dh)) {
-    const n = Object.keys(dh as object).length;
-    if (n) parts.push(`Dynamic headers: ${n}`);
-  }
-  return parts.length ? parts.join(" · ") : "Default";
 }
 
 function advancedRelayRows(rc: Record<string, unknown>): Array<{ label: string; value: string }> {
@@ -175,7 +138,7 @@ function maxIsoDate(dates: (string | null | undefined)[]): string | null {
 export type IntegrationOverviewStats = {
   connectedUsers: number;
   activeConnections: number;
-  recentTokenEvents: number;
+  recentTokenActivitySampleCount: number;
   lastActivity: string | null;
   lastSuccessAt: string | null;
   lastSuccessLabel: string | null;
@@ -289,20 +252,20 @@ export function IntegrationOverview({
               <dd>{templateDescription(app.template_key)}</dd>
             </div>
             <div>
-              <dt>App type</dt>
-              <dd>{app.template_key ? "Built-in template" : "Custom OAuth app"}</dd>
+              <dt>{brokerUi.integrationTemplate}</dt>
+              <dd>{app.template_key ? brokerUi.builtInTemplate : brokerUi.customOAuthIntegration}</dd>
             </div>
             <div>
-              <dt>Connection types</dt>
-              <dd>{connectionTypesSummary(app.allowed_connection_types ?? [])}</dd>
+              <dt>{brokerUi.availableAccessMethods}</dt>
+              <dd>{formatAllowedConnectionTypesSummary(app.allowed_connection_types ?? [])}</dd>
             </div>
             <div>
-              <dt>Relay</dt>
+              <dt>{brokerUi.brokerRelay}</dt>
               <dd>
                 {relayEnabled ? (
                   <>
                     <span className="integration-pill">On</span>{" "}
-                    <span className="muted">{relayTypeLabel(typeof rc.relay_type === "string" ? rc.relay_type : undefined)}</span>
+                    <span className="muted">{formatRelayTypeLabel(typeof rc.relay_type === "string" ? rc.relay_type : undefined)}</span>
                   </>
                 ) : (
                   <span className="muted">Off</span>
@@ -310,7 +273,7 @@ export function IntegrationOverview({
               </dd>
             </div>
             <div>
-              <dt>OAuth</dt>
+              <dt>{brokerUi.signInSetup}</dt>
               <dd>
                 {oauth.ok ? (
                   <span className="integration-pill integration-pill--ok">Ready</span>
@@ -346,22 +309,16 @@ export function IntegrationOverview({
               </div>
             ) : null}
             <div>
-              <dt>Auth mode</dt>
-              <dd>
-                {app.access_mode}
-                <span className="muted">
-                  {" "}
-                  · relay {app.allow_relay ? "on" : "off"}, direct {app.allow_direct_token_return ? "on" : "off"}
-                </span>
-              </dd>
+              <dt>{brokerUi.howAccessWorks}</dt>
+              <dd>{formatAccessModeLabel(app.access_mode)}</dd>
             </div>
             <div>
               <dt>Scopes</dt>
               <dd>{scopesSummary(app)}</dd>
             </div>
             <div>
-              <dt>Header mapping</dt>
-              <dd>{relayEnabled ? headerMappingSummary(rc) : "—"}</dd>
+              <dt>{brokerUi.authenticationToUpstream}</dt>
+              <dd>{relayEnabled ? formatAuthenticationToUpstreamSummary(rc) : "—"}</dd>
             </div>
           </dl>
         </Card>
@@ -370,7 +327,7 @@ export function IntegrationOverview({
           <div className="metric-row metric-row--tight">
             <MetricMini label="Connected users" value={String(stats.connectedUsers)} />
             <MetricMini label="Active connections" value={String(stats.activeConnections)} />
-            <MetricMini label="Token events (sample)" value={String(stats.recentTokenEvents)} />
+            <MetricMini label={brokerUi.recentTokenActivitySample} value={String(stats.recentTokenActivitySampleCount)} />
           </div>
           <dl className="integration-kv integration-kv--spaced">
             <div>
@@ -412,7 +369,7 @@ export function IntegrationOverview({
               </dd>
             </div>
             <div>
-              <dt>Connectivity check</dt>
+              <dt>{brokerUi.liveConnectivity}</dt>
               <dd>{health.connectivityNote ?? "Run “Test connection” for a live check."}</dd>
             </div>
           </dl>
@@ -435,18 +392,18 @@ export function IntegrationOverview({
           <div className="integration-advanced-body">
             <div className="integration-advanced-cols">
               <div>
-                <h3 className="integration-advanced-h">Relay engine</h3>
+                <h3 className="integration-advanced-h">{brokerUi.relayTransport}</h3>
                 <dl className="integration-kv integration-kv--compact">
                   <div>
-                    <dt>Relay protocol</dt>
-                    <dd>{app.relay_protocol ?? "—"}</dd>
+                    <dt>{brokerUi.relayApiStyle}</dt>
+                    <dd>{formatRelayProtocolLabel(app.relay_protocol)}</dd>
                   </div>
                   <div>
-                    <dt>Instance key</dt>
+                    <dt>{brokerUi.internalProviderInstanceKey}</dt>
                     <dd className="integration-kv-mono">{instance.key}</dd>
                   </div>
                   <div>
-                    <dt>App key</dt>
+                    <dt>{brokerUi.internalIntegrationAppKey}</dt>
                     <dd className="integration-kv-mono">{app.key}</dd>
                   </div>
                   {advancedRelayRows(rc).map((row) => (
@@ -458,22 +415,22 @@ export function IntegrationOverview({
                 </dl>
               </div>
               <div>
-                <h3 className="integration-advanced-h">Endpoints</h3>
+                <h3 className="integration-advanced-h">OAuth endpoints</h3>
                 <dl className="integration-kv integration-kv--compact">
                   <div>
-                    <dt>Issuer</dt>
+                    <dt>{brokerUi.issuerOpenId}</dt>
                     <dd className="integration-kv-mono">{instance.issuer ?? "—"}</dd>
                   </div>
                   <div>
-                    <dt>Authorize</dt>
+                    <dt>{brokerUi.authorizationEndpoint}</dt>
                     <dd className="integration-kv-mono">{instance.authorization_endpoint ?? "—"}</dd>
                   </div>
                   <div>
-                    <dt>Token</dt>
+                    <dt>{brokerUi.tokenEndpoint}</dt>
                     <dd className="integration-kv-mono">{instance.token_endpoint ?? "—"}</dd>
                   </div>
                   <div>
-                    <dt>User info</dt>
+                    <dt>{brokerUi.userProfileEndpoint}</dt>
                     <dd className="integration-kv-mono">{instance.userinfo_endpoint ?? "—"}</dd>
                   </div>
                 </dl>
@@ -517,17 +474,11 @@ export function buildOverviewStats(
   return {
     connectedUsers: users.size,
     activeConnections: active,
-    recentTokenEvents: issues.length,
+    recentTokenActivitySampleCount: issues.length,
     lastActivity,
     lastSuccessAt: lastIssued?.created_at ?? null,
-    lastSuccessLabel: lastIssued ? userIssueDecisionLabel(lastIssued.decision) : null,
+    lastSuccessLabel: lastIssued ? formatTokenIssueDecisionLabel(lastIssued.decision) : null,
   };
-}
-
-function userIssueDecisionLabel(decision: string): string {
-  if (decision === "issued") return "issued";
-  if (decision === "relayed") return "relayed";
-  return decision;
 }
 
 export function buildOverviewHealth(connections: ConnectedAccountOut[]): IntegrationOverviewHealth {

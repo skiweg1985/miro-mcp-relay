@@ -13,6 +13,7 @@ import type {
   ProviderInstanceOut,
   TokenIssueEventOut,
 } from "../types";
+import { brokerUi } from "../brokerTerminology";
 import {
   IntegrationOverview,
   buildOverviewHealth,
@@ -107,7 +108,7 @@ const CARDS: CardModel[] = [
   {
     id: "add",
     title: "Custom integration",
-    description: "Another sign-in provider with authorize and exchange URLs.",
+    description: "Another OAuth provider with authorization and token endpoints.",
     templateKey: "",
   },
 ];
@@ -570,17 +571,17 @@ export function IntegrationsPage({
       return;
     }
     if (!authUrl) {
-      notify({ tone: "error", title: "Authorize URL required", description: "Enter the authorization endpoint URL." });
+      notify({ tone: "error", title: "Authorization endpoint required", description: "Enter the authorization endpoint URL." });
       return;
     }
     if (!tokenUrl) {
-      notify({ tone: "error", title: "Token URL required", description: "Enter the token endpoint URL." });
+      notify({ tone: "error", title: "Token endpoint required", description: "Enter the token endpoint URL." });
       return;
     }
     if (!connectionTypes.length) {
       notify({
         tone: "error",
-        title: "Connection type required",
+        title: "Access method required",
         description: "Select at least one of: Direct connection, Relay through broker.",
       });
       return;
@@ -797,7 +798,7 @@ export function IntegrationsPage({
       if (!connectionTypes.length) {
         notify({
           tone: "error",
-          title: "Connection type required",
+          title: "Access method required",
           description: "Select Direct connection and/or Relay through broker.",
         });
         return;
@@ -805,7 +806,7 @@ export function IntegrationsPage({
     }
     if (wizardStep === 2) {
       if (!customAuthUrl.trim() || !customTokenUrl.trim()) {
-        notify({ tone: "error", title: "URLs required", description: "Authorize URL and token URL are required." });
+        notify({ tone: "error", title: "URLs required", description: "Authorization and token endpoints are required." });
         return;
       }
     }
@@ -1054,7 +1055,7 @@ export function IntegrationsPage({
                   <input type="password" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} autoComplete="new-password" />
                 </Field>
                 <div className="field">
-                  <span className="field-label">Available connection types</span>
+                  <span className="field-label">{brokerUi.availableAccessMethods}</span>
                   <label className="check-option">
                     <input
                       type="checkbox"
@@ -1151,7 +1152,7 @@ export function IntegrationsPage({
                   <input type="password" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} autoComplete="new-password" />
                 </Field>
                 <div className="field">
-                  <span className="field-label">Available connection types</span>
+                  <span className="field-label">{brokerUi.availableAccessMethods}</span>
                   <label className="check-option">
                     <input
                       type="checkbox"
@@ -1167,7 +1168,7 @@ export function IntegrationsPage({
                 </div>
                 {connectionTypes.includes("relay") ? (
                   <>
-                    <Field label="Relay type">
+                    <Field label={brokerUi.relayTransport}>
                       <select
                         value={String(relayDraft.relay_type ?? "rest_proxy")}
                         onChange={(e) => setRelayDraft((d) => ({ ...d, relay_type: e.target.value }))}
@@ -1185,7 +1186,7 @@ export function IntegrationsPage({
                         autoComplete="off"
                       />
                     </Field>
-                    <Field label="Authorization">
+                    <Field label={brokerUi.authenticationToUpstream}>
                       <select
                         value={String(relayDraft.token_transport ?? "authorization_bearer")}
                         onChange={(e) => setRelayDraft((d) => ({ ...d, token_transport: e.target.value }))}
@@ -1313,7 +1314,7 @@ export function IntegrationsPage({
                     </Field>
                   </>
                 )}
-                <Field label="Relay type">
+                <Field label={brokerUi.relayTransport}>
                   <select
                     value={String(relayDraft.relay_type ?? "streamable_http")}
                     onChange={(e) => setRelayDraft((d) => ({ ...d, relay_type: e.target.value }))}
@@ -1331,7 +1332,7 @@ export function IntegrationsPage({
                     autoComplete="off"
                   />
                 </Field>
-                <Field label="Authorization">
+                <Field label={brokerUi.authenticationToUpstream}>
                   <select
                     value={String(relayDraft.token_transport ?? "authorization_bearer")}
                     onChange={(e) => setRelayDraft((d) => ({ ...d, token_transport: e.target.value }))}
@@ -1482,7 +1483,7 @@ export function IntegrationsPage({
                   </>
                 )}
                 <div className="field">
-                  <span className="field-label">Connection types</span>
+                  <span className="field-label">{brokerUi.availableAccessMethods}</span>
                   <label className="check-option">
                     <input
                       type="checkbox"
@@ -1496,7 +1497,7 @@ export function IntegrationsPage({
                     <span>Relay through broker</span>
                   </label>
                 </div>
-                <Field label="Relay protocol">
+                <Field label={brokerUi.relayApiStyle}>
                   <select value={customRelayProtocol} onChange={(e) => setCustomRelayProtocol(e.target.value)}>
                     <option value="mcp_streamable_http">MCP streamable HTTP</option>
                     <option value="rest_proxy">REST proxy</option>
@@ -1505,7 +1506,7 @@ export function IntegrationsPage({
                 </Field>
                 {connectionTypes.includes("relay") ? (
                   <>
-                    <Field label="Relay type">
+                    <Field label={brokerUi.relayTransport}>
                       <select
                         value={String(relayDraft.relay_type ?? "generic_http")}
                         onChange={(e) => setRelayDraft((d) => ({ ...d, relay_type: e.target.value }))}
@@ -1523,7 +1524,7 @@ export function IntegrationsPage({
                         autoComplete="off"
                       />
                     </Field>
-                    <Field label="Authorization">
+                    <Field label={brokerUi.authenticationToUpstream}>
                       <select
                         value={String(relayDraft.token_transport ?? "authorization_bearer")}
                         onChange={(e) => setRelayDraft((d) => ({ ...d, token_transport: e.target.value }))}
@@ -1539,16 +1540,16 @@ export function IntegrationsPage({
             ) : null}
             {wizardStep === 2 ? (
               <>
-                <Field label="Authorize URL">
+                <Field label={brokerUi.authorizationEndpoint}>
                   <input value={customAuthUrl} onChange={(e) => setCustomAuthUrl(e.target.value)} required placeholder="https://…" />
                 </Field>
-                <Field label="Token URL">
+                <Field label={brokerUi.tokenEndpoint}>
                   <input value={customTokenUrl} onChange={(e) => setCustomTokenUrl(e.target.value)} required placeholder="https://…" />
                 </Field>
-                <Field label="Issuer" hint="Uses the authorize URL origin when empty.">
+                <Field label={brokerUi.issuerOpenId} hint="Uses the authorization endpoint origin when empty.">
                   <input value={customIssuer} onChange={(e) => setCustomIssuer(e.target.value)} placeholder="https://…" autoComplete="off" />
                 </Field>
-                <Field label="User info URL">
+                <Field label={brokerUi.userProfileEndpoint}>
                   <input value={customUserinfo} onChange={(e) => setCustomUserinfo(e.target.value)} autoComplete="off" />
                 </Field>
                 <Field label="Default scopes">
@@ -1569,19 +1570,19 @@ export function IntegrationsPage({
                   <SummaryRow label="PKCE" value={customPkce ? "Yes" : "No"} />
                   <SummaryRow label="Client ID" value={customClientId.trim() || "—"} />
                   <SummaryRow
-                    label="Connections"
+                    label={brokerUi.availableAccessMethods}
                     value={
                       [
-                        connectionTypes.includes("direct_token") ? "Direct" : null,
-                        connectionTypes.includes("relay") ? "Relay" : null,
+                        connectionTypes.includes("direct_token") ? "Direct connection" : null,
+                        connectionTypes.includes("relay") ? "Relay through broker" : null,
                       ]
                         .filter(Boolean)
                         .join(" · ") || "—"
                     }
                   />
-                  <SummaryRow label="Authorize URL" value={customAuthUrl.trim() || "—"} />
-                  <SummaryRow label="Token URL" value={customTokenUrl.trim() || "—"} />
-                  <SummaryRow label="Issuer" value={customIssuer.trim() || "(from authorize URL)"} />
+                  <SummaryRow label={brokerUi.authorizationEndpoint} value={customAuthUrl.trim() || "—"} />
+                  <SummaryRow label={brokerUi.tokenEndpoint} value={customTokenUrl.trim() || "—"} />
+                  <SummaryRow label={brokerUi.issuerOpenId} value={customIssuer.trim() || "(from authorization endpoint)"} />
                 </div>
               </>
             ) : null}

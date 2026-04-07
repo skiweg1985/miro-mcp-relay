@@ -53,6 +53,7 @@ import type {
   UserOut,
 } from "./types";
 import { UserIntegrationsPage } from "./UserIntegrationsPage";
+import { formatAccessModeShortLabel, formatTokenIssueDecisionLabel } from "./brokerTerminology";
 import { isApiError } from "./errors";
 import {
   copyToClipboard,
@@ -110,14 +111,6 @@ function decisionTone(decision: string): "neutral" | "success" | "warn" | "dange
   return "neutral";
 }
 
-function userIssueDecisionLabel(decision: string): string {
-  if (decision === "issued") return "Allowed";
-  if (decision === "relayed") return "Forwarded";
-  if (decision === "blocked") return "Blocked";
-  if (decision === "error") return "Error";
-  return decision;
-}
-
 function friendlyBrokerMessage(raw: string | null | undefined): string {
   const message = (raw ?? "").trim();
   if (!message) return "Something went wrong. Please try again.";
@@ -159,12 +152,6 @@ function isWorkspaceSelfServiceRoute(route: RouteMatch): boolean {
     return true;
   }
   return false;
-}
-
-function userAccessModeLabel(mode: string): string {
-  if (mode === "relay") return "Relay";
-  if (mode === "direct_token") return "Direct";
-  return mode;
 }
 
 function splitConnectionLabel(raw: string): { primary: string; secondary?: string } {
@@ -280,7 +267,6 @@ function AccessKeyIconActions({
   onToggleReveal,
   onCopy,
   copyDisabled,
-  keyVariant = "access",
   showRevealCopy = true,
   onReplace,
   replaceDisabled,
@@ -291,16 +277,14 @@ function AccessKeyIconActions({
   onToggleReveal: () => void;
   onCopy: () => void;
   copyDisabled?: boolean;
-  keyVariant?: "access" | "connection";
   showRevealCopy?: boolean;
   onReplace?: () => void;
   replaceDisabled?: boolean;
   replaceBusy?: boolean;
   replaceAriaLabel?: string;
 }) {
-  const keyNoun = keyVariant === "connection" ? "connection key" : "access key";
-  const replaceLabel =
-    replaceAriaLabel ?? (keyVariant === "connection" ? "Replace connection key" : "Replace access key");
+  const keyNoun = "access key";
+  const replaceLabel = replaceAriaLabel ?? "Replace access key";
   return (
     <div className="access-key-icon-group">
       {showRevealCopy ? (
@@ -474,7 +458,6 @@ function GrantAppAccessKeySection({ grantId, canUse }: { grantId: string; canUse
               onToggleReveal={() => setReveal((v) => !v)}
               onCopy={() => void handleCopy()}
               copyDisabled={!credential}
-              keyVariant="access"
               onReplace={() => setRotateConfirm(true)}
               replaceBusy={rotatePending}
             />
@@ -492,7 +475,6 @@ function GrantAppAccessKeySection({ grantId, canUse }: { grantId: string; canUse
               reveal={false}
               onToggleReveal={() => {}}
               onCopy={() => {}}
-              keyVariant="access"
               onReplace={() => setRotateConfirm(true)}
               replaceBusy={rotatePending}
             />
@@ -505,7 +487,7 @@ function GrantAppAccessKeySection({ grantId, canUse }: { grantId: string; canUse
   return (
     <>
       <div className="access-modal-field-stack access-modal-field-stack--primary">
-        <span className="access-modal-label" title="Use this key where the broker expects the access credential.">
+        <span className="access-modal-label" title="Send this value in the X-Access-Key header.">
           Access key
         </span>
         <div className="access-modal-field-main access-modal-field-main--flush">{accessKeyBody}</div>
@@ -804,7 +786,7 @@ function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
               </div>
               <div className="stack-cell">
                 <strong>Modes</strong>
-                <span>{grant.allowed_access_modes.map((m) => userAccessModeLabel(m)).join(", ")}</span>
+                <span>{grant.allowed_access_modes.map((m) => formatAccessModeShortLabel(m)).join(", ")}</span>
               </div>
               <div className="stack-cell">
                 <strong>Scope limits</strong>
@@ -1751,7 +1733,7 @@ function TokenAccessPage() {
               {issue.provider_app_display_name ?? issue.provider_app_id ?? "—"}
             </span>,
             <StatusBadge key={`${issue.id}-d`} tone={decisionTone(issue.decision)}>
-              {userIssueDecisionLabel(issue.decision)}
+              {formatTokenIssueDecisionLabel(issue.decision)}
             </StatusBadge>,
             <span key={`${issue.id}-s`} className="grants-cell-ellipsis" title={issue.scopes.join(", ")}>
               {scopesPreview(issue.scopes)}
@@ -1784,7 +1766,7 @@ function TokenAccessPage() {
             <div className="stack-cell">
               <strong>Outcome</strong>
               <span>
-                <StatusBadge tone={decisionTone(selectedIssue.decision)}>{userIssueDecisionLabel(selectedIssue.decision)}</StatusBadge>
+                <StatusBadge tone={decisionTone(selectedIssue.decision)}>{formatTokenIssueDecisionLabel(selectedIssue.decision)}</StatusBadge>
               </span>
             </div>
             {selectedIssue.reason ? (

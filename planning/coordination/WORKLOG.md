@@ -1,3 +1,20 @@
+## 2026-04-07 – Cursor Agent – OAuth-Broker UX-Terminologie (Admin/User)
+
+- Done:
+  - `frontend/src/brokerTerminology.ts`: kanonische UI-Strings und Formatter (Access-Modi, Verbindungsarten, Relay, Token-Outcome-Labels, Upstream-Auth-Zusammenfassung).
+  - `IntegrationOverview.tsx`: Detailseite (Labels, Advanced-Bereich, Metrik „Recent token activity (sample)“, einheitliche Token-Outcome-Beschriftung mit Activity-Seite).
+  - `IntegrationsPage.tsx`: Wizard-Felder (available access methods, relay transport/API style, authentication to upstream, OAuth-Endpunkt-Labels).
+  - `App.tsx`: `formatTokenIssueDecisionLabel`, `formatAccessModeShortLabel`; Access-Key-Actions ohne „connection key“-Variante.
+  - `oauthIntegrationStatus.ts`: Fehlermeldungen „Authorization endpoint“ / „Token endpoint“.
+  - `docs/CHANGELOG.md` [Unreleased] Changed.
+- Next: keine
+- Blockers: keine
+- Branch/PR: branch `codex/oauth-broker-redesign`, PR none
+- Files touched: `frontend/src/brokerTerminology.ts`, `frontend/src/admin/IntegrationOverview.tsx`, `frontend/src/admin/IntegrationsPage.tsx`, `frontend/src/App.tsx`, `frontend/src/oauthIntegrationStatus.ts`, `docs/CHANGELOG.md`, `planning/coordination/WORKLOG.md`
+- Test notes: `cd frontend && npm run build`
+- Changelog updated: yes (Unreleased Changed)
+- Follow-ups: bei Bedarf weiteres Audit weiterer Admin-Seiten (Access, Users) auf verbliebene Legacy-Formulierungen
+
 ## 2026-04-07 – Cursor Agent – Cursor-Regel Terminologie & Naming
 
 - Done:

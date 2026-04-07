@@ -38,10 +38,10 @@ export function oauthIntegrationConfigured(
     return { ok: false, reason: "Directory (tenant) not set" };
   }
   if (!authz) {
-    return { ok: false, reason: "Authorize URL missing" };
+    return { ok: false, reason: "Authorization endpoint missing" };
   }
   if (!tok) {
-    return { ok: false, reason: "Token URL missing" };
+    return { ok: false, reason: "Token endpoint missing" };
   }
   if (dcr) {
     if (!String(app.oauth_registration_endpoint ?? "").trim()) {

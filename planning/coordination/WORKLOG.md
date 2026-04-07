@@ -1,3 +1,16 @@
+## 2026-04-07 – Cursor Agent – Graph OAuth Profil via GET /me
+
+- Done:
+  - `integration_oauth._profile_metadata_for_oauth`: Für `microsoft_graph` zuerst `GET https://graph.microsoft.com/v1.0/me` mit Access Token (Anzeigename, E-Mail, UPN, ggf. Vor-/Nachname, Jobtitel); `id_token`-Claims nur noch als Ergänzung/Fallback (u. a. `tenant_id`).
+  - `docs/CHANGELOG.md`, `docs/technische-referenz.md`, WORKLOG.
+- Next: Bestehende Graph-Verbindung ggf. einmal Disconnect + Connect, damit Metadaten neu geschrieben werden.
+- Blockers: keine
+- Branch/PR: branch lokal, PR none
+- Files touched: `backend/app/routers/integration_oauth.py`, `frontend/src/ConnectionDetailModal.tsx`, `docs/CHANGELOG.md`, `docs/technische-referenz.md`, `planning/coordination/WORKLOG.md`
+- Test notes: `python3 -m py_compile backend/app/routers/integration_oauth.py`; `cd frontend && npm run build`
+- Changelog updated: yes (Unreleased Added, Beschreibung OAuth-Profil)
+- Follow-ups: keine
+
 ## 2026-04-07 – Cursor Agent – Detail-Modale & GET integration-instances inspect
 
 - Done:

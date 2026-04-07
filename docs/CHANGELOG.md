@@ -5,7 +5,7 @@
 ### Added
 
 - **`GET /api/v1/integration-instances/{id}/inspect`**: Liefert `IntegrationInstanceOut`, `IntegrationOut` und optional `user_connection` (`id`, `status`, Zeitstempel, `profile` aus `metadata_json`).
-- Integration-OAuth-Callback: Profil-Metadaten in `user_connections.metadata_json` (Microsoft Graph: Claims aus `id_token`; Miro: optional `GET https://api.miro.com/v1/users/me`); bei `oauth/disconnect` wird `metadata_json` geleert.
+- Integration-OAuth-Callback: Profil-Metadaten in `user_connections.metadata_json` (Microsoft Graph: **`GET https://graph.microsoft.com/v1.0/me`** mit Access Token, Fallback Claims aus `id_token` wenn vorhanden; Miro: optional `GET https://api.miro.com/v1/users/me`); bei `oauth/disconnect` wird `metadata_json` geleert.
 - Workspace-UI: Detail-Modale für Connections (Zusammenfassung, verknüpftes Konto, aufklappbare Rohdaten), erweiterte Integrations-Detailansicht (Open), Access-Key-Details mit Roh-JSON; Tabellenzeilen öffnen Details; Hilfsfunktion `decode_jwt_payload_unverified` in `app.security`.
 - Integration-OAuth: Bei fehlgeschlagenem Token-Austausch mit Miro oder Microsoft Graph schreibt das Backend HTTP-Status und einen gekürzten Antworttext des Upstream-Endpoints ins Log (`integration_oauth`).
 

@@ -127,6 +127,18 @@ export function ConnectionDetailModal({
               />
               <DetailRow label="Linked at" value={formatDateTime(uc.created_at)} />
               <DetailRow label="Last updated" value={formatDateTime(uc.updated_at)} />
+              {typeof profile.display_name === "string" && profile.display_name.trim() ? (
+                <DetailRow label="Display name" value={profile.display_name} />
+              ) : null}
+              {typeof profile.email === "string" && profile.email.trim() ? (
+                <DetailRow label="Email" value={profile.email} />
+              ) : null}
+              {typeof profile.username === "string" && profile.username.trim() ? (
+                <DetailRow label="Username" value={profile.username} />
+              ) : null}
+              {typeof profile.job_title === "string" && profile.job_title.trim() ? (
+                <DetailRow label="Job title" value={profile.job_title} />
+              ) : null}
               {typeof profile.scopes_granted === "string" && profile.scopes_granted.trim() ? (
                 <DetailRow label="Granted scopes" value={<span className="detail-scopes">{profile.scopes_granted}</span>} />
               ) : null}

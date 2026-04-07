@@ -249,25 +249,62 @@ async def _profile_metadata_for_oauth(
         meta["scopes_granted"] = scope_raw.strip()
     if kind == KIND_MICROSOFT_GRAPH:
         meta["provider"] = "microsoft_graph"
+        # Primary: Graph user profile (works with User.Read; id_token is often absent or sparse in token responses).
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                response = await client.get(
+                    "https://graph.microsoft.com/v1.0/me",
+                    headers={"Authorization": f"Bearer {access_token}"},
+                )
+            if response.status_code == 200:
+                body = response.json()
+                if isinstance(body, dict):
+                    dn = str(body.get("displayName") or "").strip()
+                    if dn:
+                        meta["display_name"] = dn
+                    mail = str(body.get("mail") or "").strip()
+                    upn = str(body.get("userPrincipalName") or "").strip()
+                    if mail:
+                        meta["email"] = mail
+                    elif upn and "@" in upn:
+                        meta["email"] = upn
+                    if upn:
+                        meta["username"] = upn
+                    given = str(body.get("givenName") or "").strip()
+                    if given:
+                        meta["given_name"] = given
+                    surname = str(body.get("surname") or "").strip()
+                    if surname:
+                        meta["surname"] = surname
+                    job = str(body.get("jobTitle") or "").strip()
+                    if job:
+                        meta["job_title"] = job
+        except Exception:
+            pass
+
         claims = decode_jwt_payload_unverified(token_data.get("id_token"))
         if isinstance(claims, dict):
-            name = str(claims.get("name") or "").strip()
-            given = str(claims.get("given_name") or "").strip()
-            family = str(claims.get("family_name") or "").strip()
-            display = name or (f"{given} {family}".strip() if given or family else "")
-            if display:
-                meta["display_name"] = display
-            email = str(claims.get("email") or "").strip()
-            preferred = str(claims.get("preferred_username") or "").strip()
-            if not email and preferred and "@" in preferred:
-                email = preferred
-            if email:
-                meta["email"] = email
-            if preferred:
-                meta["username"] = preferred
             tid = str(claims.get("tid") or "").strip()
             if tid:
                 meta["tenant_id"] = tid
+            if not meta.get("display_name"):
+                name = str(claims.get("name") or "").strip()
+                given = str(claims.get("given_name") or "").strip()
+                family = str(claims.get("family_name") or "").strip()
+                display = name or (f"{given} {family}".strip() if given or family else "")
+                if display:
+                    meta["display_name"] = display
+            if not meta.get("email"):
+                email = str(claims.get("email") or "").strip()
+                preferred = str(claims.get("preferred_username") or "").strip()
+                if email:
+                    meta["email"] = email
+                elif preferred and "@" in preferred:
+                    meta["email"] = preferred
+            if not meta.get("username"):
+                preferred = str(claims.get("preferred_username") or "").strip()
+                if preferred:
+                    meta["username"] = preferred
         return meta
 
     meta["provider"] = "miro"

@@ -1,6 +1,14 @@
 # Technische Referenz
 
-## Architekturueberblick
+## Stand Integration V2
+
+- **Backend** (`backend/app/`): FastAPI mit Sessions, Microsoft-Enduser-Login (OAuth über Umgebungsvariablen), Integrations-API V2 (`integrations`, `integration-instances`, Ausführung/Tool-Discovery). Keine Provider-/Connection-/Delegation-/Relay-Pfade mehr im aktiven Code.
+- **Frontend** (`frontend/`): React/Vite, Einstieg `/workspace/integrations-v2`.
+- **`src/`**: veralteter Node-Referenzcode, nicht der deployte Laufzeitpfad.
+
+Aeltere Abschnitte weiter unten in diesem Dokument koennen noch historische Begriffe enthalten; sie gelten nicht mehr fuer den aktiven Stack.
+
+## Architekturueberblick (Legacy-Abschnitt unten teils veraltet)
 
 Das Repository umfasst drei relevante Codebereiche:
 

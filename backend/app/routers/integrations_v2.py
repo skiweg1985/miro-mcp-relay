@@ -1,0 +1,254 @@
+from __future__ import annotations
+
+from fastapi import APIRouter, Depends, Header, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.database import get_db
+from app.deps import get_current_user, require_csrf
+from app.execution_engine_v2 import execute_instance_action
+from app.models import (
+    AuthMode,
+    Integration,
+    IntegrationAccessMode,
+    IntegrationInstance,
+    IntegrationTool,
+    IntegrationType,
+    User,
+)
+from app.schemas import (
+    IntegrationCreate,
+    IntegrationExecuteRequest,
+    IntegrationExecuteResponse,
+    IntegrationInstanceCreate,
+    IntegrationInstanceOut,
+    IntegrationOut,
+    IntegrationToolOut,
+)
+from app.security import dumps_json, loads_json
+
+router = APIRouter(tags=["integrations-v2"])
+
+
+def _integration_out(item: Integration) -> IntegrationOut:
+    return IntegrationOut(
+        id=item.id,
+        name=item.name,
+        type=item.type,
+        config=loads_json(item.config_json, {}),
+        mcp_enabled=item.mcp_enabled,
+        created_at=item.created_at,
+        updated_at=item.updated_at,
+    )
+
+
+def _instance_out(item: IntegrationInstance) -> IntegrationInstanceOut:
+    return IntegrationInstanceOut(
+        id=item.id,
+        name=item.name,
+        integration_id=item.integration_id,
+        auth_mode=item.auth_mode,
+        auth_config=loads_json(item.auth_config_json, {}),
+        access_mode=item.access_mode,
+        access_config=loads_json(item.access_config_json, {}),
+        created_at=item.created_at,
+        updated_at=item.updated_at,
+    )
+
+
+def _validate_integration(payload: IntegrationCreate) -> None:
+    if payload.type not in {value.value for value in IntegrationType}:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="invalid_integration_type")
+    if payload.type == IntegrationType.MCP_SERVER.value and not payload.mcp_enabled:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="mcp_server_requires_mcp_enabled")
+
+
+def _validate_instance(payload: IntegrationInstanceCreate, integration: Integration) -> None:
+    if payload.auth_mode not in {value.value for value in AuthMode}:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="invalid_auth_mode")
+    if payload.access_mode not in {value.value for value in IntegrationAccessMode}:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="invalid_access_mode")
+    if integration.type == IntegrationType.MCP_SERVER.value and payload.access_mode != IntegrationAccessMode.RELAY.value:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="mcp_requires_relay_access")
+    if integration.type == IntegrationType.OAUTH_PROVIDER.value and payload.auth_mode != AuthMode.OAUTH.value:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="oauth_provider_requires_oauth_mode")
+    if payload.auth_mode == AuthMode.NONE.value and payload.auth_config:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="auth_none_forbids_credentials")
+
+
+@router.get("/integrations", response_model=list[IntegrationOut])
+def list_integrations(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    rows = db.scalars(
+        select(Integration).where(Integration.organization_id == current_user.organization_id).order_by(Integration.name.asc())
+    ).all()
+    return [_integration_out(row) for row in rows]
+
+
+@router.post("/integrations", response_model=IntegrationOut)
+def create_integration(
+    payload: IntegrationCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _csrf: str = Depends(require_csrf),
+):
+    _validate_integration(payload)
+    row = Integration(
+        organization_id=current_user.organization_id,
+        name=payload.name.strip(),
+        type=payload.type,
+        config_json=dumps_json(payload.config),
+        mcp_enabled=bool(payload.mcp_enabled),
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return _integration_out(row)
+
+
+@router.get("/integration-instances", response_model=list[IntegrationInstanceOut])
+def list_instances(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    rows = db.scalars(
+        select(IntegrationInstance)
+        .where(IntegrationInstance.organization_id == current_user.organization_id)
+        .order_by(IntegrationInstance.created_at.desc())
+    ).all()
+    return [_instance_out(row) for row in rows]
+
+
+@router.post("/integration-instances", response_model=IntegrationInstanceOut)
+def create_instance(
+    payload: IntegrationInstanceCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _csrf: str = Depends(require_csrf),
+):
+    integration = db.scalar(
+        select(Integration).where(
+            Integration.id == payload.integration_id,
+            Integration.organization_id == current_user.organization_id,
+        )
+    )
+    if not integration:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="integration_not_found")
+    _validate_instance(payload, integration)
+    row = IntegrationInstance(
+        organization_id=current_user.organization_id,
+        integration_id=integration.id,
+        name=payload.name.strip(),
+        auth_mode=payload.auth_mode,
+        auth_config_json=dumps_json(payload.auth_config),
+        access_mode=payload.access_mode,
+        access_config_json=dumps_json(payload.access_config),
+        created_by_user_id=current_user.id,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return _instance_out(row)
+
+
+@router.post("/integration-instances/{instance_id}/execute", response_model=IntegrationExecuteResponse)
+async def execute_instance(
+    instance_id: str,
+    payload: IntegrationExecuteRequest,
+    x_user_token: str | None = Header(default=None, alias="X-User-Token"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    instance = db.scalar(
+        select(IntegrationInstance).where(
+            IntegrationInstance.id == instance_id,
+            IntegrationInstance.organization_id == current_user.organization_id,
+        )
+    )
+    if not instance:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="instance_not_found")
+    integration = db.scalar(
+        select(Integration).where(
+            Integration.id == instance.integration_id,
+            Integration.organization_id == current_user.organization_id,
+        )
+    )
+    if not integration:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="integration_not_found")
+    result = await execute_instance_action(
+        instance,
+        integration_config=loads_json(integration.config_json, {}),
+        action=payload.action,
+        tool_name=payload.tool_name,
+        arguments=payload.arguments,
+        x_user_token=x_user_token,
+    )
+    return IntegrationExecuteResponse(result=result)
+
+
+@router.post("/integration-instances/{instance_id}/discover-tools", response_model=list[IntegrationToolOut])
+async def discover_tools(
+    instance_id: str,
+    x_user_token: str | None = Header(default=None, alias="X-User-Token"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    instance = db.scalar(
+        select(IntegrationInstance).where(
+            IntegrationInstance.id == instance_id,
+            IntegrationInstance.organization_id == current_user.organization_id,
+        )
+    )
+    if not instance:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="instance_not_found")
+    integration = db.scalar(
+        select(Integration).where(
+            Integration.id == instance.integration_id,
+            Integration.organization_id == current_user.organization_id,
+        )
+    )
+    if not integration or not integration.mcp_enabled:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="integration_not_mcp_enabled")
+    result = await execute_instance_action(
+        instance,
+        integration_config=loads_json(integration.config_json, {}),
+        action="discover_tools",
+        tool_name=None,
+        arguments={},
+        x_user_token=x_user_token,
+    )
+    tools = result.get("tools") if isinstance(result, dict) else []
+    if not isinstance(tools, list):
+        tools = []
+    saved: list[IntegrationToolOut] = []
+    for tool in tools:
+        if not isinstance(tool, dict):
+            continue
+        name = str(tool.get("name") or "").strip()
+        if not name:
+            continue
+        row = db.scalar(
+            select(IntegrationTool).where(
+                IntegrationTool.organization_id == current_user.organization_id,
+                IntegrationTool.integration_id == integration.id,
+                IntegrationTool.tool_name == name,
+            )
+        )
+        if not row:
+            row = IntegrationTool(
+                organization_id=current_user.organization_id,
+                integration_id=integration.id,
+                tool_name=name,
+            )
+            db.add(row)
+            db.flush()
+        row.description = str(tool.get("description") or "") or None
+        row.input_schema_json = dumps_json(tool.get("input_schema") or {})
+        saved.append(
+            IntegrationToolOut(
+                id=row.id,
+                name=row.tool_name,
+                description=row.description,
+                input_schema=loads_json(row.input_schema_json, {}),
+                visible=row.visible,
+                allowed=row.allowed,
+            )
+        )
+    db.commit()
+    return saved

@@ -1852,3 +1852,76 @@
   - OAuth-basierte Shared-Credential-Erstellung (Admin startet OAuth-Flow fuer Shared Account)
   - Automatisches Tool-Discovery (Background-Job statt manueller Trigger)
   - Policy-Caching (LRU) fuer Performance bei hohem Relay-Traffic
+
+## 2026-04-07 11:48 – cursor-agent – Hard Cut auf Integration V2
+
+- Done:
+  - Neuen V2-Branch-Stand umgesetzt: Modelle `Integration`, `IntegrationInstance`, `IntegrationTool` ergänzt.
+  - Generischen MCP-Client und V2-Execution-Engine (Auth-Modi: `none`, `oauth`, `api_key`, `shared_credentials`) implementiert.
+  - Neue V2-Router `integrations_v2` eingebunden und Runtime-Router in `main.py` auf `public`, `auth`, `integrations_v2` reduziert.
+  - Frontend auf V2-Navigation geschnitten: zentrale Route `/workspace/integrations-v2`, neue Seite `IntegrationsV2Page`.
+  - Legacy-Workspace-Routen auf V2 umgebogen.
+  - Planungsdokument `planning/integration-v2-hard-cut.md` für API/DB-Änderungen ergänzt.
+- Next:
+  - Legacy-Modelle und Legacy-Routerdateien physisch entfernen.
+  - Auth/Seed vollständig von alten Provider-App-Tabellen entkoppeln.
+  - V2-Tool-Discovery im Frontend (Anzeige und Tool-Call) vervollständigen.
+- Blockers:
+  - Keine funktionalen Blocker; vollständige physische Löschung des Legacy-Codes ist noch offen.
+- Branch/PR:
+  - branch: codex/hard-refactor-integration-model
+  - PR: none
+- Files touched:
+  - backend/app/main.py
+  - backend/app/models.py
+  - backend/app/schemas.py
+  - backend/app/mcp_client.py
+  - backend/app/execution_engine_v2.py
+  - backend/app/routers/integrations_v2.py
+  - frontend/src/App.tsx
+  - frontend/src/api.ts
+  - frontend/src/types.ts
+  - frontend/src/utils.ts
+  - frontend/src/IntegrationsV2Page.tsx
+  - docs/CHANGELOG.md
+  - planning/integration-v2-hard-cut.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `python3 -m py_compile backend/app/*.py backend/app/routers/*.py backend/app/core/*.py`, `cd frontend && npm run build`
+  - endpoints: `/api/v1/integrations`, `/api/v1/integration-instances`, `/api/v1/integration-instances/{id}/execute`, `/api/v1/integration-instances/{id}/discover-tools`
+  - UI path: `/workspace/integrations-v2`
+- Changelog updated:
+  - yes ([Unreleased] Added/Changed)
+- Follow-ups:
+  - Vollständige Deletion der Legacy-Provider-/Connection-/Relay-Struktur in separatem Bereinigungsschritt.
+
+## 2026-04-07 11:53 – cursor-agent – Physische Legacy-Bereinigung (V2)
+
+- Done:
+  - `models.py` auf Organisation, Nutzer, Session, Audit, OAuth-Pending, `oauth_identities`, V2-Integrations-Tabellen reduziert.
+  - `seed.py` ohne Provider-Definitionen/-Apps; nur Organisation und Bootstrap-Admin.
+  - Microsoft-Enduser-Login in `auth.py` über Umgebungsvariablen und `oauth_identities`; Redirect nach `/workspace/integrations-v2`.
+  - `public.py` ohne Provider-Definitions-Endpoint; `schemas.py` und `deps.py` auf Session/CSRF/Audit reduziert.
+  - Legacy-Backend-Dateien und -Router entfernt; `backend/test_smoke.py` ergänzt; alte Backend-Unit-Tests zu Provider/Connections entfernt.
+  - Frontend auf schlanke `App.tsx`, `api.ts`, `types.ts`, `utils.ts`; Admin- und Workspace-Legacy-Seiten gelöscht.
+  - `docs/CHANGELOG.md` [Unreleased] Removed; `planning/integration-v2-hard-cut.md` um physische Bereinigung ergänzt.
+- Next:
+  - `docs/technische-referenz.md` und README an V2 anpassen (optional).
+  - Optional: MCP-Protokoll-Details im generischen Client an echte Upstream-Konvention anbinden.
+- Blockers:
+  - Bestehende `broker.db` kann historische Tabellen enthalten; bei Bedarf Datei löschen und neu starten.
+- Branch/PR:
+  - branch: codex/hard-refactor-integration-model
+  - PR: none
+- Files touched:
+  - backend/app/models.py, seed.py, schemas.py, deps.py, core/config.py, routers/auth.py, routers/public.py, execution_engine_v2.py, test_smoke.py
+  - backend: entfernte Module und Router (siehe git diff)
+  - frontend/src/App.tsx, api.ts, types.ts, utils.ts, IntegrationsV2Page.tsx
+  - frontend/src: entfernte Legacy-Komponenten (siehe git diff)
+  - docs/CHANGELOG.md, planning/integration-v2-hard-cut.md, planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `python3 -m py_compile backend/app/*.py backend/app/routers/*.py backend/app/core/*.py`, `PYTHONPATH=backend python3 -m unittest backend.test_smoke -v`, `cd frontend && npm run build`, `npm test`
+- Changelog updated:
+  - yes ([Unreleased] Removed)
+- Follow-ups:
+  - keine kritischen

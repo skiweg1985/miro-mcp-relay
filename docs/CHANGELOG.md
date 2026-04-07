@@ -4,6 +4,24 @@
 
 ### Added
 
+- V2-Integrationsplattform: neue Datenmodelle `Integration`, `IntegrationInstance`, `IntegrationTool` mit Trennung von Integrationstyp, Authentisierung und Zugriffskanal.
+- Neue API-Routen unter `/api/v1`: `GET/POST /integrations`, `GET/POST /integration-instances`, `POST /integration-instances/{id}/execute`, `POST /integration-instances/{id}/discover-tools`.
+- Generischer MCP-Client (`discover_tools`, `call_tool`) und V2-Execution-Engine mit Auth-Injektion für `none`, `oauth`, `api_key`, `shared_credentials`.
+- Frontend-Seite `Integrations V2` mit 3-Schritt-Flow (Typ → Auth-Mode → Konfiguration) und Navigation unter `/workspace/integrations-v2`.
+
+### Changed
+
+- Runtime-Hard-Cut im Backend: `main.py` bindet nur noch `public`, `auth` und `integrations_v2`; frühere Connection-/Token-Issuance-/Admin-/User-Router sind nicht mehr aktiv.
+- Frontend-Routing priorisiert den neuen V2-Pfad; Legacy-Workspace-Pfade leiten auf `/workspace/integrations-v2`.
+
+### Removed
+
+- Legacy-Backend-Module und -Router entfernt (u. a. Provider-/App-/Connection-Modelle, Relay, Miro/Graph-Integration, Delegation, Token-Issuance, Admin-/User-APIs). Aktiver Codepfad: `public`, `auth`, `integrations_v2`.
+- ORM-Tabellen auf Kern + V2 reduziert; Microsoft-Enduser-Login über `MICROSOFT_BROKER_CLIENT_ID` / `MICROSOFT_BROKER_CLIENT_SECRET` und OAuth-Identitäten in `oauth_identities` statt `ProviderApp`.
+- Legacy-Frontend entfernt (Admin-Bereich, alte Workspace-Integrations-, Grants- und Clients-Seiten).
+
+### Added
+
 - **Credential Scope**: `ConnectedAccount` unterscheidet `personal` und `shared` (`credential_scope`, `managed_by_user_id`); Backfill vorhandener Einträge auf `personal`.
 - **Shared Credential Management (Admin)**: CRUD-Endpunkte `POST/GET /admin/shared-credentials`, `POST .../revoke`, `POST .../refresh`; Admin-UI zeigt Shared Credentials pro Integration mit Revoke/Refresh.
 - **MCP Tool Discovery**: Modell `DiscoveredTool` mit stabilem Schlüssel (`provider_app_id + tool_name`); `tool_discovery.py` ruft `tools/list` vom Upstream ab, normalisiert und persistiert; Admin-Trigger `POST /admin/provider-apps/{id}/discover-tools`.

@@ -1,14 +1,16 @@
 # miro-mcp-relay
 
-OAuth broker/relay for `https://mcp.miro.com/`, now evolving into a generic OAuth broker and delegated token access platform.
+Integration platform (V2): konfigurierbare Integrationen mit getrenntem Modell für Zielsystem, Authentisierung und Zugriff; Microsoft-Enduser-Login über OAuth (Umgebungsvariablen).
 
 ## Current architecture
 
 The active app now runs as:
 
-- `backend/app`: FastAPI broker backend with DB-backed users, sessions, provider definitions/apps, connected accounts, delegated access, Miro relay-token issuance, and legacy-compatible `/miro/mcp/<profile_id>` relay handling
-- `frontend/`: React/Vite workspace for login, Miro connection, MCP handoff, grants, and token diagnostics
-- `src/`: legacy Node source retained only as reference and for the small platform unit tests; it is no longer part of the deployed runtime path
+- `backend/app`: FastAPI with DB-backed users, sessions, Microsoft OAuth (env-based client), Integration V2 API (`/api/v1/integrations`, `/api/v1/integration-instances`, execute/discover-tools)
+- `frontend/`: React/Vite; workspace entry `/workspace/integrations-v2`
+- `src/`: legacy Node source retained only as reference and for small platform unit tests; not the deployed runtime path
+
+Older sections below this README may still describe removed provider/connection/delegation APIs; treat them as historical unless updated.
 
 ## Features
 

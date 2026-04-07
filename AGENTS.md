@@ -57,7 +57,7 @@ Follow these repo-specific conventions and commands first.
 - Run service smoke test after start:
   - `curl -sS http://localhost/api/v1/health`
 - Root endpoint check: `curl -sS http://localhost/`
-- Broker relay smoke check: `curl -sS -X POST http://localhost/api/v1/broker-proxy/miro/<connected_account_id> -H "X-Access-Key: <delegation_grant_credential>" -d '{}'`
+- Backend unit smoke (no running server): `PYTHONPATH=backend python3 -m unittest backend.test_smoke -v`
 - HTTPS dev smoke test: `curl -k -sS https://localhost/api/v1/health`
 
 ## Testing Guidance (Especially Single Test)

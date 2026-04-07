@@ -1,31 +1,13 @@
 import type {
   ApiError,
-  AuditEventOut,
   AuthFlowStartResponse,
-  ConnectionProbeResult,
-  ConnectedAccountOut,
-  DelegationGrantCreateResult,
-  DelegationGrantOut,
-  DiscoveredToolOut,
   BrokerCallbackUrls,
   Health,
-  IntegrationTestResult,
+  IntegrationInstanceV2Out,
+  IntegrationToolV2Out,
+  IntegrationV2Out,
   LoginOptionsResponse,
-  ConnectionAccessDetails,
-  ProviderAppOut,
-  ProviderDefinitionOut,
-  ProviderInstanceOut,
-  AccessCredentialRotateResult,
-  SelfServiceDelegationGrantCreateResult,
-  SelfServiceDelegationGrantOut,
-  ServiceClientCreateResult,
-  ServiceClientOut,
   SessionResponse,
-  SharedCredentialOut,
-  ToolAccessPolicyOut,
-  ToolDiscoveryResult,
-  TokenIssueEventOut,
-  UserOut,
 } from "./types";
 
 type HttpMethod = "GET" | "POST" | "PATCH" | "DELETE";
@@ -121,301 +103,38 @@ export const api = {
       csrfToken,
     });
   },
-  providerDefinitions() {
-    return request<ProviderDefinitionOut[]>("/api/v1/provider-definitions");
+  integrationsV2() {
+    return request<IntegrationV2Out[]>("/api/v1/integrations");
   },
-  providerAppsForUser() {
-    return request<ProviderAppOut[]>("/api/v1/provider-apps");
-  },
-  myConnections() {
-    return request<ConnectedAccountOut[]>("/api/v1/connections");
-  },
-  availableSharedCredentials() {
-    return request<ConnectedAccountOut[]>("/api/v1/shared-credentials");
-  },
-  startMiroConnection(csrfToken: string, body: unknown = {}) {
-    return request<{ ok: boolean; auth_url: string; state: string }>("/api/v1/connections/miro/start", {
+  createIntegrationV2(csrfToken: string, body: unknown) {
+    return request<IntegrationV2Out>("/api/v1/integrations", {
       method: "POST",
       csrfToken,
       body,
     });
   },
-  startProviderConnection(csrfToken: string, providerAppKey: string, connectedAccountId?: string | null) {
-    return request<{ ok: boolean; auth_url: string; state: string; provider_app_key: string }>("/api/v1/connections/provider-connect/start", {
-      method: "POST",
-      csrfToken,
-      body: {
-        provider_app_key: providerAppKey,
-        connected_account_id: connectedAccountId ?? null,
-      },
-    });
+  integrationInstancesV2() {
+    return request<IntegrationInstanceV2Out[]>("/api/v1/integration-instances");
   },
-  refreshConnection(csrfToken: string, connectionId: string) {
-    return request<ConnectedAccountOut>(`/api/v1/connections/${connectionId}/refresh`, {
-      method: "POST",
-      csrfToken,
-    });
-  },
-  revokeConnection(csrfToken: string, connectionId: string) {
-    return request<ConnectedAccountOut>(`/api/v1/connections/${connectionId}/revoke`, {
-      method: "POST",
-      csrfToken,
-    });
-  },
-  probeConnection(csrfToken: string, connectionId: string) {
-    return request<ConnectionProbeResult>(`/api/v1/connections/${connectionId}/probe`, {
-      method: "POST",
-      csrfToken,
-    });
-  },
-  connectionAccessDetails(connectionId: string) {
-    return request<ConnectionAccessDetails>(`/api/v1/connections/${connectionId}/access-details`);
-  },
-  myServiceClients() {
-    return request<ServiceClientOut[]>("/api/v1/service-clients");
-  },
-  createMyServiceClient(csrfToken: string, body: unknown) {
-    return request<ServiceClientCreateResult>("/api/v1/service-clients", {
+  createIntegrationInstanceV2(csrfToken: string, body: unknown) {
+    return request<IntegrationInstanceV2Out>("/api/v1/integration-instances", {
       method: "POST",
       csrfToken,
       body,
     });
   },
-  updateMyServiceClient(csrfToken: string, serviceClientId: string, body: unknown) {
-    return request<ServiceClientOut>(`/api/v1/service-clients/${encodeURIComponent(serviceClientId)}`, {
-      method: "PATCH",
-      csrfToken,
-      body,
+  discoverIntegrationToolsV2(instanceId: string) {
+    return request<IntegrationToolV2Out[]>(`/api/v1/integration-instances/${encodeURIComponent(instanceId)}/discover-tools`, {
+      method: "POST",
     });
   },
-  deleteMyServiceClient(csrfToken: string, serviceClientId: string) {
-    return request<void>(`/api/v1/service-clients/${encodeURIComponent(serviceClientId)}`, {
-      method: "DELETE",
-      csrfToken,
-    });
-  },
-  rotateMyServiceClientSecret(csrfToken: string, serviceClientId: string) {
-    return request<ServiceClientCreateResult>(
-      `/api/v1/service-clients/${encodeURIComponent(serviceClientId)}/rotate-secret`,
+  executeIntegrationV2(instanceId: string, body: unknown) {
+    return request<{ ok: boolean; result: Record<string, unknown> }>(
+      `/api/v1/integration-instances/${encodeURIComponent(instanceId)}/execute`,
       {
         method: "POST",
-        csrfToken,
+        body,
       },
     );
-  },
-  myDelegationGrants() {
-    return request<SelfServiceDelegationGrantOut[]>("/api/v1/delegation-grants");
-  },
-  getMyDelegationGrantAccessCredential(grantId: string) {
-    return request<AccessCredentialRotateResult>(`/api/v1/delegation-grants/${grantId}/access-credential`);
-  },
-  createMyDelegationGrant(csrfToken: string, body: unknown) {
-    return request<SelfServiceDelegationGrantCreateResult>("/api/v1/delegation-grants", {
-      method: "POST",
-      csrfToken,
-      body,
-    });
-  },
-  revokeMyDelegationGrant(csrfToken: string, grantId: string) {
-    return request<SelfServiceDelegationGrantOut>(`/api/v1/delegation-grants/${grantId}/revoke`, {
-      method: "POST",
-      csrfToken,
-    });
-  },
-  rotateMyDelegationGrantCredential(csrfToken: string, grantId: string) {
-    return request<AccessCredentialRotateResult>(`/api/v1/delegation-grants/${grantId}/rotate-credential`, {
-      method: "POST",
-      csrfToken,
-    });
-  },
-  myTokenIssues(
-    params: {
-      serviceClientId?: string;
-      delegationGrantId?: string;
-      fromTime?: string;
-      toTime?: string;
-      limit?: number;
-    } = {},
-  ) {
-    const search = new URLSearchParams();
-    if (params.serviceClientId) search.set("service_client_id", params.serviceClientId);
-    if (params.delegationGrantId) search.set("delegation_grant_id", params.delegationGrantId);
-    if (params.fromTime) search.set("from_time", params.fromTime);
-    if (params.toTime) search.set("to_time", params.toTime);
-    search.set("limit", String(params.limit ?? 100));
-    return request<TokenIssueEventOut[]>(`/api/v1/token-issues?${search.toString()}`);
-  },
-  adminUsers(csrfToken: string) {
-    return request<UserOut[]>("/api/v1/admin/users", { csrfToken });
-  },
-  providerInstances(csrfToken: string) {
-    return request<ProviderInstanceOut[]>("/api/v1/admin/provider-instances", { csrfToken });
-  },
-  createProviderInstance(csrfToken: string, body: unknown) {
-    return request<ProviderInstanceOut>("/api/v1/admin/provider-instances", {
-      method: "POST",
-      csrfToken,
-      body,
-    });
-  },
-  updateProviderInstance(csrfToken: string, providerInstanceId: string, body: unknown) {
-    return request<ProviderInstanceOut>(`/api/v1/admin/provider-instances/${providerInstanceId}`, {
-      method: "PATCH",
-      csrfToken,
-      body,
-    });
-  },
-  providerApps(csrfToken: string) {
-    return request<ProviderAppOut[]>("/api/v1/admin/provider-apps", { csrfToken });
-  },
-  createProviderApp(csrfToken: string, body: unknown) {
-    return request<ProviderAppOut>("/api/v1/admin/provider-apps", {
-      method: "POST",
-      csrfToken,
-      body,
-    });
-  },
-  updateProviderApp(csrfToken: string, providerAppId: string, body: unknown) {
-    return request<ProviderAppOut>(`/api/v1/admin/provider-apps/${encodeURIComponent(providerAppId)}`, {
-      method: "PATCH",
-      csrfToken,
-      body,
-    });
-  },
-  deleteProviderApp(csrfToken: string, providerAppId: string, options?: { force?: boolean }) {
-    const q = options?.force ? "?force=true" : "";
-    return request<void>(`/api/v1/admin/provider-apps/${encodeURIComponent(providerAppId)}${q}`, {
-      method: "DELETE",
-      csrfToken,
-    });
-  },
-  connectedAccounts(csrfToken: string) {
-    return request<ConnectedAccountOut[]>("/api/v1/admin/connected-accounts", { csrfToken });
-  },
-  filteredConnectedAccounts(
-    csrfToken: string,
-    params: {
-      userEmail?: string;
-      providerAppKey?: string;
-      status?: string;
-      limit?: number;
-    } = {},
-  ) {
-    const search = new URLSearchParams();
-    if (params.userEmail) search.set("user_email", params.userEmail);
-    if (params.providerAppKey) search.set("provider_app_key", params.providerAppKey);
-    if (params.status) search.set("status", params.status);
-    search.set("limit", String(params.limit ?? 200));
-    return request<ConnectedAccountOut[]>(`/api/v1/admin/connected-accounts?${search.toString()}`, { csrfToken });
-  },
-  createConnectedAccount(csrfToken: string, body: unknown) {
-    return request<ConnectedAccountOut>("/api/v1/admin/connected-accounts/manual", {
-      method: "POST",
-      csrfToken,
-      body,
-    });
-  },
-  serviceClients(csrfToken: string) {
-    return request<ServiceClientOut[]>("/api/v1/admin/service-clients", { csrfToken });
-  },
-  adminServiceClientsForUser(csrfToken: string, userId: string) {
-    return request<ServiceClientOut[]>(`/api/v1/admin/users/${encodeURIComponent(userId)}/service-clients`, { csrfToken });
-  },
-  delegationGrants(csrfToken: string) {
-    return request<DelegationGrantOut[]>("/api/v1/admin/delegation-grants", { csrfToken });
-  },
-  createDelegationGrant(csrfToken: string, body: unknown) {
-    return request<DelegationGrantCreateResult>("/api/v1/admin/delegation-grants", {
-      method: "POST",
-      csrfToken,
-      body,
-    });
-  },
-  revokeDelegationGrant(csrfToken: string, grantId: string) {
-    return request<DelegationGrantOut>(`/api/v1/admin/delegation-grants/${grantId}/revoke`, {
-      method: "POST",
-      csrfToken,
-    });
-  },
-  auditEvents(csrfToken: string, limit = 200) {
-    return request<AuditEventOut[]>(`/api/v1/admin/audit?limit=${limit}`, { csrfToken });
-  },
-  testIntegration(csrfToken: string, templateKey: string) {
-    return request<IntegrationTestResult>("/api/v1/admin/integrations/test", {
-      method: "POST",
-      csrfToken,
-      body: { template_key: templateKey },
-    });
-  },
-  sharedCredentials(csrfToken: string, providerAppId?: string) {
-    const q = providerAppId ? `?provider_app_id=${encodeURIComponent(providerAppId)}` : "";
-    return request<SharedCredentialOut[]>(`/api/v1/admin/shared-credentials${q}`, { csrfToken });
-  },
-  createSharedCredential(csrfToken: string, body: unknown) {
-    return request<SharedCredentialOut>("/api/v1/admin/shared-credentials", {
-      method: "POST",
-      csrfToken,
-      body,
-    });
-  },
-  revokeSharedCredential(csrfToken: string, credentialId: string) {
-    return request<SharedCredentialOut>(`/api/v1/admin/shared-credentials/${encodeURIComponent(credentialId)}/revoke`, {
-      method: "POST",
-      csrfToken,
-    });
-  },
-  refreshSharedCredential(csrfToken: string, credentialId: string) {
-    return request<SharedCredentialOut>(`/api/v1/admin/shared-credentials/${encodeURIComponent(credentialId)}/refresh`, {
-      method: "POST",
-      csrfToken,
-    });
-  },
-  discoverTools(csrfToken: string, appId: string) {
-    return request<ToolDiscoveryResult>(`/api/v1/admin/provider-apps/${encodeURIComponent(appId)}/discover-tools`, {
-      method: "POST",
-      csrfToken,
-    });
-  },
-  discoveredTools(csrfToken: string, appId: string) {
-    return request<DiscoveredToolOut[]>(`/api/v1/admin/provider-apps/${encodeURIComponent(appId)}/tools`, { csrfToken });
-  },
-  toolPolicies(csrfToken: string, appId: string) {
-    return request<ToolAccessPolicyOut[]>(`/api/v1/admin/provider-apps/${encodeURIComponent(appId)}/tool-policies`, { csrfToken });
-  },
-  updateToolPolicy(csrfToken: string, policyId: string, body: unknown) {
-    return request<ToolAccessPolicyOut>(`/api/v1/admin/tool-policies/${encodeURIComponent(policyId)}`, {
-      method: "PATCH",
-      csrfToken,
-      body,
-    });
-  },
-  bulkUpdateToolPolicies(csrfToken: string, appId: string, body: unknown) {
-    return request<ToolAccessPolicyOut[]>(`/api/v1/admin/provider-apps/${encodeURIComponent(appId)}/tool-policies/bulk`, {
-      method: "POST",
-      csrfToken,
-      body,
-    });
-  },
-  adminTokenIssues(
-    csrfToken: string,
-    params: {
-      userId?: string;
-      serviceClientId?: string;
-      providerAppId?: string;
-      decision?: string;
-      fromTime?: string;
-      toTime?: string;
-      limit?: number;
-    } = {},
-  ) {
-    const search = new URLSearchParams();
-    if (params.userId) search.set("user_id", params.userId);
-    if (params.serviceClientId) search.set("service_client_id", params.serviceClientId);
-    if (params.providerAppId) search.set("provider_app_id", params.providerAppId);
-    if (params.decision) search.set("decision", params.decision);
-    if (params.fromTime) search.set("from_time", params.fromTime);
-    if (params.toTime) search.set("to_time", params.toTime);
-    search.set("limit", String(params.limit ?? 200));
-    return request<TokenIssueEventOut[]>(`/api/v1/admin/token-issues?${search.toString()}`, { csrfToken });
   },
 };

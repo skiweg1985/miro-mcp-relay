@@ -14,14 +14,15 @@ from starlette.responses import RedirectResponse
 
 from app.core.config import get_settings
 from app.database import get_db
-from app.oauth_pending_store import pop_oauth_pending_payload, put_oauth_pending
 from app.deps import clear_session_cookie, get_current_session, get_current_user, record_audit, refresh_csrf_token
-from app.models import Organization, ProviderApp, ProviderInstance, Session as SessionModel, User, UserAuthIdentity
-from app.provider_templates import MICROSOFT_BROKER_LOGIN_TEMPLATE, get_provider_app_by_template
+from app.models import OAuthIdentity, Organization, Session as SessionModel, User
+from app.oauth_pending_store import pop_oauth_pending_payload, put_oauth_pending
 from app.schemas import AuthFlowStartResponse, LoginRequest, SessionResponse, UserOut
-from app.security import decrypt_text, dumps_json, hash_secret, issue_plain_secret, loads_json, session_expiry, utcnow, verify_secret
+from app.security import dumps_json, hash_secret, issue_plain_secret, loads_json, session_expiry, utcnow, verify_secret
 
 router = APIRouter(tags=["auth"])
+
+MICROSOFT_PROVIDER_KEY = "microsoft"
 
 
 def _lookup_hash(value: str) -> str:
@@ -66,22 +67,11 @@ def _microsoft_redirect_uri(settings) -> str:
     return f"{settings.broker_public_base_url.rstrip('/')}{settings.api_v1_prefix}/auth/microsoft/callback"
 
 
-def _get_microsoft_broker_config(db: Session) -> tuple[ProviderInstance, ProviderApp]:
-    organization = db.scalar(select(Organization).order_by(Organization.created_at.asc()))
-    if not organization:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Microsoft broker auth is not configured")
-    provider_app = get_provider_app_by_template(
-        db,
-        organization_id=organization.id,
-        template_key=MICROSOFT_BROKER_LOGIN_TEMPLATE,
+def _microsoft_oauth_configured(settings) -> bool:
+    return bool(
+        str(settings.microsoft_broker_client_id or "").strip()
+        and str(settings.microsoft_broker_client_secret or "").strip()
     )
-    provider_instance = db.get(ProviderInstance, provider_app.provider_instance_id) if provider_app else None
-    if not provider_instance or not provider_app:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Microsoft broker auth is not configured")
-    client_secret = decrypt_text(provider_app.encrypted_client_secret)
-    if not provider_instance.is_enabled or not provider_instance.authorization_endpoint or not provider_instance.token_endpoint or not provider_app.client_id or not client_secret:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Microsoft broker auth is not configured")
-    return provider_instance, provider_app
 
 
 def _set_session_cookie(response: Response, session_token: str) -> None:
@@ -147,25 +137,27 @@ def login(payload: LoginRequest, response: Response, db: Session = Depends(get_d
 
 @router.post("/auth/microsoft/start", response_model=AuthFlowStartResponse)
 def start_microsoft_login(db: Session = Depends(get_db)):
-    provider_instance, provider_app = _get_microsoft_broker_config(db)
     settings = get_settings()
+    if not _microsoft_oauth_configured(settings):
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Microsoft login is not configured")
+
     verifier, challenge = _make_pkce()
     state = _make_state()
     nonce = _make_state()
     put_oauth_pending(db, state, "microsoft_login", {"verifier": verifier, "nonce": nonce})
     db.commit()
     params = {
-        "client_id": provider_app.client_id,
+        "client_id": settings.microsoft_broker_client_id.strip(),
         "response_type": "code",
         "redirect_uri": _microsoft_redirect_uri(settings),
         "response_mode": "query",
-        "scope": " ".join(loads_json(provider_app.default_scopes_json, settings.microsoft_scope_list)),
+        "scope": " ".join(settings.microsoft_scope_list),
         "state": state,
         "nonce": nonce,
         "code_challenge": challenge,
         "code_challenge_method": "S256",
     }
-    return AuthFlowStartResponse(auth_url=f"{provider_instance.authorization_endpoint}?{httpx.QueryParams(params)}", state=state)
+    return AuthFlowStartResponse(auth_url=f"{settings.microsoft_authorize_url}?{httpx.QueryParams(params)}", state=state)
 
 
 @router.get("/auth/microsoft/callback")
@@ -182,16 +174,17 @@ async def microsoft_callback(code: str | None = None, state: str | None = None, 
     pending_nonce = str(raw.get("nonce") or "")
 
     try:
-        provider_instance, provider_app = _get_microsoft_broker_config(db)
-        client_secret = decrypt_text(provider_app.encrypted_client_secret)
         settings = get_settings()
+        if not _microsoft_oauth_configured(settings):
+            return _login_error_redirect("Microsoft login is not configured")
+
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
-                provider_instance.token_endpoint,
+                settings.microsoft_token_url,
                 data={
                     "grant_type": "authorization_code",
-                    "client_id": provider_app.client_id,
-                    "client_secret": client_secret,
+                    "client_id": settings.microsoft_broker_client_id.strip(),
+                    "client_secret": settings.microsoft_broker_client_secret.strip(),
                     "code": code,
                     "redirect_uri": _microsoft_redirect_uri(settings),
                     "code_verifier": pending_verifier,
@@ -214,23 +207,24 @@ async def microsoft_callback(code: str | None = None, state: str | None = None, 
             return _login_error_redirect("Microsoft login did not provide a usable identity")
 
         display_name = str(claims.get("name") or claims.get("preferred_username") or email).strip() or email
-        tenant_id = str(claims.get("tid") or "").strip() or None
-        object_id = str(claims.get("oid") or "").strip() or None
-        issuer = str(claims.get("iss") or provider_instance.issuer or "").strip() or None
-        preferred_username = str(claims.get("preferred_username") or email).strip() or email
+        issuer = str(claims.get("iss") or "").strip() or None
+
+        org = db.scalar(select(Organization).order_by(Organization.created_at.asc()))
+        if not org:
+            return _login_error_redirect("Organization not bootstrapped")
 
         identity = db.scalar(
-            select(UserAuthIdentity).where(
-                UserAuthIdentity.provider_instance_id == provider_instance.id,
-                UserAuthIdentity.subject == subject,
+            select(OAuthIdentity).where(
+                OAuthIdentity.provider_key == MICROSOFT_PROVIDER_KEY,
+                OAuthIdentity.subject == subject,
             )
         )
         user = db.get(User, identity.user_id) if identity else None
         if not user:
-            user = db.scalar(select(User).where(User.organization_id == provider_instance.organization_id, User.email == email))
+            user = db.scalar(select(User).where(User.organization_id == org.id, User.email == email))
         if not user:
             user = User(
-                organization_id=provider_instance.organization_id,
+                organization_id=org.id,
                 email=email,
                 display_name=display_name,
                 password_hash=None,
@@ -244,32 +238,27 @@ async def microsoft_callback(code: str | None = None, state: str | None = None, 
             user.display_name = display_name or user.display_name
 
         if not identity:
-            identity = UserAuthIdentity(
+            identity = OAuthIdentity(
                 organization_id=user.organization_id,
                 user_id=user.id,
-                provider_instance_id=provider_instance.id,
-                issuer=issuer,
+                provider_key=MICROSOFT_PROVIDER_KEY,
                 subject=subject,
-                tenant_id=tenant_id,
-                object_id=object_id,
+                issuer=issuer,
                 email=email,
                 display_name=display_name,
-                preferred_username=preferred_username,
                 claims_json=dumps_json(claims),
             )
             db.add(identity)
         else:
             identity.user_id = user.id
+            identity.organization_id = user.organization_id
             identity.issuer = issuer
-            identity.tenant_id = tenant_id
-            identity.object_id = object_id
             identity.email = email
             identity.display_name = display_name
-            identity.preferred_username = preferred_username
             identity.claims_json = dumps_json(claims)
 
         redirect = RedirectResponse(
-            url=f"{settings.frontend_base_url.rstrip('/')}/workspace?login_status=success",
+            url=f"{settings.frontend_base_url.rstrip('/')}/workspace/integrations-v2?login_status=success",
             status_code=302,
         )
         session_token, _csrf_token = _issue_session(db, user)
@@ -280,7 +269,7 @@ async def microsoft_callback(code: str | None = None, state: str | None = None, 
             actor_type="user",
             actor_id=user.id,
             organization_id=user.organization_id,
-            metadata={"email": user.email, "tenant_id": tenant_id, "provider_instance_id": provider_instance.id},
+            metadata={"email": user.email, "provider": MICROSOFT_PROVIDER_KEY},
         )
         db.commit()
         return redirect

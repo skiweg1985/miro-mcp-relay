@@ -69,6 +69,18 @@ class Settings(BaseSettings):
     def microsoft_scope_list(self) -> list[str]:
         return [scope.strip() for scope in self.microsoft_broker_scope.split() if scope.strip()]
 
+    @property
+    def microsoft_authorize_url(self) -> str:
+        base = self.microsoft_broker_authority_base.rstrip("/")
+        tenant = self.microsoft_broker_tenant_id.strip() or "common"
+        return f"{base}/{tenant}/oauth2/v2.0/authorize"
+
+    @property
+    def microsoft_token_url(self) -> str:
+        base = self.microsoft_broker_authority_base.rstrip("/")
+        tenant = self.microsoft_broker_tenant_id.strip() or "common"
+        return f"{base}/{tenant}/oauth2/v2.0/token"
+
 
 @lru_cache
 def get_settings() -> Settings:

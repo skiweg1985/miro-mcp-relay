@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class LoginRequest(BaseModel):
@@ -49,535 +49,59 @@ class BrokerCallbackUrlsOut(BaseModel):
     custom_oauth: str
 
 
-class IntegrationTestRequest(BaseModel):
-    template_key: str = Field(min_length=3, max_length=120)
+class IntegrationCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+    type: str
+    config: dict[str, Any] = Field(default_factory=dict)
+    mcp_enabled: bool = False
 
 
-class IntegrationTestOut(BaseModel):
-    ok: bool
-    message: str
-
-
-class IntegrationDeleteConflictDetail(BaseModel):
-    code: str = "integration_in_use"
-    message: str
-    active_delegation_grants: int = 0
-    active_connected_accounts: int = 0
-    pending_oauth_flows: int = 0
-
-
-class ProviderDefinitionOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class IntegrationOut(BaseModel):
     id: str
-    key: str
-    display_name: str
-    protocol: str
-    supports_broker_auth: bool
-    supports_downstream_oauth: bool
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    name: str
+    type: str
+    config: dict[str, Any] = Field(default_factory=dict)
+    mcp_enabled: bool
+    created_at: datetime
+    updated_at: datetime
 
 
-class ProviderInstanceCreate(BaseModel):
-    key: str
-    display_name: str
-    provider_definition_key: str
-    role: str
-    issuer: str | None = None
-    authorization_endpoint: str | None = None
-    token_endpoint: str | None = None
-    userinfo_endpoint: str | None = None
-    settings: dict[str, Any] = Field(default_factory=dict)
-    is_enabled: bool = True
-
-
-class ProviderInstanceOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: str
-    key: str
-    display_name: str
-    provider_definition_key: str
-    role: str
-    issuer: str | None = None
-    authorization_endpoint: str | None = None
-    token_endpoint: str | None = None
-    userinfo_endpoint: str | None = None
-    settings: dict[str, Any] = Field(default_factory=dict)
-    is_enabled: bool
-
-
-class ProviderAppCreate(BaseModel):
-    provider_instance_key: str
-    key: str
-    template_key: str | None = None
-    display_name: str
-    client_id: str | None = None
-    client_secret: str | None = None
-    redirect_uris: list[str] = Field(default_factory=list)
-    default_scopes: list[str] = Field(default_factory=list)
-    scope_ceiling: list[str] = Field(default_factory=list)
+class IntegrationInstanceCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+    integration_id: str
+    auth_mode: str
+    auth_config: dict[str, Any] = Field(default_factory=dict)
     access_mode: str = "relay"
-    allow_relay: bool = True
-    allow_direct_token_return: bool = False
-    relay_protocol: str | None = None
-    allowed_connection_types: list[str] | None = None
-    relay_config: dict[str, Any] | None = None
-    is_enabled: bool = True
-    oauth_dynamic_client_registration_enabled: bool = False
-    oauth_registration_endpoint: str | None = None
-    oauth_registration_auth_method: str = "none"
-
-    @model_validator(mode="after")
-    def validate_dcr_create(self):
-        if self.oauth_dynamic_client_registration_enabled and not (self.oauth_registration_endpoint or "").strip():
-            raise ValueError("oauth_registration_endpoint is required when dynamic client registration is enabled")
-        return self
+    access_config: dict[str, Any] = Field(default_factory=dict)
 
 
-class ProviderInstanceUpdate(BaseModel):
-    display_name: str
-    role: str
-    issuer: str | None = None
-    authorization_endpoint: str | None = None
-    token_endpoint: str | None = None
-    userinfo_endpoint: str | None = None
-    settings: dict[str, Any] = Field(default_factory=dict)
-    is_enabled: bool = True
-
-
-class ProviderAppUpdate(BaseModel):
-    display_name: str
-    template_key: str | None = None
-    client_id: str | None = None
-    client_secret: str | None = None
-    clear_client_secret: bool = False
-    redirect_uris: list[str] = Field(default_factory=list)
-    default_scopes: list[str] = Field(default_factory=list)
-    scope_ceiling: list[str] = Field(default_factory=list)
-    access_mode: str = "relay"
-    allow_relay: bool = True
-    allow_direct_token_return: bool = False
-    relay_protocol: str | None = None
-    allowed_connection_types: list[str] | None = None
-    relay_config: dict[str, Any] | None = None
-    is_enabled: bool = True
-    oauth_dynamic_client_registration_enabled: bool = False
-    oauth_registration_endpoint: str | None = None
-    oauth_registration_auth_method: str = "none"
-
-    @model_validator(mode="after")
-    def validate_dcr_update(self):
-        if self.oauth_dynamic_client_registration_enabled and not (self.oauth_registration_endpoint or "").strip():
-            raise ValueError("oauth_registration_endpoint is required when dynamic client registration is enabled")
-        return self
-
-
-class ProviderAppOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class IntegrationInstanceOut(BaseModel):
     id: str
-    key: str
-    template_key: str | None = None
-    display_name: str
-    provider_instance_id: str
-    provider_instance_key: str | None = None
+    name: str
+    integration_id: str
+    auth_mode: str
+    auth_config: dict[str, Any] = Field(default_factory=dict)
     access_mode: str
-    allow_relay: bool
-    allow_direct_token_return: bool
-    relay_protocol: str | None = None
-    client_id: str | None = None
-    has_client_secret: bool = False
-    redirect_uris: list[str] = Field(default_factory=list)
-    default_scopes: list[str] = Field(default_factory=list)
-    scope_ceiling: list[str] = Field(default_factory=list)
-    allowed_connection_types: list[str] = Field(default_factory=list)
-    relay_config: dict[str, Any] = Field(default_factory=dict)
-    is_enabled: bool
-    oauth_authorization_endpoint: str | None = None
-    oauth_token_endpoint: str | None = None
-    oauth_userinfo_endpoint: str | None = None
-    oauth_instance_settings: dict[str, Any] = Field(default_factory=dict)
-    oauth_dynamic_client_registration_enabled: bool = False
-    oauth_registration_endpoint: str | None = None
-    oauth_registration_auth_method: str = "none"
-
-
-class ServiceClientCreate(BaseModel):
-    key: str | None = None
-    display_name: str = Field(min_length=1, max_length=255)
-    environment: str | None = None
-    allowed_provider_app_keys: list[str] = Field(default_factory=list)
-    client_secret: str | None = None
-
-
-class ServiceClientUpdate(BaseModel):
-    display_name: str | None = None
-    environment: str | None = None
-    allowed_provider_app_keys: list[str] | None = None
-    is_enabled: bool | None = None
-
-
-class ServiceClientOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: str
-    key: str
-    display_name: str
-    auth_method: str
-    environment: str | None = None
-    is_enabled: bool
+    access_config: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
-    allowed_provider_app_keys: list[str] = Field(default_factory=list)
-
-    @model_validator(mode="before")
-    @classmethod
-    def _coerce_from_service_client(cls, data: Any) -> Any:
-        from app.models import ServiceClient
-        from app.security import loads_json
-
-        if isinstance(data, ServiceClient):
-            return {
-                "id": data.id,
-                "key": data.key,
-                "display_name": data.display_name,
-                "auth_method": data.auth_method,
-                "environment": data.environment,
-                "is_enabled": data.is_enabled,
-                "created_at": data.created_at,
-                "allowed_provider_app_keys": loads_json(data.allowed_provider_app_keys_json, []),
-            }
-        return data
+    updated_at: datetime
 
 
-class ServiceClientSecretResponse(BaseModel):
-    ok: bool = True
-    service_client: ServiceClientOut
-    client_secret: str
-
-
-class ConnectedAccountCreate(BaseModel):
-    user_email: str
-    provider_app_key: str
-    credential_scope: str = "personal"
-    external_account_ref: str | None = None
-    external_email: str | None = None
-    display_name: str | None = None
-    consented_scopes: list[str] = Field(default_factory=list)
-    access_token: str
-    refresh_token: str | None = None
-    token_type: str | None = "Bearer"
-    expires_at: datetime | None = None
-    refresh_expires_at: datetime | None = None
-    oauth_client_id: str | None = None
-    oauth_client_secret: str | None = None
-    oauth_redirect_uri: str | None = None
-
-
-class ConnectedAccountOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
+class IntegrationToolOut(BaseModel):
     id: str
-    user_id: str
-    provider_app_id: str
-    credential_scope: str = "personal"
-    managed_by_user_id: str | None = None
-    external_account_ref: str | None = None
-    external_email: str | None = None
-    display_name: str | None = None
-    status: str
-    last_error: str | None = None
-    connected_at: datetime
-    access_token_expires_at: datetime | None = None
-    refresh_token_expires_at: datetime | None = None
-    refresh_token_available: bool = False
-    token_material_updated_at: datetime | None = None
-
-
-class SharedCredentialCreate(BaseModel):
-    provider_app_key: str
-    display_name: str = Field(min_length=1, max_length=255)
-    external_account_ref: str | None = None
-    external_email: str | None = None
-    consented_scopes: list[str] = Field(default_factory=list)
-    access_token: str
-    refresh_token: str | None = None
-    token_type: str | None = "Bearer"
-    expires_at: datetime | None = None
-    refresh_expires_at: datetime | None = None
-
-
-class SharedCredentialOut(BaseModel):
-    id: str
-    provider_app_id: str
-    provider_app_key: str | None = None
-    provider_app_display_name: str | None = None
-    credential_scope: str = "shared"
-    managed_by_user_id: str | None = None
-    managed_by_display_name: str | None = None
-    display_name: str | None = None
-    external_account_ref: str | None = None
-    external_email: str | None = None
-    status: str
-    connected_at: datetime
-    access_token_expires_at: datetime | None = None
-    refresh_token_expires_at: datetime | None = None
-    refresh_token_available: bool = False
-
-
-class MiroConnectStartRequest(BaseModel):
-    user_email: str | None = None
-    connected_account_id: str | None = None
-
-
-class MiroConnectStartResponse(BaseModel):
-    ok: bool = True
-    auth_url: str
-    state: str
-
-
-class ProviderConnectStartRequest(BaseModel):
-    provider_app_key: str
-    connected_account_id: str | None = None
-
-
-class ProviderConnectStartResponse(BaseModel):
-    ok: bool = True
-    auth_url: str
-    state: str
-    provider_app_key: str
-
-
-class ConnectionProbeResponse(BaseModel):
-    ok: bool
-    status: str
-    connected_account_id: str
-    provider_app_key: str
-    checked_at: datetime
-    refreshed: bool = False
-    message: str | None = None
-    external_user_id: str | None = None
-    external_user_name: str | None = None
-
-
-class AccessDetailRowOut(BaseModel):
-    label: str
-    value: str | None = None
-    copyable: bool = False
-    monospace: bool = False
-
-
-class AccessCredentialKeyOut(BaseModel):
-    status: str
-    label: str = "Access key"
-    masked_hint: str | None = None
-    plaintext: str | None = None
-
-
-class AccessCopyBlockOut(BaseModel):
-    title: str
-    body: str
-    value: str
-
-
-class ConnectionAccessDetailsOut(BaseModel):
-    ok: bool = True
-    supported: bool
-    connected_account_id: str
-    provider_app_key: str = ""
-    provider_display_name: str | None = None
-    connection_type_label: str | None = None
-    section_title: str | None = None
-    connection_summary: str | None = None
-    connection_status_label: str | None = None
-    rows: list[AccessDetailRowOut] = Field(default_factory=list)
-    key_section: AccessCredentialKeyOut | None = None
-    extra_blocks: list[AccessCopyBlockOut] = Field(default_factory=list)
-    can_rotate: bool = False
-    manage_path: str | None = None
-
-
-class MiroMigrationStatus(BaseModel):
-    ok: bool = True
-    legacy_profiles: int
-    imported_users: int
-    imported_miro_connections: int
-    migrated_profile_ids: list[str] = Field(default_factory=list)
-
-
-class MiroMigrationImportResponse(BaseModel):
-    ok: bool = True
-    imported_users: int
-    imported_connections: int
-    skipped_profiles: list[str] = Field(default_factory=list)
-    migrated_profile_ids: list[str] = Field(default_factory=list)
-
-
-class DelegationGrantCreate(BaseModel):
-    user_email: str
-    service_client_key: str | None = None
-    provider_app_key: str
-    connected_account_id: str | None = None
-    allowed_access_modes: list[str] = Field(default_factory=list)
-    scope_ceiling: list[str] = Field(default_factory=list)
-    environment: str | None = None
-    expires_in_days: int = Field(default=365, ge=1, le=365)
-    capabilities: list[str] = Field(default_factory=list)
-
-
-class DelegationGrantOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: str
-    user_id: str
-    service_client_id: str | None = None
-    provider_app_id: str
-    connected_account_id: str | None = None
-    environment: str | None = None
-    is_enabled: bool
-    expires_at: datetime | None = None
-    revoked_at: datetime | None = None
-    created_at: datetime
-
-
-class DelegationGrantSecretResponse(BaseModel):
-    ok: bool = True
-    delegation_grant: DelegationGrantOut
-    access_credential: str
-
-
-class SelfServiceDelegationGrantCreate(BaseModel):
-    service_client_key: str | None = None
-    provider_app_key: str
-    connected_account_id: str | None = None
-    allowed_access_modes: list[str] = Field(default_factory=list)
-    scope_ceiling: list[str] = Field(default_factory=list)
-    environment: str | None = None
-    expires_in_days: int = Field(default=365, ge=1, le=365)
-    capabilities: list[str] = Field(default_factory=list)
-
-
-class SelfServiceDelegationGrantOut(BaseModel):
-    id: str
-    service_client_id: str | None = None
-    service_client_key: str | None = None
-    service_client_display_name: str | None = None
-    provider_app_id: str
-    provider_app_key: str
-    provider_app_display_name: str
-    connected_account_id: str | None = None
-    connected_account_display_name: str | None = None
-    allowed_access_modes: list[str] = Field(default_factory=list)
-    scope_ceiling: list[str] = Field(default_factory=list)
-    capabilities: list[str] = Field(default_factory=list)
-    environment: str | None = None
-    is_enabled: bool
-    expires_at: datetime | None = None
-    revoked_at: datetime | None = None
-    created_at: datetime
-
-
-class SelfServiceDelegationGrantSecretResponse(BaseModel):
-    ok: bool = True
-    delegation_grant: SelfServiceDelegationGrantOut
-    access_credential: str
-
-
-class AccessCredentialRotateOut(BaseModel):
-    ok: bool = True
-    access_credential: str
-
-
-class ProviderAccessIssueRequest(BaseModel):
-    provider_app_key: str
-    connected_account_id: str | None = None
-    requested_scopes: list[str] = Field(default_factory=list)
-
-
-class ProviderAccessIssueResponse(BaseModel):
-    ok: bool = True
-    provider_app_key: str
-    connected_account_id: str
-    access_token: str
-    token_type: str | None = None
-    expires_at: datetime | None = None
-    scopes: list[str] = Field(default_factory=list)
-    audit_event_id: str
-
-
-class DiscoveredToolOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: str
-    provider_app_id: str
-    tool_name: str
-    display_name: str
+    name: str
     description: str | None = None
     input_schema: dict[str, Any] = Field(default_factory=dict)
-    status: str
-    first_seen_at: datetime
-    last_seen_at: datetime
+    visible: bool
+    allowed: bool
 
 
-class ToolAccessPolicyOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: str
-    discovered_tool_id: str
+class IntegrationExecuteRequest(BaseModel):
+    action: str = Field(default="call_tool")
     tool_name: str | None = None
-    visible: bool = True
-    allowed_with_personal: bool = True
-    allowed_with_shared: bool = False
+    arguments: dict[str, Any] = Field(default_factory=dict)
 
 
-class ToolAccessPolicyUpdate(BaseModel):
-    visible: bool | None = None
-    allowed_with_personal: bool | None = None
-    allowed_with_shared: bool | None = None
-
-
-class ToolAccessPolicyBulkItem(BaseModel):
-    discovered_tool_id: str
-    visible: bool | None = None
-    allowed_with_personal: bool | None = None
-    allowed_with_shared: bool | None = None
-
-
-class ToolAccessPolicyBulkUpdate(BaseModel):
-    items: list[ToolAccessPolicyBulkItem] = Field(min_length=1)
-
-
-class ToolDiscoveryResult(BaseModel):
+class IntegrationExecuteResponse(BaseModel):
     ok: bool = True
-    provider_app_id: str
-    tools_found: int = 0
-    tools_added: int = 0
-    tools_updated: int = 0
-    tools_removed: int = 0
-
-
-class AuditEventOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: str
-    actor_type: str
-    actor_id: str | None = None
-    action: str
-    metadata_json: str
-    created_at: datetime
-
-
-class TokenIssueEventOut(BaseModel):
-    id: str
-    service_client_id: str | None = None
-    service_client_display_name: str | None = None
-    delegation_grant_id: str | None = None
-    provider_app_id: str | None = None
-    provider_app_display_name: str | None = None
-    connected_account_id: str | None = None
-    connected_account_display_name: str | None = None
-    decision: str
-    reason: str | None = None
-    scopes: list[str] = Field(default_factory=list)
-    metadata: dict[str, Any] = Field(default_factory=dict)
-    created_at: datetime
+    result: dict[str, Any] = Field(default_factory=dict)

@@ -1,3 +1,16 @@
+## 2026-04-07 – Cursor Agent – Cursor-Regel Terminologie & Naming
+
+- Done:
+  - Neue Regel `.cursor/rules/terminology-naming-consistency.mdc` (globs `**/*.{tsx,ts,js,jsx,py,md}`): ein Konzept = ein Primärbegriff, UI-sprachlich klar, technische Rohbegriffe in Advanced-Bereichen, Mapping-Legacy/API, Workflow Audit → Glossar → Umsetzung → Self-Check.
+  - `docs/CHANGELOG.md` [Unreleased] Added ergänzt.
+- Next: keine
+- Blockers: keine
+- Branch/PR: branch `codex/oauth-broker-redesign`, PR none
+- Files touched: `.cursor/rules/terminology-naming-consistency.mdc`, `docs/CHANGELOG.md`, `planning/coordination/WORKLOG.md`
+- Test notes: keine (nur Regel/Doku)
+- Changelog updated: yes (Unreleased Added)
+- Follow-ups: keine
+
 ## 2026-04-05 – Cursor Agent – Force-Delete Custom Integration
 
 - Done:

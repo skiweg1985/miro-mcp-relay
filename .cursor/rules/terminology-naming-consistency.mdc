@@ -1,0 +1,227 @@
+---
+description: Terminologie, Labels und Code-Namen konsistent über Admin-UI, User-UI, API-Mappings und Doku halten
+globs: "**/*.{tsx,ts,js,jsx,py,md}"
+alwaysApply: false
+---
+
+# Terminology and Naming Consistency Rule
+
+## Goal
+
+When changing UI, flows, settings, admin pages, user-facing pages, API mappings, or related docs, always enforce consistent terminology and naming.
+
+The same concept must use the same primary term across:
+
+- admin UI
+- user UI
+- helper text
+- modal titles
+- notifications
+- frontend view models
+- API mapping layers
+- docs
+
+Avoid situations where one concept is described with different terms in different places unless the difference is intentional and clearly explained.
+
+## Core principles
+
+### 1. One concept = one primary term
+
+If two labels refer to the same thing, they must use the same main term everywhere possible.
+
+Examples:
+
+- do not call the same thing `Access Key`, `Connection Key`, and `Credential` in different places
+- do not call the same thing `Integration`, `Provider App`, and `OAuth App` unless there is an actual semantic difference
+
+### 2. Prefer user-understandable language in UI
+
+Visible UI text must be optimized for the target user, not for the internal implementation.
+
+Prefer:
+
+- clear
+- short
+- precise
+- admin-friendly
+- user-friendly
+
+Avoid exposing raw internal or protocol-heavy wording in standard views unless the target audience truly needs it.
+
+Examples:
+
+- prefer `Authorization endpoint` over `Authorize`
+- prefer `Token endpoint` over `Token`
+- prefer `User profile endpoint` over `User info`
+- prefer `How access works` over `Auth mode` if that is clearer in context
+
+### 3. Keep technical/raw terms in advanced areas only
+
+Protocol-level or internal identifiers should be shown only when useful.
+Move low-level fields into advanced sections when they do not help most users complete their task.
+
+Examples of likely advanced-only data:
+
+- issuer
+- internal IDs
+- protocol engine names
+- instance keys
+- raw mapping identifiers
+- transport internals
+
+### 4. UI language and code language should not drift too far apart
+
+Internal names may differ from UI labels when required by legacy APIs, schemas, or backward compatibility.
+But unnecessary terminology drift is not allowed.
+
+Bad pattern:
+
+- UI says `Access Key`
+- frontend state says `delegatedCredential`
+- API client says `connectionSecret`
+- docs say `session token`
+
+Prefer:
+
+- a clear canonical concept in the frontend
+- explicit mapping for legacy backend names
+- minimal translation layers
+- comments only where necessary
+
+### 5. If two things are different, make the distinction explicit
+
+Do not merge terms just because they sound similar.
+If two concepts are genuinely different, explain the difference clearly in labels or helper text.
+
+Examples:
+
+- `Integration` = admin-managed provider configuration
+- `Connection` = a user’s linked account
+- `Access Key` = a secret used by clients to access broker functionality
+
+If these are distinct, keep them distinct everywhere.
+
+### 6. Never leak legacy wording into polished UI by accident
+
+When refactoring, search for old terms in:
+
+- page titles
+- section headings
+- button labels
+- modal copy
+- toasts
+- error messages
+- helper text
+- empty states
+- type names
+- mappers
+- docs
+
+Clean up leftover terminology after the main change.
+
+## Required workflow for terminology-related changes
+
+### Step 1: Audit first
+
+Before renaming anything, identify:
+
+- which visible terms currently exist
+- which ones refer to the same concept
+- which ones are legacy or implementation-driven
+- which ones are confusing for normal users/admins
+- where code naming differs heavily from UI naming
+
+### Step 2: Define canonical terminology
+
+Create a small internal glossary for the current feature/change:
+
+- concept
+- canonical visible label
+- optional internal/backend term
+- notes on when alternative wording is allowed
+
+Do not start broad renaming without this step.
+
+### Step 3: Apply consistently
+
+After defining the canonical terms, update all relevant areas:
+
+- admin UI
+- user UI
+- helper text
+- advanced sections
+- modals
+- notifications
+- frontend state/view models
+- API mapping layers
+- docs
+
+### Step 4: Preserve compatibility where needed
+
+If backend fields, DB columns, or API contracts must remain unchanged:
+
+- keep compatibility
+- translate them cleanly in mapping layers
+- do not expose raw backend terminology directly to end users unless necessary
+
+### Step 5: Self-check after implementation
+
+Before finishing, verify:
+
+- does the same concept use the same primary term everywhere?
+- are there any leftover legacy labels?
+- are admin and user side aligned where they refer to the same thing?
+- are technical terms pushed into advanced areas where appropriate?
+- do code names still drift unnecessarily from the UI language?
+
+## Preferred naming behavior
+
+### In UI
+
+Use the clearest term for the audience.
+Do not optimize for protocol purity if that reduces usability.
+
+### In frontend code
+
+Prefer names that stay close to the visible product terminology unless there is a strong reason not to.
+
+### In backend code
+
+Compatibility and schema stability may take priority, but naming drift should still be minimized where practical.
+
+### In docs
+
+Use the same canonical terms as the product UI.
+If internal/backend terms differ, document that explicitly.
+
+## Anti-patterns
+
+Avoid these patterns:
+
+- same concept, multiple names
+- raw backend field names directly shown in UI
+- technical jargon in standard settings pages without explanation
+- ambiguous labels such as `Key`, `Mode`, `Type`, `App`, `Config` without context
+- changing visible labels without checking the rest of the product
+- refactoring UI copy without auditing modals, toasts, or docs
+- renaming code blindly without considering API compatibility
+
+## Expected output when performing such work
+
+When making terminology changes, always provide:
+
+1. a short terminology audit
+2. the proposed canonical glossary
+3. the implementation changes
+4. a consistency self-check
+
+## Quality bar
+
+The result should feel:
+
+- consistent
+- understandable
+- deliberate
+- low-jargon
+- product-oriented
+- still technically correct

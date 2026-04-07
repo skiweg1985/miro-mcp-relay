@@ -43,10 +43,33 @@ export function formatDateTime(value: string | null): string {
   if (!value) return "Not set";
   const date = parseApiDateTime(value);
   if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat("en", {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);
+}
+
+const OAUTH_CALLBACK_MESSAGES: Record<string, string> = {
+  connection_failed: "Connection failed.",
+  missing_callback_parameters: "Missing OAuth callback parameters.",
+  invalid_oauth_state: "Invalid or expired sign-in state. Try again.",
+  invalid_connection_target: "Invalid connection target.",
+  integration_not_found: "Integration not found.",
+  microsoft_oauth_not_configured: "Microsoft sign-in is not configured for this broker.",
+  token_exchange_failed: "Token exchange failed.",
+  missing_access_token: "No access token returned from the provider.",
+  miro_oauth_not_configured: "Miro OAuth is not configured for this integration.",
+};
+
+/** Maps backend OAuth redirect `message` query codes to English copy for toasts. */
+export function formatOAuthCallbackMessage(raw: string | null | undefined): string {
+  if (!raw || !String(raw).trim()) return "Something went wrong.";
+  const key = String(raw).trim();
+  if (OAUTH_CALLBACK_MESSAGES[key]) return OAUTH_CALLBACK_MESSAGES[key];
+  if (/^[a-z0-9_]+$/i.test(key) && key.includes("_")) {
+    return "Connection error.";
+  }
+  return key;
 }
 
 export async function copyToClipboard(value: string): Promise<boolean> {

@@ -6,6 +6,7 @@ import { api } from "./api";
 import { Card, Field, PageIntro } from "./components";
 import type { IntegrationInstanceV2Out, IntegrationV2Out } from "./types";
 import { isApiError } from "./errors";
+import { formatOAuthCallbackMessage } from "./utils";
 
 const INTEGRATION_TYPES = [
   { value: "mcp_server", label: "MCP server" },
@@ -103,7 +104,7 @@ export function IntegrationsV2Page() {
       notify({
         tone: "error",
         title: "Connection failed",
-        description: params.get("message") || "Something went wrong.",
+        description: formatOAuthCallbackMessage(params.get("message")),
       });
       window.history.replaceState({}, "", window.location.pathname);
     }

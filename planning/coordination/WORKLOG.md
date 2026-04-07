@@ -2066,3 +2066,28 @@
   - yes ([Unreleased] Changed)
 - Follow-ups:
   - Ausnahmen: Blur-/Shadow-Offsets, `vh`/`min-width` in Mediaqueries bleiben nicht auf der 4–32-px-Rasterliste (technisch notwendig).
+
+## 2026-04-07 – Cursor Agent – English-only UI
+
+- Done:
+  - `formatDateTime`: locale `en` so formatted dates/times are English regardless of browser locale.
+  - `formatOAuthCallbackMessage` + use on Integrations OAuth return: English descriptions for redirect error codes.
+  - `docs/CHANGELOG.md`: newest [Unreleased] / Changed bullets translated to English.
+- Next:
+  - Optional: translate remaining long [Unreleased] changelog history from German.
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: codex/hard-refactor-integration-model
+  - PR: none
+- Files touched:
+  - frontend/src/utils.ts
+  - frontend/src/IntegrationsV2Page.tsx
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build`
+- Changelog updated:
+  - yes ([Unreleased] Changed)
+- Follow-ups:
+  - none

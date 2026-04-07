@@ -4,9 +4,11 @@
 
 ### Changed
 
-- Frontend: Clarity UI Mono v2 – Spacing- und Typ-Tokens konsolidiert (`--ink-primary`, `.muted`), Landing/Buttons/Tabellen/Modale auf die Skala 4–32 px ausgerichtet; Sidebar-Branding mit `brand-kicker`; Workspace-Navigation „Access“; Integrations- und Access-Seiten: ruhigere Primärbutton-Interaktion, einheitliche englische Nutzer-Texte, Verbindungslisten mit `stack-cell--row` und Form-Action-Abstände in Karten.
+- Frontend: `formatDateTime` uses locale `en` (consistent English dates/times); OAuth redirect `message` query codes mapped to English copy for connection error toasts.
 
-- Microsoft Graph Integration-OAuth: Redirect-Standard `{BROKER_PUBLIC_BASE_URL}{api_v1_prefix}/connections/microsoft-graph/callback`; gleicher Handler wie unter `…/integration-instances/oauth/callback`. Überschreibbar per `MICROSOFT_GRAPH_OAUTH_REDIRECT_URI`, `MICROSOFT_GRAPH_OAUTH_REDIRECT_PATH` oder `config_json.graph_oauth_redirect_uri`.
+- Frontend: Clarity UI Mono v2 — consolidated spacing and type tokens (`--ink-primary`, `.muted`); landing, buttons, tables, and modals aligned to the 4–32 px scale; sidebar branding with `brand-kicker`; workspace nav label “Access”; integrations and access pages with calmer primary-button interaction, English UI copy, connection lists using `stack-cell--row`, and card form-action spacing.
+
+- Microsoft Graph integration OAuth: default redirect `{BROKER_PUBLIC_BASE_URL}{api_v1_prefix}/connections/microsoft-graph/callback`; same handler as `…/integration-instances/oauth/callback`. Override via `MICROSOFT_GRAPH_OAUTH_REDIRECT_URI`, `MICROSOFT_GRAPH_OAUTH_REDIRECT_PATH`, or `config_json.graph_oauth_redirect_uri`.
 
 ### Added
 

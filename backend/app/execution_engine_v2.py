@@ -3,9 +3,11 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
 from app.mcp_client import GenericMcpClient
-from app.models import AuthMode, IntegrationInstance
+from app.models import AuthMode, IntegrationInstance, IntegrationTool
 
 
 def resolve_outbound_headers(
@@ -68,6 +70,35 @@ async def execute_instance_action(
         return {"tool_name": tool_name, "payload": result}
 
     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="unsupported_action")
+
+
+def enforce_consumer_tool_policy(
+    db: Session,
+    *,
+    organization_id: str,
+    integration_id: str,
+    action: str,
+    tool_name: str | None,
+    grant_allowed_tools: list[str],
+) -> None:
+    if action == "discover_tools":
+        return
+    if action != "call_tool":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="unsupported_action")
+    name = str(tool_name or "").strip()
+    if not name:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="tool_name_required")
+    row = db.scalar(
+        select(IntegrationTool).where(
+            IntegrationTool.organization_id == organization_id,
+            IntegrationTool.integration_id == integration_id,
+            IntegrationTool.tool_name == name,
+        )
+    )
+    if not row or not row.allowed:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="tool_not_allowed")
+    if grant_allowed_tools and name not in grant_allowed_tools:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="tool_not_allowed_by_grant")
 
 
 def _safe_json(value: str) -> dict[str, Any]:

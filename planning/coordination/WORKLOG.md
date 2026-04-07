@@ -1,3 +1,22 @@
+## 2026-04-07 – Cursor Agent – AccessGrant / Consumer Access (Domain-Fix)
+
+- Done:
+  - Domain: `UserConnection`, `AccessGrant` in `models.py`; `IntegrationInstance.access_*` im Kommentar als Broker-Relay-Metadaten von Consumer-Access getrennt.
+  - Service `services/access_grants.py` (Key-Ausgabe `bkr_…`, SHA-256-Lookup-Hash, OAuth-Upstream-Auflösung über UserConnection oder optional `X-User-Token`).
+  - Router `access_grants`: CRUD-ähnlich (Liste, Erstellen mit einmaligem Klartext-Key, Details, Revoke, `POST .../validate` ohne Session).
+  - Router `consumer_execution`: `POST /consumer/integration-instances/{id}/execute` und `.../discover-tools` mit `X-Broker-Access-Key` / `Authorization: Bearer bkr_…`; `enforce_consumer_tool_policy` in `execution_engine_v2`.
+  - Frontend: `BrokerAccessPage`, Route `/workspace/broker-access`, Navigation, API-Methoden, Legacy-Pfade `/grants` → Broker-Zugang.
+  - Doku: `docs/CHANGELOG.md`, `docs/technische-referenz.md`; Tests in `backend/test_smoke.py`.
+- Next: OAuth-„Verbindung herstellen“-UI zum Befüllen von `UserConnection.oauth_access_token_encrypted` (falls gewünscht).
+- Blockers: keine
+- Branch/PR: branch `codex/hard-refactor-integration-model`, PR none
+- Files touched: `backend/app/models.py`, `backend/app/schemas.py`, `backend/app/execution_engine_v2.py`, `backend/app/main.py`, `backend/app/services/access_grants.py`, `backend/app/routers/access_grants.py`, `backend/app/routers/consumer_execution.py`, `backend/test_smoke.py`, `frontend/src/App.tsx`, `frontend/src/api.ts`, `frontend/src/types.ts`, `frontend/src/utils.ts`, `frontend/src/BrokerAccessPage.tsx`, `docs/CHANGELOG.md`, `docs/technische-referenz.md`, `planning/coordination/WORKLOG.md`
+- Test notes: `PYTHONPATH=backend python3 -m unittest backend.test_smoke -v`, `cd frontend && npm run build`
+- endpoints: `GET/POST /api/v1/access-grants`, `POST /api/v1/access-grants/validate`, `POST /api/v1/access-grants/{id}/revoke`, `POST /api/v1/consumer/integration-instances/{id}/execute`, `POST .../discover-tools`
+- UI path: `/workspace/broker-access`
+- Changelog updated: yes (Unreleased Added/Changed)
+- Follow-ups: UserConnection-OAuth-Flow UI; Rate-Limits für `/validate` falls öffentlich exponiert
+
 ## 2026-04-07 – Cursor Agent – Microsoft OAuth Admin (Workspace)
 
 - Done:

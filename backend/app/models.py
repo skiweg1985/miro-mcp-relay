@@ -133,6 +133,16 @@ class IntegrationAccessMode(StrEnum):
     DIRECT = "direct"
 
 
+class UserConnectionStatus(StrEnum):
+    ACTIVE = "active"
+    DISCONNECTED = "disconnected"
+
+
+class AccessGrantStatus(StrEnum):
+    ACTIVE = "active"
+    REVOKED = "revoked"
+
+
 class Integration(Base):
     __tablename__ = "integrations"
 
@@ -149,6 +159,8 @@ class Integration(Base):
 class IntegrationInstance(Base):
     __tablename__ = "integration_instances"
 
+    # access_mode / access_config_json describe how the broker exposes this instance (e.g. relay),
+    # not end-user consumer credentials. Consumer access is modeled by AccessGrant.
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
     integration_id: Mapped[str] = mapped_column(ForeignKey("integrations.id"), index=True)
@@ -160,6 +172,48 @@ class IntegrationInstance(Base):
     created_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
+
+
+class UserConnection(Base):
+    """Optional per-user link to a target system for upstream auth (e.g. OAuth token for MCP)."""
+
+    __tablename__ = "user_connections"
+    __table_args__ = (UniqueConstraint("user_id", "integration_instance_id", name="uq_user_connection_instance"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    integration_instance_id: Mapped[str] = mapped_column(ForeignKey("integration_instances.id"), index=True)
+    status: Mapped[str] = mapped_column(String(32), index=True, default=UserConnectionStatus.ACTIVE.value)
+    oauth_access_token_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
+    metadata_json: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
+
+
+class AccessGrant(Base):
+    """Broker-issued credential: authorizes a client against this broker for one IntegrationInstance."""
+
+    __tablename__ = "access_grants"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    integration_instance_id: Mapped[str] = mapped_column(ForeignKey("integration_instances.id"), index=True)
+    user_connection_id: Mapped[str | None] = mapped_column(ForeignKey("user_connections.id"), nullable=True, index=True)
+    name: Mapped[str] = mapped_column(String(255))
+    key_prefix: Mapped[str] = mapped_column(String(32), index=True)
+    key_hash: Mapped[str] = mapped_column(String(128), unique=True, index=True)
+    status: Mapped[str] = mapped_column(String(32), index=True, default=AccessGrantStatus.ACTIVE.value)
+    allowed_tools_json: Mapped[str] = mapped_column(Text, default="[]")
+    policy_ref: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    metadata_json: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class IntegrationTool(Base):

@@ -1,4 +1,6 @@
 import type {
+  AccessGrantCreatedResponse,
+  AccessGrantOut,
   ApiError,
   AuthFlowStartResponse,
   BrokerCallbackUrls,
@@ -137,6 +139,22 @@ export const api = {
         body,
       },
     );
+  },
+  accessGrants() {
+    return request<AccessGrantOut[]>("/api/v1/access-grants");
+  },
+  createAccessGrant(csrfToken: string, body: Record<string, unknown>) {
+    return request<AccessGrantCreatedResponse>("/api/v1/access-grants", {
+      method: "POST",
+      csrfToken,
+      body,
+    });
+  },
+  revokeAccessGrant(csrfToken: string, grantId: string) {
+    return request<AccessGrantOut>(`/api/v1/access-grants/${encodeURIComponent(grantId)}/revoke`, {
+      method: "POST",
+      csrfToken,
+    });
   },
   getMicrosoftOAuthAdmin() {
     return request<MicrosoftOAuthAdminOut>("/api/v1/admin/microsoft-oauth");

@@ -93,6 +93,30 @@ export type IntegrationToolV2Out = {
   allowed: boolean;
 };
 
+export type AccessGrantOut = {
+  id: string;
+  user_id: string;
+  integration_instance_id: string;
+  integration_instance_name: string;
+  user_connection_id: string | null;
+  name: string;
+  key_prefix: string;
+  status: string;
+  allowed_tools: string[];
+  policy_ref: string | null;
+  notes: string | null;
+  created_at: string;
+  expires_at: string | null;
+  revoked_at: string | null;
+  last_used_at: string | null;
+};
+
+export type AccessGrantCreatedResponse = {
+  ok: boolean;
+  grant: AccessGrantOut;
+  access_key: string;
+};
+
 export type MicrosoftOAuthAdminOut = {
   ok: boolean;
   authority_base: string;
@@ -108,6 +132,7 @@ export type MicrosoftOAuthAdminOut = {
 export type RouteMatch =
   | { name: "login"; path: "/login" }
   | { name: "workspaceIntegrationsV2"; path: "/workspace/integrations-v2" }
+  | { name: "workspaceBrokerAccess"; path: "/workspace/broker-access" }
   | { name: "workspaceAdminMicrosoftOAuth"; path: "/workspace/admin/microsoft-oauth" }
   | { name: "notFound"; path: string };
 

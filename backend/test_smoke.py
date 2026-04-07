@@ -25,6 +25,16 @@ class TestSmoke(unittest.TestCase):
             response = client.get("/api/v1/admin/microsoft-oauth")
             self.assertEqual(response.status_code, 401)
 
+    def test_access_grants_list_requires_session(self) -> None:
+        with TestClient(app) as client:
+            response = client.get("/api/v1/access-grants")
+            self.assertEqual(response.status_code, 401)
+
+    def test_access_grant_validate_rejects_invalid_token(self) -> None:
+        with TestClient(app) as client:
+            response = client.post("/api/v1/access-grants/validate", json={"token": "bkr_invalid"})
+            self.assertEqual(response.status_code, 401)
+
 
 if __name__ == "__main__":
     unittest.main()

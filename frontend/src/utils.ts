@@ -15,8 +15,8 @@ const LEGACY_PATHS: Record<string, string> = {
   "/workspace": "/workspace/integrations-v2",
   "/workspace/integrations": "/workspace/integrations-v2",
   "/workspace/clients": "/workspace/integrations-v2",
-  "/grants": "/workspace/integrations-v2",
-  "/token-access": "/workspace/integrations-v2",
+  "/grants": "/workspace/broker-access",
+  "/token-access": "/workspace/broker-access",
 };
 
 /** If the browser is on a legacy URL, returns the canonical path to replace the history entry. */
@@ -82,14 +82,18 @@ export function matchesRoute(pathname: string): RouteMatch {
   if (path === "/workspace/integrations-v2") {
     return { name: "workspaceIntegrationsV2", path: "/workspace/integrations-v2" };
   }
+  if (path === "/workspace/broker-access") {
+    return { name: "workspaceBrokerAccess", path: "/workspace/broker-access" };
+  }
   if (path === "/workspace/admin/microsoft-oauth") {
     return { name: "workspaceAdminMicrosoftOAuth", path: "/workspace/admin/microsoft-oauth" };
+  }
+  if (path.startsWith("/grants") || path.startsWith("/token-access")) {
+    return { name: "workspaceBrokerAccess", path: "/workspace/broker-access" };
   }
   if (
     path.startsWith("/workspace") ||
     path.startsWith("/app") ||
-    path.startsWith("/grants") ||
-    path.startsWith("/token-access") ||
     path.startsWith("/connect") ||
     path.startsWith("/miro")
   ) {

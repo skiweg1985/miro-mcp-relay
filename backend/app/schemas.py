@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class LoginRequest(BaseModel):
@@ -125,3 +125,54 @@ class MicrosoftOAuthAdminUpdate(BaseModel):
     client_id: str = Field(default="", max_length=512)
     scope: str = Field(default="", max_length=2000)
     client_secret: str | None = None
+
+
+class AccessGrantCreate(BaseModel):
+    integration_instance_id: str = Field(min_length=1, max_length=36)
+    name: str = Field(min_length=1, max_length=255)
+    expires_at: datetime | None = None
+    allowed_tools: list[str] = Field(default_factory=list)
+    user_connection_id: str | None = Field(default=None, max_length=36)
+    notes: str | None = Field(default=None, max_length=2000)
+    policy_ref: str | None = Field(default=None, max_length=255)
+
+    @field_validator("allowed_tools")
+    @classmethod
+    def normalize_tool_names(cls, value: list[str]) -> list[str]:
+        return [str(v).strip() for v in value if str(v).strip()]
+
+
+class AccessGrantOut(BaseModel):
+    id: str
+    user_id: str
+    integration_instance_id: str
+    integration_instance_name: str
+    user_connection_id: str | None = None
+    name: str
+    key_prefix: str
+    status: str
+    allowed_tools: list[str] = Field(default_factory=list)
+    policy_ref: str | None = None
+    notes: str | None = None
+    created_at: datetime
+    expires_at: datetime | None = None
+    revoked_at: datetime | None = None
+    last_used_at: datetime | None = None
+
+
+class AccessGrantCreatedOut(BaseModel):
+    ok: bool = True
+    grant: AccessGrantOut
+    access_key: str
+
+
+class AccessGrantValidateRequest(BaseModel):
+    token: str = Field(min_length=8, max_length=500)
+
+
+class AccessGrantValidateResponse(BaseModel):
+    ok: bool = True
+    grant_id: str
+    user_id: str
+    integration_instance_id: str
+    status: str

@@ -9,11 +9,13 @@
 - Neue API-Routen unter `/api/v1`: `GET/POST /integrations`, `GET/POST /integration-instances`, `POST /integration-instances/{id}/execute`, `POST /integration-instances/{id}/discover-tools`.
 - Generischer MCP-Client (`discover_tools`, `call_tool`) und V2-Execution-Engine mit Auth-Injektion für `none`, `oauth`, `api_key`, `shared_credentials`.
 - Frontend-Seite `Integrations V2` mit 3-Schritt-Flow (Typ → Auth-Mode → Konfiguration) und Navigation unter `/workspace/integrations-v2`.
+- AccessGrant (Broker-Access-Keys, Speicher nur als Hash und Prefix): Tabellen `access_grants`, `user_connections`; API `GET/POST /api/v1/access-grants`, `POST /api/v1/access-grants/validate`, `POST /api/v1/access-grants/{id}/revoke`; Consumer-Pfade `POST /api/v1/consumer/integration-instances/{id}/execute` und `.../discover-tools` mit `X-Broker-Access-Key` oder `Authorization: Bearer bkr_...` (getrennt von Upstream-Auth). Frontend: `/workspace/broker-access`.
+- `execution_engine_v2.enforce_consumer_tool_policy` verbindet IntegrationTool-Policy und optionale Grant-Tool-Liste.
 
 ### Changed
 
 - `GET /api/v1/auth/login-options` nutzt den OAuth-Resolver (DB mit vollständiger Registrierung oder ENV-Fallback).
-- Runtime-Hard-Cut im Backend: `main.py` bindet `public`, `auth`, `integrations_v2` und `admin_microsoft_oauth`; frühere Connection-/Token-Issuance-/Legacy-Admin-/User-Router sind nicht mehr aktiv.
+- Runtime-Hard-Cut im Backend: `main.py` bindet `public`, `auth`, `integrations_v2`, `access_grants`, `consumer_execution` und `admin_microsoft_oauth`; frühere Connection-/Token-Issuance-/Legacy-Admin-/User-Router sind nicht mehr aktiv.
 - Frontend-Routing priorisiert den neuen V2-Pfad; Legacy-Workspace-Pfade leiten auf `/workspace/integrations-v2`.
 
 ### Removed

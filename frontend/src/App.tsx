@@ -4,6 +4,7 @@ import { AppProvider, useAppContext } from "./app-context";
 import { ThemeToggle } from "./theme-toggle";
 import { api } from "./api";
 import { Card, Field, LoadingScreen, PageIntro, ToastViewport } from "./components";
+import { BrokerAccessPage } from "./BrokerAccessPage";
 import { IntegrationsV2Page } from "./IntegrationsV2Page";
 import { MicrosoftOAuthAdminPage } from "./MicrosoftOAuthAdminPage";
 import { isApiError } from "./errors";
@@ -267,7 +268,10 @@ function AuthenticatedApp() {
 
   const isAdmin = session.status === "authenticated" && session.user.is_admin;
   const workspaceNav = useMemo(() => {
-    const base = [{ href: "/workspace/integrations-v2", label: "Integrations" }];
+    const base = [
+      { href: "/workspace/integrations-v2", label: "Integrations" },
+      { href: "/workspace/broker-access", label: "Broker-Zugang" },
+    ];
     if (isAdmin) {
       base.push({ href: "/workspace/admin/microsoft-oauth", label: "Microsoft sign-in" });
     }
@@ -277,7 +281,9 @@ function AuthenticatedApp() {
   useEffect(() => {
     if (session.status !== "authenticated") return;
     const allowed =
-      route.name === "workspaceIntegrationsV2" || (route.name === "workspaceAdminMicrosoftOAuth" && session.user.is_admin);
+      route.name === "workspaceIntegrationsV2" ||
+      route.name === "workspaceBrokerAccess" ||
+      (route.name === "workspaceAdminMicrosoftOAuth" && session.user.is_admin);
     if (!allowed) {
       navigate("/workspace/integrations-v2");
     }
@@ -297,6 +303,7 @@ function AuthenticatedApp() {
 
   if (
     route.name !== "workspaceIntegrationsV2" &&
+    route.name !== "workspaceBrokerAccess" &&
     !(route.name === "workspaceAdminMicrosoftOAuth" && isAdmin)
   ) {
     return <LoadingScreen label="Redirecting to integrations..." />;
@@ -310,7 +317,13 @@ function AuthenticatedApp() {
       title="Workspace"
       subtitle="Integration Platform"
     >
-      {route.name === "workspaceAdminMicrosoftOAuth" && isAdmin ? <MicrosoftOAuthAdminPage /> : <IntegrationsV2Page />}
+      {route.name === "workspaceBrokerAccess" ? (
+        <BrokerAccessPage />
+      ) : route.name === "workspaceAdminMicrosoftOAuth" && isAdmin ? (
+        <MicrosoftOAuthAdminPage />
+      ) : (
+        <IntegrationsV2Page />
+      )}
     </Shell>
   );
 }

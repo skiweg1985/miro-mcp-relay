@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Integration-OAuth: Bei fehlgeschlagenem Token-Austausch mit Miro oder Microsoft Graph schreibt das Backend HTTP-Status und einen gekürzten Antworttext des Upstream-Endpoints ins Log (`integration_oauth`).
+
 ### Changed
 
 - Workspace: Integrations are shown as cards (status, type line, Open / Add connection / Test / Graph settings); connection management moved to `/workspace/connections` (table with actions); Access keys use a table plus modal-based creation; add-integration and add-connection use step modals. Human-readable labels for auth and access modes live in `integrationLabels.ts`. Legacy path `/app/connections` redirects to `/workspace/connections`.

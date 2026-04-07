@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import logging
 import secrets
 from urllib.parse import quote
 
@@ -30,6 +31,7 @@ from app.schemas import AuthFlowStartResponse
 from app.security import decrypt_text, encrypt_text, loads_json
 
 router = APIRouter(tags=["integration-oauth"])
+logger = logging.getLogger(__name__)
 
 FLOW_KEY = "integration_oauth"
 TEMPLATE_MIRO = "miro_default"
@@ -50,6 +52,17 @@ def _make_pkce() -> tuple[str, str]:
 
 def _make_state() -> str:
     return _b64url(secrets.token_bytes(24))
+
+
+def _log_upstream_token_error(*, provider: str, endpoint: str, response: httpx.Response) -> None:
+    body = (response.text or "")[:1200]
+    logger.warning(
+        "upstream token exchange failed: provider=%s status=%s endpoint=%s body=%s",
+        provider,
+        response.status_code,
+        endpoint,
+        body,
+    )
 
 
 def integration_oauth_redirect_uri() -> str:
@@ -385,6 +398,7 @@ async def _integration_oauth_callback_impl(
                     headers={"Content-Type": "application/x-www-form-urlencoded"},
                 )
             if response.status_code >= 400:
+                _log_upstream_token_error(provider="microsoft_graph", endpoint=token_endpoint, response=response)
                 db.commit()
                 return _redirect_workspace(ok=False, message="token_exchange_failed")
             token_data = response.json()
@@ -423,6 +437,7 @@ async def _integration_oauth_callback_impl(
                     headers={"Content-Type": "application/x-www-form-urlencoded"},
                 )
             if response.status_code >= 400:
+                _log_upstream_token_error(provider="miro", endpoint=token_ep, response=response)
                 db.commit()
                 return _redirect_workspace(ok=False, message="token_exchange_failed")
             token_data = response.json()

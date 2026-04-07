@@ -1,3 +1,16 @@
+## 2026-04-07 – Cursor Agent – Integration-OAuth Token-Exchange Diagnose-Logging
+
+- Done:
+  - `integration_oauth.py`: bei HTTP-Fehler vom Token-Endpoint von Miro bzw. Microsoft Graph `logging.warning` mit Status, Endpoint und gekürztem Response-Body (kein Klartext von Secrets im Request).
+  - `docs/CHANGELOG.md` [Unreleased] Added.
+- Next: Nutzer: `docker compose logs broker-backend` nach fehlgeschlagenem Connect; Miro-`error`/`error_description` auswerten.
+- Blockers: keine
+- Branch/PR: branch lokal, PR none
+- Files touched: `backend/app/routers/integration_oauth.py`, `docs/CHANGELOG.md`, `planning/coordination/WORKLOG.md`
+- Test notes: `python3 -m py_compile backend/app/routers/integration_oauth.py`
+- Changelog updated: yes (Unreleased Added)
+- Follow-ups: keine
+
 ## 2026-04-07 – Cursor Agent – Graph Redirect /connections/microsoft-graph/callback
 
 - Done:

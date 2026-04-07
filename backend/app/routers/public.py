@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.database import get_db
 from app.microsoft_oauth_resolver import resolve_microsoft_oauth
+from app.microsoft_oauth_resolver import microsoft_graph_oauth_redirect_uri
 from app.schemas import BrokerCallbackUrlsOut, LoginOptionsResponse
 
 router = APIRouter(tags=["public"])
@@ -22,10 +23,11 @@ def broker_callback_urls():
     base = settings.broker_public_base_url.rstrip("/")
     api = settings.api_v1_prefix
     integration_cb = f"{base}{api}/integration-instances/oauth/callback"
+    graph_cb = microsoft_graph_oauth_redirect_uri(settings, {})
     return BrokerCallbackUrlsOut(
         microsoft_login=f"{base}{api}/auth/microsoft/callback",
         integration_oauth=integration_cb,
-        microsoft_graph=integration_cb,
+        microsoft_graph=graph_cb,
         miro=integration_cb,
         custom_oauth=integration_cb,
     )

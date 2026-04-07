@@ -51,6 +51,12 @@ class TestSmoke(unittest.TestCase):
             self.assertEqual(response.status_code, 302)
             self.assertIn("connection_status=error", response.headers.get("location", ""))
 
+    def test_microsoft_graph_connection_callback_redirects_without_params(self) -> None:
+        with TestClient(app, follow_redirects=False) as client:
+            response = client.get("/api/v1/connections/microsoft-graph/callback")
+            self.assertEqual(response.status_code, 302)
+            self.assertIn("connection_status=error", response.headers.get("location", ""))
+
     def test_seed_creates_default_integrations(self) -> None:
         init_db()
         with Session(engine) as db:

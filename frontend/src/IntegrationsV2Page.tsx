@@ -40,6 +40,7 @@ export function IntegrationsV2Page() {
   const [graphScope, setGraphScope] = useState("");
   const [graphSecret, setGraphSecret] = useState("");
   const [graphClearSecret, setGraphClearSecret] = useState(false);
+  const [graphRedirectUri, setGraphRedirectUri] = useState("");
 
   const authModeOptions = useMemo(() => {
     if (step1Type === "oauth_provider") {
@@ -74,6 +75,7 @@ export function IntegrationsV2Page() {
     setGraphTenant(typeof c.graph_oauth_tenant_id === "string" ? c.graph_oauth_tenant_id : "");
     setGraphClientId(typeof c.graph_oauth_client_id === "string" ? c.graph_oauth_client_id : "");
     setGraphScope(typeof c.graph_oauth_scope === "string" ? c.graph_oauth_scope : "");
+    setGraphRedirectUri(typeof c.graph_oauth_redirect_uri === "string" ? c.graph_oauth_redirect_uri : "");
     setGraphSecret("");
     setGraphClearSecret(false);
   }, [graphIntegration]);
@@ -203,6 +205,7 @@ export function IntegrationsV2Page() {
           graph_oauth_tenant_id: graphTenant.trim(),
           graph_oauth_client_id: graphClientId.trim(),
           graph_oauth_scope: graphScope.trim(),
+          graph_oauth_redirect_uri: graphRedirectUri.trim(),
         },
         clear_graph_oauth_client_secret: graphClearSecret,
         ...(graphSecret.trim() ? { graph_oauth_client_secret: graphSecret.trim() } : {}),
@@ -344,6 +347,14 @@ export function IntegrationsV2Page() {
               Redirect-URI (Entra): {graphIntegration.integration_oauth_callback_url || "—"}
             </p>
             <div className="form-grid">
+              <Field label="Redirect-URI (optional)">
+                <input
+                  value={graphRedirectUri}
+                  onChange={(event) => setGraphRedirectUri(event.target.value)}
+                  placeholder="https://broker.example/api/v1/connections/microsoft-graph/callback"
+                  autoComplete="off"
+                />
+              </Field>
               <Field label="Broker-Standards">
                 <div className="lede">
                   <label>

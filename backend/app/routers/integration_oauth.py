@@ -20,6 +20,7 @@ from app.models import AuthMode, Integration, IntegrationInstance, User, UserCon
 from app.microsoft_oauth_resolver import (
     ResolvedMicrosoftOAuth,
     microsoft_authorize_url,
+    microsoft_graph_oauth_redirect_uri,
     microsoft_token_url,
     resolve_microsoft_oauth_for_graph_integration,
 )
@@ -244,6 +245,7 @@ def start_integration_oauth(
     redirect_uri = integration_oauth_redirect_uri()
 
     if template == TEMPLATE_GRAPH:
+        graph_redirect_uri = microsoft_graph_oauth_redirect_uri(settings, cfg)
         resolved = resolve_microsoft_oauth_for_graph_integration(db, integration, settings)
         if not resolved:
             raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="microsoft_oauth_not_configured")
@@ -259,12 +261,13 @@ def start_integration_oauth(
                 "user_id": current_user.id,
                 "instance_id": instance.id,
                 "verifier": verifier,
+                "graph_redirect_uri": graph_redirect_uri,
             },
         )
         params = {
             "client_id": resolved.client_id,
             "response_type": "code",
-            "redirect_uri": redirect_uri,
+            "redirect_uri": graph_redirect_uri,
             "response_mode": "query",
             "scope": scope_str,
             "state": state,
@@ -320,12 +323,12 @@ def start_integration_oauth(
     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="integration_oauth_template_unsupported")
 
 
-@router.get("/integration-instances/oauth/callback")
-async def integration_oauth_callback(
-    code: str | None = None,
-    state: str | None = None,
-    error: str | None = None,
-    db: Session = Depends(get_db),
+async def _integration_oauth_callback_impl(
+    *,
+    code: str | None,
+    state: str | None,
+    error: str | None,
+    db: Session,
 ):
     settings = get_settings()
     if error:
@@ -357,7 +360,8 @@ async def integration_oauth_callback(
         return _redirect_workspace(ok=False, message="integration_not_found")
 
     cfg = loads_json(integration.config_json, {})
-    redirect_uri = integration_oauth_redirect_uri()
+    miro_redirect_uri = integration_oauth_redirect_uri()
+    graph_redirect_uri = str(raw.get("graph_redirect_uri") or "").strip() or microsoft_graph_oauth_redirect_uri(settings, cfg)
 
     try:
         if kind == KIND_MICROSOFT_GRAPH:
@@ -375,7 +379,7 @@ async def integration_oauth_callback(
                         "client_id": resolved.client_id,
                         "client_secret": resolved.client_secret,
                         "code": code,
-                        "redirect_uri": redirect_uri,
+                        "redirect_uri": graph_redirect_uri,
                         "code_verifier": verifier,
                     },
                     headers={"Content-Type": "application/x-www-form-urlencoded"},
@@ -408,7 +412,7 @@ async def integration_oauth_callback(
                 "client_id": client_id,
                 "client_secret": client_secret,
                 "code": code,
-                "redirect_uri": redirect_uri,
+                "redirect_uri": miro_redirect_uri,
             }
             if verifier:
                 token_body["code_verifier"] = verifier
@@ -441,6 +445,26 @@ async def integration_oauth_callback(
     except Exception as exc:
         db.rollback()
         return _redirect_workspace(ok=False, message=str(exc)[:200])
+
+
+@router.get("/integration-instances/oauth/callback")
+async def integration_oauth_callback(
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+    db: Session = Depends(get_db),
+):
+    return await _integration_oauth_callback_impl(code=code, state=state, error=error, db=db)
+
+
+@router.get("/connections/microsoft-graph/callback")
+async def microsoft_graph_connection_callback(
+    code: str | None = None,
+    state: str | None = None,
+    error: str | None = None,
+    db: Session = Depends(get_db),
+):
+    return await _integration_oauth_callback_impl(code=code, state=state, error=error, db=db)
 
 
 @router.post("/integration-instances/{instance_id}/oauth/disconnect")

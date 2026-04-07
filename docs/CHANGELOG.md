@@ -2,11 +2,15 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Microsoft Graph Integration-OAuth: Redirect-Standard `{BROKER_PUBLIC_BASE_URL}{api_v1_prefix}/connections/microsoft-graph/callback`; gleicher Handler wie unter `…/integration-instances/oauth/callback`. Überschreibbar per `MICROSOFT_GRAPH_OAUTH_REDIRECT_URI`, `MICROSOFT_GRAPH_OAUTH_REDIRECT_PATH` oder `config_json.graph_oauth_redirect_uri`.
+
 ### Added
 
 - Microsoft Graph (Integration): optionale eigene Entra-App über `PATCH /api/v1/integrations/{id}` (Admin, CSRF): `config_json` mit `graph_oauth_use_broker_defaults`, `graph_oauth_authority_base`, `graph_oauth_tenant_id`, `graph_oauth_client_id`, `graph_oauth_scope`; Body-Feld `graph_oauth_client_secret` speichert verschlüsselt in `integrations.oauth_client_secret_encrypted`. Resolver `resolve_microsoft_oauth_for_graph_integration`. `IntegrationOut`: `oauth_client_secret_configured`, `integration_oauth_callback_url`.
 - Miro MCP: OAuth mit dynamischer Client-Registrierung am `oauth_registration_endpoint` (Default `…/register` unter `miro_mcp_base`), PKCE; DCR-Credentials pro Nutzer/Instanz in `user_connections.oauth_dcr_client_id` / `oauth_dcr_client_secret_encrypted`; Default `oauth_authorization_endpoint` unter `miro_mcp_base`; weiterhin statische `MIRO_OAUTH_*` oder `oauth_client_id`/`oauth_client_secret` in Config/Env.
-- `GET /api/v1/broker-callback-urls`: Feld `integration_oauth` (Redirect-URI für Integration-OAuth-Connect); `microsoft_graph` und `miro` zeigen denselben Pfad.
+- `GET /api/v1/broker-callback-urls`: Feld `integration_oauth` (Miro-Integration-OAuth); `microsoft_graph` (Graph-Redirect); `miro` gleich `integration_oauth`.
 
 ### Changed
 

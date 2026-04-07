@@ -41,6 +41,7 @@ def _graph_integration_config(settings: Settings) -> dict:
         "graph_oauth_tenant_id": settings.microsoft_broker_tenant_id,
         "graph_oauth_client_id": "",
         "graph_oauth_scope": settings.microsoft_broker_scope,
+        "graph_oauth_redirect_uri": "",
         "graph_base_url": "https://graph.microsoft.com/v1.0",
         "oauth": {
             "authorization_endpoint": settings.microsoft_authorize_url,

@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     microsoft_broker_client_id: str = ""
     microsoft_broker_client_secret: str = ""
     microsoft_broker_scope: str = "openid profile email User.Read"
+    # Microsoft Graph Integration-OAuth: leer = {BROKER_PUBLIC_BASE_URL}{api_v1_prefix}{microsoft_graph_oauth_redirect_path}
+    microsoft_graph_oauth_redirect_uri: str = ""
+    microsoft_graph_oauth_redirect_path: str = "/connections/microsoft-graph/callback"
 
     @field_validator("broker_encryption_key", mode="before")
     @classmethod

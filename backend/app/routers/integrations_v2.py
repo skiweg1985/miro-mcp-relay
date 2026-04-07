@@ -28,6 +28,7 @@ from app.schemas import (
     IntegrationUpdate,
 )
 from app.security import dumps_json, encrypt_text, loads_json
+from app.microsoft_oauth_resolver import microsoft_graph_oauth_redirect_uri
 from app.upstream_oauth import get_upstream_oauth_token_for_session, user_has_oauth_connection
 
 router = APIRouter(tags=["integrations-v2"])
@@ -35,7 +36,11 @@ router = APIRouter(tags=["integrations-v2"])
 
 def _integration_out(item: Integration) -> IntegrationOut:
     settings = get_settings()
-    callback = f"{settings.broker_public_base_url.rstrip('/')}{settings.api_v1_prefix}/integration-instances/oauth/callback"
+    cfg = loads_json(item.config_json, {})
+    if str(cfg.get("template_key") or "") == "microsoft_graph_default":
+        callback = microsoft_graph_oauth_redirect_uri(settings, cfg)
+    else:
+        callback = f"{settings.broker_public_base_url.rstrip('/')}{settings.api_v1_prefix}/integration-instances/oauth/callback"
     return IntegrationOut(
         id=item.id,
         name=item.name,

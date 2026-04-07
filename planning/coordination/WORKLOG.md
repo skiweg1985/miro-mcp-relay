@@ -1,3 +1,18 @@
+## 2026-04-07 – Cursor Agent – Graph Redirect /connections/microsoft-graph/callback
+
+- Done:
+  - `microsoft_graph_oauth_redirect_uri(settings, cfg)` in `microsoft_oauth_resolver.py`; Standardpfad `/connections/microsoft-graph/callback`; Env + `graph_oauth_redirect_uri` in Integration.
+  - `GET /api/v1/connections/microsoft-graph/callback` (Alias); Pending-State `graph_redirect_uri` für Token-Austausch.
+  - `broker-callback-urls.microsoft_graph` getrennt von Miro-Callback; `IntegrationsV2Page` Feld Redirect-Override; `.env.example`.
+  - `docs/CHANGELOG.md`, `docs/technische-referenz.md`; `test_smoke` neuer Callback-Test.
+- Next: keine
+- Blockers: keine
+- Branch/PR: branch `codex/hard-refactor-integration-model`, PR none
+- Files touched: `backend/app/core/config.py`, `backend/app/microsoft_oauth_resolver.py`, `backend/app/routers/integration_oauth.py`, `backend/app/routers/integrations_v2.py`, `backend/app/routers/public.py`, `backend/app/default_integrations.py`, `backend/test_smoke.py`, `frontend/src/IntegrationsV2Page.tsx`, `.env.example`, `docs/CHANGELOG.md`, `docs/technische-referenz.md`, `planning/coordination/WORKLOG.md`
+- Test notes: `PYTHONPATH=backend python3 -m unittest backend.test_smoke -v`, `cd frontend && npm run build`
+- Changelog updated: yes (Unreleased Changed)
+- Follow-ups: Entra Redirect-URI in App-Registrierung auf neuen Pfad umstellen
+
 ## 2026-04-07 – Cursor Agent – Graph custom Entra + Miro DCR
 
 - Done:

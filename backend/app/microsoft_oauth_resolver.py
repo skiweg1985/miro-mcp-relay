@@ -116,6 +116,25 @@ def resolve_microsoft_oauth_for_graph_integration(
     )
 
 
+def microsoft_graph_oauth_redirect_uri(settings: Settings, cfg: dict | None) -> str:
+    """Redirect URI for Graph Integration-OAuth (Entra registration). Integration config overrides env; env overrides default path."""
+    cfg = cfg or {}
+    from_config = str(cfg.get("graph_oauth_redirect_uri") or "").strip()
+    if from_config:
+        return from_config.rstrip("/")
+    from_env = str(settings.microsoft_graph_oauth_redirect_uri or "").strip()
+    if from_env:
+        return from_env.rstrip("/")
+    base = settings.broker_public_base_url.rstrip("/")
+    api = str(settings.api_v1_prefix or "").strip()
+    if not api.startswith("/"):
+        api = "/" + api
+    path = str(settings.microsoft_graph_oauth_redirect_path or "/connections/microsoft-graph/callback").strip()
+    if not path.startswith("/"):
+        path = "/" + path
+    return f"{base}{api}{path}"
+
+
 def effective_microsoft_oauth_source(db: Session, settings: Settings) -> str:
     if resolve_microsoft_oauth(db, settings) is None:
         return "none"

@@ -31,8 +31,8 @@ export function BrokerAccessPage() {
     void load().catch((error) => {
       notify({
         tone: "error",
-        title: "Laden fehlgeschlagen",
-        description: isApiError(error) ? error.message : "Unbekannter Fehler",
+        title: "Could not load data",
+        description: isApiError(error) ? error.message : "Unexpected error.",
       });
     });
   }, [session.status]);
@@ -55,12 +55,12 @@ export function BrokerAccessPage() {
       setLabel("");
       setAllowedTools("");
       setRevealedKey(created.access_key);
-      notify({ tone: "success", title: "Access Key erstellt" });
+      notify({ tone: "success", title: "Access key created" });
     } catch (error) {
       notify({
         tone: "error",
-        title: "Access Key fehlgeschlagen",
-        description: isApiError(error) ? error.message : "Unbekannter Fehler",
+        title: "Could not create access key",
+        description: isApiError(error) ? error.message : "Unexpected error.",
       });
     } finally {
       setBusy(false);
@@ -73,12 +73,12 @@ export function BrokerAccessPage() {
     try {
       const updated = await api.revokeAccessGrant(session.csrfToken, grantId);
       setGrants((prev) => prev.map((row) => (row.id === grantId ? updated : row)));
-      notify({ tone: "success", title: "Access Grant widerrufen" });
+      notify({ tone: "success", title: "Access revoked" });
     } catch (error) {
       notify({
         tone: "error",
-        title: "Widerruf fehlgeschlagen",
-        description: isApiError(error) ? error.message : "Unbekannter Fehler",
+        title: "Could not revoke",
+        description: isApiError(error) ? error.message : "Unexpected error.",
       });
     } finally {
       setBusy(false);
@@ -88,16 +88,16 @@ export function BrokerAccessPage() {
   return (
     <>
       <PageIntro
-        title="Broker-Zugang"
-        description="Access Keys berechtigen Clients gegen diesen Broker. Sie ersetzen keine OAuth- oder API-Anmeldedaten des Zielsystems."
+        title="Access"
+        description="Access keys authorize clients to this broker. They do not replace sign-in to the upstream system."
       />
 
-      <Card title="Access Key erstellen">
+      <Card title="New access key">
         <form className="stack-form" onSubmit={createGrant}>
           <div className="form-grid">
-            <Field label="Integration Instance">
+            <Field label="Connection">
               <select value={instanceId} onChange={(event) => setInstanceId(event.target.value)} required>
-                <option value="">Bitte wählen</option>
+                <option value="">Select…</option>
                 {instances.map((instance) => (
                   <option key={instance.id} value={instance.id}>
                     {instance.name}
@@ -105,62 +105,72 @@ export function BrokerAccessPage() {
                 ))}
               </select>
             </Field>
-            <Field label="Bezeichnung">
+            <Field label="Name">
               <input value={label} onChange={(event) => setLabel(event.target.value)} required />
             </Field>
-            <Field label="Erlaubte Tools (optional)">
+            <Field label="Allowed tools" hint="Comma or line separated. Leave empty for no extra restriction.">
               <textarea
                 value={allowedTools}
                 onChange={(event) => setAllowedTools(event.target.value)}
-                placeholder="Komma- oder zeilengetrennt; leer = keine zusätzliche Einschränkung"
+                placeholder="tool_a, tool_b"
               />
             </Field>
           </div>
           <div className="modal-form-actions">
             <button type="submit" className="primary-button" disabled={busy || !instances.length}>
-              Access Key erzeugen
+              Create access key
             </button>
           </div>
         </form>
       </Card>
 
       {revealedKey ? (
-        <Card title="Access Key (einmalig)">
-          <p className="muted">
-            Der vollständige Key wird nur in diesem Schritt angezeigt. Er authentifiziert Anfragen an diesen Broker, nicht
-            das Zielsystem.
+        <Card title="Access key">
+          <p className="muted-copy">
+            This value is shown only once. It authenticates requests to the broker, not to the upstream service.
           </p>
-          <pre className="grant-code-block">{revealedKey}</pre>
+          <pre className="secret-value">{revealedKey}</pre>
           <div className="modal-form-actions">
-            <button type="button" className="ghost-button" onClick={() => void copyToClipboard(revealedKey).then(() => notify({ tone: "info", title: "Kopiert" }))}>
-              Kopieren
+            <button
+              type="button"
+              className="ghost-button"
+              onClick={() =>
+                void copyToClipboard(revealedKey).then(() => notify({ tone: "success", title: "Copied" }))
+              }
+            >
+              Copy
             </button>
             <button type="button" className="primary-button" onClick={() => setRevealedKey(null)}>
-              Schließen
+              Done
             </button>
           </div>
         </Card>
       ) : null}
 
-      <Card title="Access Grants">
+      <Card title="Access grants">
         <div className="stack-list">
           {grants.map((grant) => (
-            <div className="stack-cell" key={grant.id}>
+            <div className="stack-cell stack-cell--row" key={grant.id}>
               <div>
                 <strong>{grant.name}</strong>
-                <span>
+                <span className="muted-copy">
                   {grant.integration_instance_name} · {grant.key_prefix}… · {grant.status}
                 </span>
-                <span className="muted">
-                  zuletzt: {formatDateTime(grant.last_used_at)} · ablauf: {formatDateTime(grant.expires_at)}
+                <span className="muted-copy">
+                  Last used {formatDateTime(grant.last_used_at)} · Expires {formatDateTime(grant.expires_at)}
                 </span>
               </div>
-              <button type="button" className="ghost-button" disabled={busy || grant.status !== "active"} onClick={() => void revoke(grant.id)}>
-                Widerrufen
+              <button
+                type="button"
+                className="ghost-button"
+                disabled={busy || grant.status !== "active"}
+                onClick={() => void revoke(grant.id)}
+              >
+                Revoke
               </button>
             </div>
           ))}
-          {!grants.length ? <p className="muted">Keine Access Grants vorhanden.</p> : null}
+          {!grants.length ? <p className="muted-copy">No access grants yet.</p> : null}
         </div>
       </Card>
     </>

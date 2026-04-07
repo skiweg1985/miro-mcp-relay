@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 
 import { useAppContext } from "./app-context";
+import { classNames } from "./utils";
 import { api } from "./api";
 import { Card, Field, PageIntro } from "./components";
 import type { IntegrationInstanceV2Out, IntegrationV2Out } from "./types";
 import { isApiError } from "./errors";
 
 const INTEGRATION_TYPES = [
-  { value: "mcp_server", label: "MCP Server" },
-  { value: "oauth_provider", label: "OAuth Provider" },
-  { value: "api", label: "API Service" },
+  { value: "mcp_server", label: "MCP server" },
+  { value: "oauth_provider", label: "OAuth provider" },
+  { value: "api", label: "API" },
 ] as const;
 
 export function IntegrationsV2Page() {
@@ -44,13 +45,13 @@ export function IntegrationsV2Page() {
 
   const authModeOptions = useMemo(() => {
     if (step1Type === "oauth_provider") {
-      return [{ value: "oauth", label: "oauth" }];
+      return [{ value: "oauth", label: "OAuth" }];
     }
     return [
-      { value: "none", label: "none" },
-      { value: "oauth", label: "oauth" },
-      { value: "api_key", label: "api_key" },
-      { value: "shared_credentials", label: "shared_credentials" },
+      { value: "none", label: "None" },
+      { value: "oauth", label: "OAuth" },
+      { value: "api_key", label: "API key" },
+      { value: "shared_credentials", label: "Shared credentials" },
     ];
   }, [step1Type]);
 
@@ -85,8 +86,8 @@ export function IntegrationsV2Page() {
     void load().catch((error) => {
       notify({
         tone: "error",
-        title: "Laden fehlgeschlagen",
-        description: isApiError(error) ? error.message : "Unbekannter Fehler",
+        title: "Could not load data",
+        description: isApiError(error) ? error.message : "Unexpected error.",
       });
     });
   }, [session.status]);
@@ -96,13 +97,13 @@ export function IntegrationsV2Page() {
     const params = new URLSearchParams(window.location.search);
     const connectionStatus = params.get("connection_status");
     if (connectionStatus === "connected") {
-      notify({ tone: "success", title: "Verbindung gespeichert" });
+      notify({ tone: "success", title: "Connection saved" });
       window.history.replaceState({}, "", window.location.pathname);
     } else if (connectionStatus === "error") {
       notify({
         tone: "error",
-        title: "OAuth",
-        description: params.get("message") || "Verbindung fehlgeschlagen",
+        title: "Connection failed",
+        description: params.get("message") || "Something went wrong.",
       });
       window.history.replaceState({}, "", window.location.pathname);
     }
@@ -123,12 +124,12 @@ export function IntegrationsV2Page() {
       setSelectedIntegrationId(created.id);
       setIntegrationName("");
       setEndpoint("");
-      notify({ tone: "success", title: "Integration erstellt" });
+      notify({ tone: "success", title: "Integration created" });
     } catch (error) {
       notify({
         tone: "error",
-        title: "Integration fehlgeschlagen",
-        description: isApiError(error) ? error.message : "Unbekannter Fehler",
+        title: "Could not create integration",
+        description: isApiError(error) ? error.message : "Unexpected error.",
       });
     } finally {
       setBusy(false);
@@ -165,12 +166,12 @@ export function IntegrationsV2Page() {
       setInstanceName("");
       setApiKeyValue("");
       setSharedHeaders("");
-      notify({ tone: "success", title: "Instanz erstellt" });
+      notify({ tone: "success", title: "Connection created" });
     } catch (error) {
       notify({
         tone: "error",
-        title: "Instanz fehlgeschlagen",
-        description: isApiError(error) ? error.message : "Unbekannter Fehler",
+        title: "Could not create connection",
+        description: isApiError(error) ? error.message : "Unexpected error.",
       });
     } finally {
       setBusy(false);
@@ -187,8 +188,8 @@ export function IntegrationsV2Page() {
       setBusy(false);
       notify({
         tone: "error",
-        title: "OAuth-Start fehlgeschlagen",
-        description: isApiError(error) ? error.message : "Unbekannter Fehler",
+        title: "Could not start sign-in",
+        description: isApiError(error) ? error.message : "Unexpected error.",
       });
     }
   };
@@ -213,12 +214,12 @@ export function IntegrationsV2Page() {
       await load();
       setGraphSecret("");
       setGraphClearSecret(false);
-      notify({ tone: "success", title: "Graph-OAuth gespeichert" });
+      notify({ tone: "success", title: "Microsoft Graph settings saved" });
     } catch (error) {
       notify({
         tone: "error",
-        title: "Speichern fehlgeschlagen",
-        description: isApiError(error) ? error.message : "Unbekannter Fehler",
+        title: "Could not save",
+        description: isApiError(error) ? error.message : "Unexpected error.",
       });
     } finally {
       setBusy(false);
@@ -231,12 +232,12 @@ export function IntegrationsV2Page() {
     try {
       await api.disconnectIntegrationOAuth(session.csrfToken, instanceId);
       await load();
-      notify({ tone: "success", title: "Verbindung getrennt" });
+      notify({ tone: "success", title: "Disconnected" });
     } catch (error) {
       notify({
         tone: "error",
-        title: "Trennen fehlgeschlagen",
-        description: isApiError(error) ? error.message : "Unbekannter Fehler",
+        title: "Could not disconnect",
+        description: isApiError(error) ? error.message : "Unexpected error.",
       });
     } finally {
       setBusy(false);
@@ -246,19 +247,19 @@ export function IntegrationsV2Page() {
   return (
     <>
       <PageIntro
-        title="Integrations V2"
+        title="Integrations"
         description={
           isAdmin
-            ? "Neue Integrationen und Instanzen anlegen (Admin)."
-            : "Verfügbare Integrationen und Instanzen der Organisation."
+            ? "Create integrations and connections for your organization."
+            : "Connections available to your organization."
         }
       />
 
       {isAdmin ? (
-      <Card title="Neue Integration">
+      <Card title="New integration">
         <form className="stack-form" onSubmit={createIntegration}>
           <div className="form-grid">
-            <Field label="Schritt 1: Integration Type">
+            <Field label="Type">
               <select value={step1Type} onChange={(event) => setStep1Type(event.target.value as "mcp_server" | "oauth_provider" | "api")}>
                 {INTEGRATION_TYPES.map((item) => (
                   <option key={item.value} value={item.value}>
@@ -276,7 +277,7 @@ export function IntegrationsV2Page() {
           </div>
           <div className="modal-form-actions">
             <button type="submit" className="primary-button" disabled={busy}>
-              Anlegen
+              Create
             </button>
           </div>
         </form>
@@ -284,12 +285,12 @@ export function IntegrationsV2Page() {
       ) : null}
 
       {isAdmin ? (
-      <Card title="Neue Integration Instance">
+      <Card title="New connection">
         <form className="stack-form" onSubmit={createInstance}>
           <div className="form-grid">
             <Field label="Integration">
               <select value={selectedIntegrationId} onChange={(event) => setSelectedIntegrationId(event.target.value)} required>
-                <option value="">Bitte wählen</option>
+                <option value="">Select…</option>
                 {integrations.map((integration) => (
                   <option key={integration.id} value={integration.id}>
                     {integration.name} ({integration.type})
@@ -297,10 +298,10 @@ export function IntegrationsV2Page() {
                 ))}
               </select>
             </Field>
-            <Field label="Instance Name">
+            <Field label="Name">
               <input value={instanceName} onChange={(event) => setInstanceName(event.target.value)} required />
             </Field>
-            <Field label="Schritt 2: Auth Mode">
+            <Field label="Authentication">
               <select value={step2AuthMode} onChange={(event) => setStep2AuthMode(event.target.value)}>
                 {authModeOptions.map((mode) => (
                   <option key={mode.value} value={mode.value}>
@@ -309,31 +310,31 @@ export function IntegrationsV2Page() {
                 ))}
               </select>
             </Field>
-            <Field label="Access Mode">
+            <Field label="Access mode">
               <select value={accessMode} onChange={(event) => setAccessMode(event.target.value)}>
-                <option value="relay">relay</option>
-                <option value="direct">direct</option>
+                <option value="relay">Relay</option>
+                <option value="direct">Direct</option>
               </select>
             </Field>
             {step2AuthMode === "api_key" ? (
               <>
-                <Field label="API Key Header">
+                <Field label="API key header">
                   <input value={apiKeyHeader} onChange={(event) => setApiKeyHeader(event.target.value)} />
                 </Field>
-                <Field label="API Key Value">
+                <Field label="API key">
                   <input value={apiKeyValue} onChange={(event) => setApiKeyValue(event.target.value)} required />
                 </Field>
               </>
             ) : null}
             {step2AuthMode === "shared_credentials" ? (
-              <Field label="Shared Headers (Header: Value)">
+              <Field label="Headers (Name: value per line)">
                 <textarea value={sharedHeaders} onChange={(event) => setSharedHeaders(event.target.value)} />
               </Field>
             ) : null}
           </div>
           <div className="modal-form-actions">
             <button type="submit" className="primary-button" disabled={busy}>
-              Instanz anlegen
+              Create connection
             </button>
           </div>
         </form>
@@ -341,13 +342,13 @@ export function IntegrationsV2Page() {
       ) : null}
 
       {isAdmin && graphIntegration ? (
-        <Card title="Microsoft Graph OAuth">
+        <Card title="Microsoft Graph">
           <form className="stack-form" onSubmit={saveGraphOAuth}>
-            <p className="muted">
-              Redirect-URI (Entra): {graphIntegration.integration_oauth_callback_url || "—"}
+            <p className="muted-copy">
+              Redirect URI (Entra): {graphIntegration.integration_oauth_callback_url || "—"}
             </p>
             <div className="form-grid">
-              <Field label="Redirect-URI (optional)">
+              <Field label="Redirect URI override">
                 <input
                   value={graphRedirectUri}
                   onChange={(event) => setGraphRedirectUri(event.target.value)}
@@ -355,37 +356,36 @@ export function IntegrationsV2Page() {
                   autoComplete="off"
                 />
               </Field>
-              <Field label="Broker-Standards">
-                <div className="lede">
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={graphBrokerDefaults}
-                      onChange={(event) => setGraphBrokerDefaults(event.target.checked)}
-                    />{" "}
-                    gleiche Entra-App wie Broker-Login
-                  </label>
-                </div>
-              </Field>
+              <div className="field">
+                <span className="field-label">Microsoft app</span>
+                <label className="lede">
+                  <input
+                    type="checkbox"
+                    checked={graphBrokerDefaults}
+                    onChange={(event) => setGraphBrokerDefaults(event.target.checked)}
+                  />{" "}
+                  Same app as workspace sign-in
+                </label>
+              </div>
               {!graphBrokerDefaults ? (
                 <>
-                  <Field label="Authority (Basis-URL)">
+                  <Field label="Authority URL">
                     <input
                       value={graphAuthority}
                       onChange={(event) => setGraphAuthority(event.target.value)}
                       placeholder="https://login.microsoftonline.com"
                     />
                   </Field>
-                  <Field label="Verzeichnis-Mandanten-ID">
+                  <Field label="Directory (tenant) ID">
                     <input value={graphTenant} onChange={(event) => setGraphTenant(event.target.value)} placeholder="common" />
                   </Field>
-                  <Field label="Client-ID">
+                  <Field label="Application (client) ID">
                     <input value={graphClientId} onChange={(event) => setGraphClientId(event.target.value)} />
                   </Field>
-                  <Field label="Berechtigungen (Scopes)">
+                  <Field label="Scopes">
                     <input value={graphScope} onChange={(event) => setGraphScope(event.target.value)} />
                   </Field>
-                  <Field label="Client-Geheimnis">
+                  <Field label="Client secret">
                     <input
                       type="password"
                       autoComplete="new-password"
@@ -407,7 +407,7 @@ export function IntegrationsV2Page() {
                           if (event.target.checked) setGraphSecret("");
                         }}
                       />{" "}
-                      gespeichertes Client-Geheimnis entfernen
+                      Remove stored client secret
                     </label>
                   </div>
                 </>
@@ -415,23 +415,26 @@ export function IntegrationsV2Page() {
             </div>
             <div className="modal-form-actions">
               <button type="submit" className="primary-button" disabled={busy}>
-                Speichern
+                Save
               </button>
             </div>
           </form>
         </Card>
       ) : null}
 
-      <Card title="Bestehende Instanzen">
+      <Card title="Connections">
         <div className="stack-list">
           {instances.map((instance) => (
-            <div className="stack-cell" key={instance.id}>
+            <div
+              className={classNames("stack-cell", instance.auth_mode === "oauth" && "stack-cell--row")}
+              key={instance.id}
+            >
               <div>
                 <strong>{instance.name}</strong>
-                <span>
-                  auth={instance.auth_mode}, access={instance.access_mode}, integration={instance.integration_id}
+                <span className="muted-copy">
+                  {instance.auth_mode} · {instance.access_mode}
                   {instance.auth_mode === "oauth" ? (
-                    <span className="muted"> · {instance.oauth_connected ? "verbunden" : "nicht verbunden"}</span>
+                    <> · {instance.oauth_connected ? "Connected" : "Not connected"}</>
                   ) : null}
                 </span>
               </div>
@@ -444,7 +447,7 @@ export function IntegrationsV2Page() {
                       disabled={busy}
                       onClick={() => void disconnectOAuth(instance.id)}
                     >
-                      Verbindung trennen
+                      Disconnect
                     </button>
                   ) : (
                     <button
@@ -453,14 +456,14 @@ export function IntegrationsV2Page() {
                       disabled={busy}
                       onClick={() => void connectOAuth(instance.id)}
                     >
-                      Verbinden
+                      Connect
                     </button>
                   )}
                 </div>
               ) : null}
             </div>
           ))}
-          {!instances.length ? <p className="muted">Keine Instanzen vorhanden.</p> : null}
+          {!instances.length ? <p className="muted-copy">No connections yet.</p> : null}
         </div>
       </Card>
     </>

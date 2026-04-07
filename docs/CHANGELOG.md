@@ -4,6 +4,8 @@
 
 ### Changed
 
+- Frontend: Clarity UI Mono v2 – Spacing- und Typ-Tokens konsolidiert (`--ink-primary`, `.muted`), Landing/Buttons/Tabellen/Modale auf die Skala 4–32 px ausgerichtet; Sidebar-Branding mit `brand-kicker`; Workspace-Navigation „Access“; Integrations- und Access-Seiten: ruhigere Primärbutton-Interaktion, einheitliche englische Nutzer-Texte, Verbindungslisten mit `stack-cell--row` und Form-Action-Abstände in Karten.
+
 - Microsoft Graph Integration-OAuth: Redirect-Standard `{BROKER_PUBLIC_BASE_URL}{api_v1_prefix}/connections/microsoft-graph/callback`; gleicher Handler wie unter `…/integration-instances/oauth/callback`. Überschreibbar per `MICROSOFT_GRAPH_OAUTH_REDIRECT_URI`, `MICROSOFT_GRAPH_OAUTH_REDIRECT_PATH` oder `config_json.graph_oauth_redirect_uri`.
 
 ### Added

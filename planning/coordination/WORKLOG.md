@@ -2037,3 +2037,32 @@
   - yes ([Unreleased] Removed)
 - Follow-ups:
   - keine kritischen
+
+## 2026-04-07 – Cursor Agent – Clarity UI Mono v2 (Workspace)
+
+- Done:
+  - `index.css`: Spacing-Skala durchgezogen, `--ink-primary`, `.muted`, `stack-cell`/`stack-cell--row`, Form-Actions in Karten, Primärbutton ohne Lift, diverse Radius/Padding-Anpassungen.
+  - `App.tsx`: Sidebar `brand-kicker`, Nav-Label „Access“.
+  - `IntegrationsV2Page.tsx`, `BrokerAccessPage.tsx`: englische Nutzer-Texte, klarere Feld- und Kartentitel, Verbindungszeilen-Layout.
+  - `docs/CHANGELOG.md` [Unreleased] Changed.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/hard-refactor-integration-model
+  - PR: none
+- Files touched:
+  - frontend/src/index.css
+  - frontend/src/App.tsx
+  - frontend/src/IntegrationsV2Page.tsx
+  - frontend/src/BrokerAccessPage.tsx
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build`
+  - UI path: `/workspace/integrations-v2`, `/workspace/broker-access`
+- Changelog updated:
+  - yes ([Unreleased] Changed)
+- Follow-ups:
+  - Ausnahmen: Blur-/Shadow-Offsets, `vh`/`min-width` in Mediaqueries bleiben nicht auf der 4–32-px-Rasterliste (technisch notwendig).

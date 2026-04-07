@@ -235,8 +235,8 @@ function Shell({
     <div className="app-frame">
       <aside className="sidebar">
         <div className="brand-mark">
+          <span className="brand-kicker">{subtitle}</span>
           <strong>{title}</strong>
-          <small>{subtitle}</small>
         </div>
 
         <nav className="sidebar-nav">
@@ -270,7 +270,7 @@ function AuthenticatedApp() {
   const workspaceNav = useMemo(() => {
     const base = [
       { href: "/workspace/integrations-v2", label: "Integrations" },
-      { href: "/workspace/broker-access", label: "Broker-Zugang" },
+      { href: "/workspace/broker-access", label: "Access" },
     ];
     if (isAdmin) {
       base.push({ href: "/workspace/admin/microsoft-oauth", label: "Microsoft sign-in" });

@@ -1,3 +1,14 @@
+## 2026-04-07 – Cursor Agent – dist push
+
+- Done:
+  - Commit `chore(frontend): aktualisierte dist-Assets und tsbuildinfo` (neue hashed JS/CSS, `index.html`, `tsconfig.tsbuildinfo`); Push `codex/hard-refactor-integration-model` → origin.
+- Next: keine
+- Blockers: keine
+- Branch/PR: branch `codex/hard-refactor-integration-model`, PR none
+- Files touched: `frontend/dist/assets/*`, `frontend/dist/index.html`, `frontend/tsconfig.tsbuildinfo`
+- Changelog updated: no
+- Follow-ups: keine
+
 ## 2026-04-07 – Cursor Agent – reconcile_schema PostgreSQL TIMESTAMP
 
 - Done:

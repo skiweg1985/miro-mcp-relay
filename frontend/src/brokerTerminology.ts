@@ -22,6 +22,11 @@ export const brokerUi = {
   tokenEndpoint: "Token endpoint",
   userProfileEndpoint: "User profile endpoint",
   issuerOpenId: "Issuer (OpenID)",
+  technicalDetails: "Technical details",
+  dynamicClientRegistration: "Dynamic client registration",
+  registrationEndpoint: "Registration endpoint",
+  registrationAuthMethod: "Registration auth method",
+  tokenDeliveryDetail: "Token delivery (detail)",
 } as const;
 
 export function formatRelayTypeLabel(raw: string | undefined): string {
@@ -68,6 +73,18 @@ export function formatAuthenticationToUpstreamSummary(rc: Record<string, unknown
     const n = Object.keys(dh as object).length;
     if (n) parts.push(`Dynamic headers: ${n}`);
   }
+  return parts.length ? parts.join(" · ") : "Default";
+}
+
+/** Compact relay token delivery line for default admin views (no header map counts). */
+export function formatAuthenticationToUpstreamBasic(rc: Record<string, unknown>): string {
+  const parts: string[] = [];
+  const tt = rc.token_transport;
+  if (typeof tt === "string") parts.push(tokenTransportPhrase(tt));
+  const th = rc.token_header_name;
+  if (typeof th === "string" && th.trim()) parts.push(`Header name: ${th.trim()}`);
+  const tq = rc.token_query_param;
+  if (typeof tq === "string" && tq.trim()) parts.push(`Query name: ${tq.trim()}`);
   return parts.length ? parts.join(" · ") : "Default";
 }
 

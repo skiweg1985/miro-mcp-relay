@@ -15,6 +15,21 @@
 - Changelog updated: yes (Unreleased Changed)
 - Follow-ups: bei Bedarf weiteres Audit weiterer Admin-Seiten (Access, Users) auf verbliebene Legacy-Formulierungen
 
+## 2026-04-07 – Cursor Agent – Admin Integration Detail Basic/Technical
+
+- Done:
+  - `IntegrationOverview.tsx`: Variantenlogik (`integrationVariant`); Miro: schlanke Basic-Karten (Configuration, Usage, Health); Microsoft/Custom: Overview + Configuration; Custom: OAuth-Endpoints + DCR-Zeile im Basic; Sektion **Technical details** (ehem. Advanced), Standard zu; Miro-Metadaten/Scopes in Technical; `formatAuthenticationToUpstreamBasic` für kompakte Miro-Upstream-Zeile; Relay-Keys und `advancedRelayRows` nur Technical.
+  - `brokerTerminology.ts`: `technicalDetails`, DCR-/Registrierungs-Labels, `tokenDeliveryDetail`; `formatAuthenticationToUpstreamBasic`.
+  - `index.css`: `.integration-advanced-block`.
+  - `docs/CHANGELOG.md` [Unreleased] Changed.
+- Next: keine
+- Blockers: keine
+- Branch/PR: branch `codex/oauth-broker-redesign`, PR none
+- Files touched: `frontend/src/admin/IntegrationOverview.tsx`, `frontend/src/brokerTerminology.ts`, `frontend/src/index.css`, `docs/CHANGELOG.md`, `planning/coordination/WORKLOG.md`, `frontend/dist/*` (nach Build)
+- Test notes: `cd frontend && npm run build`
+- Changelog updated: yes (Unreleased Changed)
+- Follow-ups: keine
+
 ## 2026-04-07 – Cursor Agent – Cursor-Regel Terminologie & Naming
 
 - Done:

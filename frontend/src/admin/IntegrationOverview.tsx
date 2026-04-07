@@ -6,6 +6,7 @@ import {
   brokerUi,
   formatAccessModeLabel,
   formatAllowedConnectionTypesSummary,
+  formatAuthenticationToUpstreamBasic,
   formatAuthenticationToUpstreamSummary,
   formatRelayProtocolLabel,
   formatRelayTypeLabel,
@@ -14,6 +15,15 @@ import {
 import { oauthIntegrationConfigured } from "../oauthIntegrationStatus";
 import { formatDateTime } from "../utils";
 import { TEMPLATE_MS_GRAPH, TEMPLATE_MS_LOGIN, TEMPLATE_MIRO } from "./constants";
+
+export type IntegrationVariant = "miro" | "ms_graph" | "ms_login" | "custom";
+
+export function integrationVariant(templateKey: string | null): IntegrationVariant {
+  if (templateKey === TEMPLATE_MIRO) return "miro";
+  if (templateKey === TEMPLATE_MS_GRAPH) return "ms_graph";
+  if (templateKey === TEMPLATE_MS_LOGIN) return "ms_login";
+  return "custom";
+}
 
 function toneFromStatus(
   label: string,
@@ -135,6 +145,11 @@ function maxIsoDate(dates: (string | null | undefined)[]): string | null {
   return best;
 }
 
+function endpointDisplay(v: string | null | undefined): string {
+  const s = String(v ?? "").trim();
+  return s || "—";
+}
+
 export type IntegrationOverviewStats = {
   connectedUsers: number;
   activeConnections: number;
@@ -188,7 +203,8 @@ export function IntegrationOverview({
   testAvailable: boolean;
   lastUpdated: string | null;
 }) {
-  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [technicalOpen, setTechnicalOpen] = useState(false);
+  const variant = integrationVariant(app.template_key);
   const rc = (app.relay_config ?? {}) as Record<string, unknown>;
   const oauth = oauthConfigured(app, instance, needsTenant);
   const tenant = (instance.settings as { tenant_id?: string })?.tenant_id;
@@ -200,6 +216,338 @@ export function IntegrationOverview({
       : "—";
 
   const relayEnabled = app.allowed_connection_types?.includes("relay");
+  const dcr = Boolean(app.oauth_dynamic_client_registration_enabled);
+  const registrationUrl = String(app.oauth_registration_endpoint ?? "").trim();
+  const registrationAuth = String(app.oauth_registration_auth_method ?? "").trim() || "—";
+
+  const authToUpstreamBasic =
+    relayEnabled
+      ? variant === "miro"
+        ? formatAuthenticationToUpstreamBasic(rc)
+        : formatAuthenticationToUpstreamSummary(rc)
+      : "—";
+
+  const overviewCard = (
+    <Card title="Overview">
+      <dl className="integration-kv">
+        <div>
+          <dt>Description</dt>
+          <dd>{templateDescription(app.template_key)}</dd>
+        </div>
+        <div>
+          <dt>{brokerUi.integrationTemplate}</dt>
+          <dd>{app.template_key ? brokerUi.builtInTemplate : brokerUi.customOAuthIntegration}</dd>
+        </div>
+        <div>
+          <dt>{brokerUi.availableAccessMethods}</dt>
+          <dd>{formatAllowedConnectionTypesSummary(app.allowed_connection_types ?? [])}</dd>
+        </div>
+        <div>
+          <dt>{brokerUi.brokerRelay}</dt>
+          <dd>
+            {relayEnabled ? (
+              <>
+                <span className="integration-pill">On</span>{" "}
+                <span className="muted">{formatRelayTypeLabel(typeof rc.relay_type === "string" ? rc.relay_type : undefined)}</span>
+              </>
+            ) : (
+              <span className="muted">Off</span>
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt>{brokerUi.signInSetup}</dt>
+          <dd>
+            {oauth.ok ? (
+              <span className="integration-pill integration-pill--ok">Ready</span>
+            ) : (
+              <span className="integration-pill integration-pill--warn">Incomplete</span>
+            )}{" "}
+            <span className="muted">{oauth.detail}</span>
+          </dd>
+        </div>
+      </dl>
+    </Card>
+  );
+
+  const configurationCardMiro = (
+    <Card title="Configuration">
+      <dl className="integration-kv">
+        <div>
+          <dt>Redirect URI</dt>
+          <dd className="integration-kv-mono">{redirectUriForApp(app, urls)}</dd>
+        </div>
+        <div>
+          <dt>{brokerUi.signInSetup}</dt>
+          <dd>
+            {oauth.ok ? (
+              <span className="integration-pill integration-pill--ok">Ready</span>
+            ) : (
+              <span className="integration-pill integration-pill--warn">Incomplete</span>
+            )}{" "}
+            <span className="muted">{oauth.detail}</span>
+          </dd>
+        </div>
+        {relayEnabled ? (
+          <div>
+            <dt>Upstream URL</dt>
+            <dd className="integration-kv-mono">
+              {typeof rc.upstream_base_url === "string" && rc.upstream_base_url.trim()
+                ? rc.upstream_base_url.trim()
+                : "—"}
+            </dd>
+          </div>
+        ) : null}
+        <div>
+          <dt>{brokerUi.howAccessWorks}</dt>
+          <dd>{formatAccessModeLabel(app.access_mode)}</dd>
+        </div>
+        <div>
+          <dt>{brokerUi.authenticationToUpstream}</dt>
+          <dd>{authToUpstreamBasic}</dd>
+        </div>
+      </dl>
+    </Card>
+  );
+
+  const configurationCardDefault = (
+    <Card title="Configuration">
+      <dl className="integration-kv">
+        {needsTenant ? (
+          <div>
+            <dt>Directory (tenant)</dt>
+            <dd>{tenantDisplay}</dd>
+          </div>
+        ) : null}
+        <div>
+          <dt>Redirect URI</dt>
+          <dd className="integration-kv-mono">{redirectUriForApp(app, urls)}</dd>
+        </div>
+        {relayEnabled ? (
+          <div>
+            <dt>Upstream URL</dt>
+            <dd className="integration-kv-mono">
+              {typeof rc.upstream_base_url === "string" && rc.upstream_base_url.trim()
+                ? rc.upstream_base_url.trim()
+                : "—"}
+            </dd>
+          </div>
+        ) : null}
+        <div>
+          <dt>{brokerUi.howAccessWorks}</dt>
+          <dd>{formatAccessModeLabel(app.access_mode)}</dd>
+        </div>
+        <div>
+          <dt>Scopes</dt>
+          <dd>{scopesSummary(app)}</dd>
+        </div>
+        {variant === "custom" ? (
+          <>
+            <div>
+              <dt>{brokerUi.authorizationEndpoint}</dt>
+              <dd className="integration-kv-mono">
+                {endpointDisplay(instance.authorization_endpoint ?? app.oauth_authorization_endpoint)}
+              </dd>
+            </div>
+            <div>
+              <dt>{brokerUi.tokenEndpoint}</dt>
+              <dd className="integration-kv-mono">{endpointDisplay(instance.token_endpoint ?? app.oauth_token_endpoint)}</dd>
+            </div>
+            <div>
+              <dt>{brokerUi.userProfileEndpoint}</dt>
+              <dd className="integration-kv-mono">{endpointDisplay(instance.userinfo_endpoint ?? app.oauth_userinfo_endpoint)}</dd>
+            </div>
+            {dcr ? (
+              <div>
+                <dt>{brokerUi.dynamicClientRegistration}</dt>
+                <dd>
+                  <span className="integration-pill integration-pill--ok">On</span>
+                  {registrationUrl ? <span className="muted"> · {registrationUrl}</span> : null}
+                </dd>
+              </div>
+            ) : null}
+          </>
+        ) : null}
+        <div>
+          <dt>{brokerUi.authenticationToUpstream}</dt>
+          <dd>{authToUpstreamBasic}</dd>
+        </div>
+      </dl>
+    </Card>
+  );
+
+  const usageCard = (
+    <Card title="Usage">
+      <div className="metric-row metric-row--tight">
+        <MetricMini label="Connected users" value={String(stats.connectedUsers)} />
+        <MetricMini label="Active connections" value={String(stats.activeConnections)} />
+        <MetricMini label={brokerUi.recentTokenActivitySample} value={String(stats.recentTokenActivitySampleCount)} />
+      </div>
+      <dl className="integration-kv integration-kv--spaced">
+        <div>
+          <dt>Last activity</dt>
+          <dd>{stats.lastActivity ? formatDateTime(stats.lastActivity) : "—"}</dd>
+        </div>
+        <div>
+          <dt>Last successful use</dt>
+          <dd>
+            {stats.lastSuccessAt ? (
+              <>
+                {formatDateTime(stats.lastSuccessAt)}
+                {stats.lastSuccessLabel ? (
+                  <span className="muted"> · {stats.lastSuccessLabel}</span>
+                ) : null}
+              </>
+            ) : (
+              "—"
+            )}
+          </dd>
+        </div>
+      </dl>
+    </Card>
+  );
+
+  const healthCard = (
+    <Card title="Health">
+      <dl className="integration-kv">
+        <div>
+          <dt>Token refresh</dt>
+          <dd>{health.refreshPossible ? "Available for at least one connection" : "No refresh token on record"}</dd>
+        </div>
+        <div>
+          <dt>Last token update</dt>
+          <dd>{health.lastRefresh ? formatDateTime(health.lastRefresh) : "—"}</dd>
+        </div>
+        <div>
+          <dt>Last connection error</dt>
+          <dd className={health.lastError ? "integration-kv-danger" : undefined}>
+            {health.lastError ?? "None recorded"}
+          </dd>
+        </div>
+        <div>
+          <dt>{brokerUi.liveConnectivity}</dt>
+          <dd>{health.connectivityNote ?? "Run “Test connection” for a live check."}</dd>
+        </div>
+      </dl>
+    </Card>
+  );
+
+  const oauthEndpointsColumnBuiltIn = (
+    <div>
+      <h3 className="integration-advanced-h">OAuth endpoints</h3>
+      <dl className="integration-kv integration-kv--compact">
+        <div>
+          <dt>{brokerUi.issuerOpenId}</dt>
+          <dd className="integration-kv-mono">{instance.issuer ?? "—"}</dd>
+        </div>
+        <div>
+          <dt>{brokerUi.authorizationEndpoint}</dt>
+          <dd className="integration-kv-mono">{instance.authorization_endpoint ?? "—"}</dd>
+        </div>
+        <div>
+          <dt>{brokerUi.tokenEndpoint}</dt>
+          <dd className="integration-kv-mono">{instance.token_endpoint ?? "—"}</dd>
+        </div>
+        <div>
+          <dt>{brokerUi.userProfileEndpoint}</dt>
+          <dd className="integration-kv-mono">{instance.userinfo_endpoint ?? "—"}</dd>
+        </div>
+      </dl>
+    </div>
+  );
+
+  const oauthEndpointsColumnCustomTechnical = (
+    <div>
+      <h3 className="integration-advanced-h">OAuth endpoints</h3>
+      <dl className="integration-kv integration-kv--compact">
+        <div>
+          <dt>{brokerUi.issuerOpenId}</dt>
+          <dd className="integration-kv-mono">{instance.issuer ?? "—"}</dd>
+        </div>
+        {dcr ? (
+          <>
+            <div>
+              <dt>{brokerUi.registrationEndpoint}</dt>
+              <dd className="integration-kv-mono">{registrationUrl || "—"}</dd>
+            </div>
+            <div>
+              <dt>{brokerUi.registrationAuthMethod}</dt>
+              <dd>{registrationAuth}</dd>
+            </div>
+          </>
+        ) : null}
+      </dl>
+    </div>
+  );
+
+  const relayTransportColumn = (
+    <div>
+      <h3 className="integration-advanced-h">{brokerUi.relayTransport}</h3>
+      <dl className="integration-kv integration-kv--compact">
+        <div>
+          <dt>{brokerUi.relayApiStyle}</dt>
+          <dd>{formatRelayProtocolLabel(app.relay_protocol)}</dd>
+        </div>
+        <div>
+          <dt>{brokerUi.internalProviderInstanceKey}</dt>
+          <dd className="integration-kv-mono">{instance.key}</dd>
+        </div>
+        <div>
+          <dt>{brokerUi.internalIntegrationAppKey}</dt>
+          <dd className="integration-kv-mono">{app.key}</dd>
+        </div>
+        {variant === "miro" && relayEnabled ? (
+          <div>
+            <dt>{brokerUi.tokenDeliveryDetail}</dt>
+            <dd>{formatAuthenticationToUpstreamSummary(rc)}</dd>
+          </div>
+        ) : null}
+        {advancedRelayRows(rc).map((row) => (
+          <div key={row.label}>
+            <dt>{row.label}</dt>
+            <dd className={row.label.includes("headers") ? "integration-kv-pre" : undefined}>{row.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+
+  const miroTechnicalIntegrationBlock = (
+    <div className="integration-advanced-block">
+      <h3 className="integration-advanced-h">Integration</h3>
+      <dl className="integration-kv integration-kv--compact">
+        <div>
+          <dt>Description</dt>
+          <dd>{templateDescription(app.template_key)}</dd>
+        </div>
+        <div>
+          <dt>{brokerUi.integrationTemplate}</dt>
+          <dd>{brokerUi.builtInTemplate}</dd>
+        </div>
+        <div>
+          <dt>{brokerUi.availableAccessMethods}</dt>
+          <dd>{formatAllowedConnectionTypesSummary(app.allowed_connection_types ?? [])}</dd>
+        </div>
+        <div>
+          <dt>{brokerUi.brokerRelay}</dt>
+          <dd>
+            {relayEnabled ? (
+              <>
+                <span className="integration-pill">On</span>{" "}
+                <span className="muted">{formatRelayTypeLabel(typeof rc.relay_type === "string" ? rc.relay_type : undefined)}</span>
+              </>
+            ) : (
+              <span className="muted">Off</span>
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt>Scopes</dt>
+          <dd>{scopesSummary(app)}</dd>
+        </div>
+      </dl>
+    </div>
+  );
 
   return (
     <div className="integration-detail">
@@ -245,196 +593,40 @@ export function IntegrationOverview({
       </header>
 
       <div className="integration-detail-grid">
-        <Card title="Overview">
-          <dl className="integration-kv">
-            <div>
-              <dt>Description</dt>
-              <dd>{templateDescription(app.template_key)}</dd>
-            </div>
-            <div>
-              <dt>{brokerUi.integrationTemplate}</dt>
-              <dd>{app.template_key ? brokerUi.builtInTemplate : brokerUi.customOAuthIntegration}</dd>
-            </div>
-            <div>
-              <dt>{brokerUi.availableAccessMethods}</dt>
-              <dd>{formatAllowedConnectionTypesSummary(app.allowed_connection_types ?? [])}</dd>
-            </div>
-            <div>
-              <dt>{brokerUi.brokerRelay}</dt>
-              <dd>
-                {relayEnabled ? (
-                  <>
-                    <span className="integration-pill">On</span>{" "}
-                    <span className="muted">{formatRelayTypeLabel(typeof rc.relay_type === "string" ? rc.relay_type : undefined)}</span>
-                  </>
-                ) : (
-                  <span className="muted">Off</span>
-                )}
-              </dd>
-            </div>
-            <div>
-              <dt>{brokerUi.signInSetup}</dt>
-              <dd>
-                {oauth.ok ? (
-                  <span className="integration-pill integration-pill--ok">Ready</span>
-                ) : (
-                  <span className="integration-pill integration-pill--warn">Incomplete</span>
-                )}{" "}
-                <span className="muted">{oauth.detail}</span>
-              </dd>
-            </div>
-          </dl>
-        </Card>
-
-        <Card title="Configuration">
-          <dl className="integration-kv">
-            {needsTenant ? (
-              <div>
-                <dt>Directory (tenant)</dt>
-                <dd>{tenantDisplay}</dd>
-              </div>
-            ) : null}
-            <div>
-              <dt>Redirect URI</dt>
-              <dd className="integration-kv-mono">{redirectUriForApp(app, urls)}</dd>
-            </div>
-            {relayEnabled ? (
-              <div>
-                <dt>Upstream URL</dt>
-                <dd className="integration-kv-mono">
-                  {typeof rc.upstream_base_url === "string" && rc.upstream_base_url.trim()
-                    ? rc.upstream_base_url.trim()
-                    : "—"}
-                </dd>
-              </div>
-            ) : null}
-            <div>
-              <dt>{brokerUi.howAccessWorks}</dt>
-              <dd>{formatAccessModeLabel(app.access_mode)}</dd>
-            </div>
-            <div>
-              <dt>Scopes</dt>
-              <dd>{scopesSummary(app)}</dd>
-            </div>
-            <div>
-              <dt>{brokerUi.authenticationToUpstream}</dt>
-              <dd>{relayEnabled ? formatAuthenticationToUpstreamSummary(rc) : "—"}</dd>
-            </div>
-          </dl>
-        </Card>
-
-        <Card title="Usage">
-          <div className="metric-row metric-row--tight">
-            <MetricMini label="Connected users" value={String(stats.connectedUsers)} />
-            <MetricMini label="Active connections" value={String(stats.activeConnections)} />
-            <MetricMini label={brokerUi.recentTokenActivitySample} value={String(stats.recentTokenActivitySampleCount)} />
-          </div>
-          <dl className="integration-kv integration-kv--spaced">
-            <div>
-              <dt>Last activity</dt>
-              <dd>{stats.lastActivity ? formatDateTime(stats.lastActivity) : "—"}</dd>
-            </div>
-            <div>
-              <dt>Last successful use</dt>
-              <dd>
-                {stats.lastSuccessAt ? (
-                  <>
-                    {formatDateTime(stats.lastSuccessAt)}
-                    {stats.lastSuccessLabel ? (
-                      <span className="muted"> · {stats.lastSuccessLabel}</span>
-                    ) : null}
-                  </>
-                ) : (
-                  "—"
-                )}
-              </dd>
-            </div>
-          </dl>
-        </Card>
-
-        <Card title="Health">
-          <dl className="integration-kv">
-            <div>
-              <dt>Token refresh</dt>
-              <dd>{health.refreshPossible ? "Available for at least one connection" : "No refresh token on record"}</dd>
-            </div>
-            <div>
-              <dt>Last token update</dt>
-              <dd>{health.lastRefresh ? formatDateTime(health.lastRefresh) : "—"}</dd>
-            </div>
-            <div>
-              <dt>Last connection error</dt>
-              <dd className={health.lastError ? "integration-kv-danger" : undefined}>
-                {health.lastError ?? "None recorded"}
-              </dd>
-            </div>
-            <div>
-              <dt>{brokerUi.liveConnectivity}</dt>
-              <dd>{health.connectivityNote ?? "Run “Test connection” for a live check."}</dd>
-            </div>
-          </dl>
-        </Card>
+        {variant === "miro" ? (
+          <>
+            {configurationCardMiro}
+            {usageCard}
+            {healthCard}
+          </>
+        ) : (
+          <>
+            {overviewCard}
+            {configurationCardDefault}
+            {usageCard}
+            {healthCard}
+          </>
+        )}
       </div>
 
       <section className="integration-advanced">
         <button
           type="button"
           className="integration-advanced-toggle"
-          aria-expanded={advancedOpen}
-          onClick={() => setAdvancedOpen((v) => !v)}
+          aria-expanded={technicalOpen}
+          onClick={() => setTechnicalOpen((v) => !v)}
         >
-          Advanced details
+          {brokerUi.technicalDetails}
           <span className="integration-advanced-chevron" aria-hidden>
-            {advancedOpen ? "▾" : "▸"}
+            {technicalOpen ? "▾" : "▸"}
           </span>
         </button>
-        {advancedOpen ? (
+        {technicalOpen ? (
           <div className="integration-advanced-body">
+            {variant === "miro" ? miroTechnicalIntegrationBlock : null}
             <div className="integration-advanced-cols">
-              <div>
-                <h3 className="integration-advanced-h">{brokerUi.relayTransport}</h3>
-                <dl className="integration-kv integration-kv--compact">
-                  <div>
-                    <dt>{brokerUi.relayApiStyle}</dt>
-                    <dd>{formatRelayProtocolLabel(app.relay_protocol)}</dd>
-                  </div>
-                  <div>
-                    <dt>{brokerUi.internalProviderInstanceKey}</dt>
-                    <dd className="integration-kv-mono">{instance.key}</dd>
-                  </div>
-                  <div>
-                    <dt>{brokerUi.internalIntegrationAppKey}</dt>
-                    <dd className="integration-kv-mono">{app.key}</dd>
-                  </div>
-                  {advancedRelayRows(rc).map((row) => (
-                    <div key={row.label}>
-                      <dt>{row.label}</dt>
-                      <dd className={row.label.includes("headers") ? "integration-kv-pre" : undefined}>{row.value}</dd>
-                    </div>
-                  ))}
-                </dl>
-              </div>
-              <div>
-                <h3 className="integration-advanced-h">OAuth endpoints</h3>
-                <dl className="integration-kv integration-kv--compact">
-                  <div>
-                    <dt>{brokerUi.issuerOpenId}</dt>
-                    <dd className="integration-kv-mono">{instance.issuer ?? "—"}</dd>
-                  </div>
-                  <div>
-                    <dt>{brokerUi.authorizationEndpoint}</dt>
-                    <dd className="integration-kv-mono">{instance.authorization_endpoint ?? "—"}</dd>
-                  </div>
-                  <div>
-                    <dt>{brokerUi.tokenEndpoint}</dt>
-                    <dd className="integration-kv-mono">{instance.token_endpoint ?? "—"}</dd>
-                  </div>
-                  <div>
-                    <dt>{brokerUi.userProfileEndpoint}</dt>
-                    <dd className="integration-kv-mono">{instance.userinfo_endpoint ?? "—"}</dd>
-                  </div>
-                </dl>
-              </div>
+              {relayTransportColumn}
+              {variant === "custom" ? oauthEndpointsColumnCustomTechnical : oauthEndpointsColumnBuiltIn}
             </div>
           </div>
         ) : null}

@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Admin **Integrations** · Detail: kontextsensitive **Basic**-Ansicht nach `template_key` (Miro / Microsoft Graph / Microsoft Login / Custom). Miro-Default ohne „Overview“-Karte; operative Felder (Redirect, Sign-in-Bereitschaft, Upstream, Zugriffsmodus, kompakte Upstream-Auth) sichtbar; Metadaten, Scopes, Roh-OAuth-Endpoints und Low-level-Relay (Keys, `forward_*`, Retries, Circuit Breaker, Header-Maps) unter **Technical details** (eingeklappt). Custom-OAuth: OAuth-Endpoints und DCR-Kurzzeile im Basic; Issuer und Registrierungsdetails zusätzlich unter Technical.
+
 ### Added
 
 - Cursor-Regel `.cursor/rules/terminology-naming-consistency.mdc`: konsistente Terminologie und Benennung über Admin-UI, User-UI, API-Mappings und Doku; Workflow bei Umbenennungen (Audit, Glossar, Self-Check).

@@ -2402,6 +2402,10 @@ html.dark .modal-panel {
   background: var(--surface);
 }
 
+.integration-advanced-block {
+  margin-bottom: var(--space-5);
+}
+
 .integration-advanced-cols {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));

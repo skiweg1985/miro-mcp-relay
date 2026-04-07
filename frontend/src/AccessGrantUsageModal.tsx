@@ -14,6 +14,58 @@ import { copyToClipboard, formatDateTime } from "./utils";
 
 const PLACEHOLDER_KEY = "YOUR_BROKER_ACCESS_KEY";
 
+function whatThisAccessIsFor(type: IntegrationV2Out["type"] | null | undefined): string {
+  switch (type) {
+    case "mcp_server":
+      return "This key lets a client call tools exposed by the upstream MCP service through this broker. Use it when your script or service should list or invoke those tools without using the workspace UI.";
+    case "oauth_provider":
+      return "This key lets a client call provider tools (for example Microsoft Graph) through this broker, using the connection’s sign-in where applicable. Use it when an app should run provider actions without an interactive workspace session.";
+    case "api":
+      return "This key lets a client invoke the HTTP tools exposed by this integration through the broker. Use it when a backend or script should call those tools with broker-issued access.";
+    default:
+      return "This key lets an API client act on one connection through this broker. Use it when your script, service, or app should call tools or validate access without signing in through the workspace UI.";
+  }
+}
+
+function modalDescription(type: IntegrationV2Out["type"] | null | undefined): string {
+  switch (type) {
+    case "mcp_server":
+      return "Connect your MCP-oriented client through this broker using the access key. Replace the placeholder with your secret key.";
+    case "oauth_provider":
+      return "Connect your client to provider tools through this broker using the access key. Replace the placeholder with your secret key.";
+    case "api":
+      return "Connect your client to this integration’s tools through the broker using the access key. Replace the placeholder with your secret key.";
+    default:
+      return "Connect your client to this broker using the access key. Replace the placeholder with your secret key.";
+  }
+}
+
+function automationJsonCaption(type: IntegrationV2Out["type"] | null | undefined): string {
+  switch (type) {
+    case "mcp_server":
+      return "Shape for custom runners or secrets managers; not a native desktop MCP transport file.";
+    case "oauth_provider":
+      return "Shape for automation or secrets managers that inject the broker key and connection id.";
+    case "api":
+      return "Shape for automation or secrets managers that call the broker consumer API.";
+    default:
+      return "Shape for custom runners or secrets managers.";
+  }
+}
+
+function callToolCaption(type: IntegrationV2Out["type"] | null | undefined): string {
+  switch (type) {
+    case "mcp_server":
+      return "Set tool_name and arguments to match tools discovered for this MCP integration.";
+    case "oauth_provider":
+      return "Set tool_name and arguments to match the provider tools your integration exposes.";
+    case "api":
+      return "Set tool_name and arguments to match the tools configured for this integration.";
+    default:
+      return "Set tool_name and arguments to match your integration.";
+  }
+}
+
 function UsageExampleBlock({
   title,
   code,
@@ -73,10 +125,11 @@ export function AccessGrantUsageModal({ grant, integration, instance, onClose }:
   }, []);
 
   const instanceId = grant.integration_instance_id;
-  const mcpEnabled = Boolean(integration?.mcp_enabled);
   const integrationType = integration?.type ?? null;
+  const showMcpDiscovery =
+    integrationType === "mcp_server" && Boolean(integration?.mcp_enabled);
   const authMode = instance?.auth_mode ?? null;
-  const accessMode = instance?.access_mode ?? null;
+  const showAdvancedUserToken = authMode === "oauth";
 
   const toolsSummary = grant.allowed_tools?.length
     ? grant.allowed_tools.join(", ")
@@ -117,10 +170,9 @@ export CONNECTION_ID='${instanceId}'`;
   }
 }`;
 
-  const mcpScriptNote =
-    mcpEnabled && integrationType === "mcp_server"
-      ? "Use these broker URLs from your scripts or backend. Standard MCP desktop clients expect their own transport; this broker exposes tools through the HTTP API below."
-      : undefined;
+  const mcpScriptNote = showMcpDiscovery
+    ? "Use these broker URLs from your scripts or backend. Standard MCP desktop clients expect their own transport; this broker exposes tools through the HTTP API below."
+    : undefined;
 
   const oauthExtra =
     authMode === "oauth" ? (
@@ -140,12 +192,7 @@ export CONNECTION_ID='${instanceId}'`;
   };
 
   return (
-    <Modal
-      title="How to use this access"
-      description="Connect your client to this broker using the access key. Replace the placeholder with your secret key."
-      wide
-      onClose={onClose}
-    >
+    <Modal title="How to use this access" description={modalDescription(integrationType ?? undefined)} wide onClose={onClose}>
       <DetailSection title="Overview">
         <DetailRow label="Client or app" value={grant.name} />
         <DetailRow label="Integration" value={integration?.name ?? "—"} />
@@ -163,10 +210,7 @@ export CONNECTION_ID='${instanceId}'`;
 
       <section className="usage-modal-section">
         <h3 className="detail-modal-section-title">What this access is for</h3>
-        <p className="usage-prose">
-          This key lets an API client act on one connection through this broker. Use it when your script, service, or app should
-          call tools or validate access without signing in through the workspace UI.
-        </p>
+        <p className="usage-prose">{whatThisAccessIsFor(integrationType ?? undefined)}</p>
       </section>
 
       <DetailSection title="Authentication">
@@ -192,8 +236,17 @@ export CONNECTION_ID='${instanceId}'`;
         </p>
         <ul className="usage-list">
           <li>
-            <strong>Call a tool</strong> — <code className="usage-inline-code">POST …/consumer/integration-instances/{"{"}id{"}"}/execute</code>{" "}
-            with JSON body <code className="usage-inline-code">action</code>, <code className="usage-inline-code">tool_name</code>,{" "}
+            <strong>
+              {integrationType === "oauth_provider"
+                ? "Call a provider tool"
+                : integrationType === "api"
+                  ? "Call a tool"
+                  : integrationType === "mcp_server"
+                    ? "Call a tool (MCP)"
+                    : "Call a tool"}
+            </strong>{" "}
+            — <code className="usage-inline-code">POST …/consumer/integration-instances/{"{"}id{"}"}/execute</code> with JSON body{" "}
+            <code className="usage-inline-code">action</code>, <code className="usage-inline-code">tool_name</code>,{" "}
             <code className="usage-inline-code">arguments</code>.
           </li>
           <li>
@@ -201,9 +254,9 @@ export CONNECTION_ID='${instanceId}'`;
             <code className="usage-inline-code">{"{ \"token\": \"…\" }"}</code>. Returns grant and connection identifiers when the
             key is active.
           </li>
-          {mcpEnabled ? (
+          {showMcpDiscovery ? (
             <li>
-              <strong>List tools (MCP integration)</strong> —{" "}
+              <strong>List tools (MCP)</strong> —{" "}
               <code className="usage-inline-code">POST …/consumer/integration-instances/{"{"}id{"}"}/discover-tools</code>. Persists
               tool metadata for policy checks before <code className="usage-inline-code">call_tool</code>.
             </li>
@@ -211,7 +264,7 @@ export CONNECTION_ID='${instanceId}'`;
         </ul>
       </DetailSection>
 
-      {mcpEnabled ? (
+      {showMcpDiscovery ? (
         <DetailSection title="MCP connection">
           <p className="usage-prose">
             The broker calls the upstream MCP HTTP API (tools list and tool calls) using the connection credentials. Your client
@@ -223,7 +276,9 @@ export CONNECTION_ID='${instanceId}'`;
 
       <DetailSection title="Direct token request">
         <p className="usage-prose">
-          Use validation when you need a lightweight check that a key is still valid. It does not return upstream OAuth tokens.
+          {integrationType === "oauth_provider"
+            ? "Use validation when you need to confirm the broker still accepts this key. It does not issue or return provider OAuth tokens."
+            : "Use validation when you need a lightweight check that a key is still valid. It does not return upstream OAuth tokens."}
         </p>
       </DetailSection>
 
@@ -234,18 +289,10 @@ export CONNECTION_ID='${instanceId}'`;
           code={envSnippet}
           caption="Use in shell scripts; paste your real key where noted."
         />
-        <UsageExampleBlock
-          title="Automation config (JSON)"
-          code={automationJson}
-          caption="Shape for custom runners or secrets managers; not a native Cursor MCP file."
-        />
-        <UsageExampleBlock
-          title="Call a tool (header)"
-          code={curlExecute}
-          caption="Set tool_name and arguments to match your integration."
-        />
+        <UsageExampleBlock title="Automation config (JSON)" code={automationJson} caption={automationJsonCaption(integrationType ?? undefined)} />
+        <UsageExampleBlock title="Call a tool (header)" code={curlExecute} caption={callToolCaption(integrationType ?? undefined)} />
         <UsageExampleBlock title="Call a tool (Bearer)" code={curlBearerExecute} />
-        {mcpEnabled ? (
+        {showMcpDiscovery ? (
           <UsageExampleBlock
             title="Discover tools (MCP)"
             code={curlDiscover}
@@ -259,13 +306,18 @@ export CONNECTION_ID='${instanceId}'`;
         />
       </section>
 
-      <section className="usage-modal-section">
-        <h3 className="detail-modal-section-title">Advanced</h3>
-        <p className="usage-prose muted-copy">
-          Optional upstream header for OAuth connections when the broker cannot use a stored account token for this request:{" "}
-          <code className="usage-inline-code">X-User-Token: &lt;provider bearer&gt;</code>.
-        </p>
-      </section>
+      {showAdvancedUserToken ? (
+        <section className="usage-modal-section">
+          <h3 className="detail-modal-section-title">Advanced</h3>
+          <p className="usage-prose muted-copy">
+            Optional upstream header when the broker cannot use a stored account token for this request:{" "}
+            <code className="usage-inline-code">X-User-Token: &lt;provider bearer&gt;</code>.
+            {integrationType === "oauth_provider"
+              ? " Typical for OAuth provider integrations when automation supplies the provider token directly."
+              : null}
+          </p>
+        </section>
+      ) : null}
 
       <RawJsonDisclosure title="Raw details" data={rawReference} />
 

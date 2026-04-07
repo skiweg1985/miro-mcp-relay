@@ -1,3 +1,16 @@
+## 2026-04-07 – Cursor Agent – Usage-Modal nach Integrationstyp
+
+- Done:
+  - `AccessGrantUsageModal`: MCP-Discovery und Abschnitt „MCP connection“ nur bei `integration.type === "mcp_server"` und `mcp_enabled`; Texte für `oauth_provider` / `api` / `mcp_server` (Beschreibung, What-for, Endpunkt-Labels, Direct-token-Hinweis, Automation-JSON-Caption, Call-tool-Caption); **Advanced** (`X-User-Token`) nur bei `auth_mode === oauth`.
+  - `docs/CHANGELOG.md` (Unreleased) ergänzt.
+- Next: keine
+- Blockers: keine
+- Branch/PR: branch lokal, PR none
+- Files touched: `frontend/src/AccessGrantUsageModal.tsx`, `docs/CHANGELOG.md`, `planning/coordination/WORKLOG.md`
+- Test notes: `cd frontend && npm run build`
+- Changelog updated: yes (Unreleased Added, Ergänzung)
+- Follow-ups: keine
+
 ## 2026-04-07 – Cursor Agent – Access Usage Modal
 
 - Done:

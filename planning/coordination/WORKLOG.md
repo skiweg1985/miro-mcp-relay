@@ -1817,3 +1817,38 @@
   - yes ([Unreleased] Added)
 - Follow-ups:
   - keine
+
+## 2026-04-07 – cursor-agent – OAuth Broker: Personal/Shared Access, Tool Discovery & Policy Enforcement
+
+- Done:
+  - Phase 1: `credential_scope` (personal/shared) und `managed_by_user_id` auf `ConnectedAccount`; Schema-Reconcile + Backfill; `ConnectedAccountOut`/`ConnectedAccountCreate` erweitert
+  - Phase 2: Admin-API `shared-credentials` (CRUD, Revoke, Refresh); `SharedCredentialCreate`/`SharedCredentialOut` Schemas
+  - Phase 3: `DiscoveredTool`-Modell + `ToolAccessPolicy`-Modell; `tool_discovery.py` (MCP tools/list, SSE-Parsing, Normalisierung); Admin-Endpunkte discover-tools, tools, tool-policies, bulk
+  - Phase 4: `tool_policy.py` mit `check_tool_access()`, `get_effective_policy()`, `filter_tools_list_response()`
+  - Phase 5: Relay Engine MCP Body-Parsing (`parse_mcp_request`), `tools/call` Policy-Check vor Upstream, `tools/list` Response-Filterung (JSON + SSE), credential_scope Durchleitung
+  - Phase 6: User UI Shared-Credentials-Sektion, Execution-Identity-Badge in Details und Grant-Panel, `brokerTerminology.ts` erweitert
+  - Phase 7: Admin Tool Management Panel (Discovery-Button, Policy-Tabelle mit Checkboxen), Shared Credentials Panel in Integration Detail
+- Next:
+  - E2E-Tests mit laufendem MCP-Upstream
+  - Admin-UI: Shared-Credential-Erstellung (OAuth-Flow für Shared) statt nur manueller Token-Eingabe
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: codex/oauth-broker-redesign
+  - PR: none
+- Files touched:
+  - backend/app/models.py, schemas.py, seed.py, relay_engine.py, tool_discovery.py, tool_policy.py, connection_serializers.py
+  - backend/app/routers/admin.py, connections.py
+  - frontend/src/types.ts, api.ts, brokerTerminology.ts, UserIntegrationsPage.tsx, App.tsx
+  - frontend/src/admin/IntegrationsPage.tsx, ToolManagementPanel.tsx, SharedCredentialsPanel.tsx
+  - docs/CHANGELOG.md, planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `python3 -m py_compile backend/app/*.py backend/app/routers/*.py`, `cd frontend && npx tsc --noEmit && npm run build`
+  - endpoints: `POST /admin/shared-credentials`, `POST /admin/provider-apps/{id}/discover-tools`, `GET /admin/provider-apps/{id}/tools`, `GET /admin/provider-apps/{id}/tool-policies`, `PATCH /admin/tool-policies/{id}`, `GET /shared-credentials`
+  - UI path: /app/integrations/{id} (Shared Credentials + Tool Management Panels), /workspace/integrations (Shared Access Sektion)
+- Changelog updated:
+  - yes ([Unreleased] Added: 10 Eintraege)
+- Follow-ups:
+  - OAuth-basierte Shared-Credential-Erstellung (Admin startet OAuth-Flow fuer Shared Account)
+  - Automatisches Tool-Discovery (Background-Job statt manueller Trigger)
+  - Policy-Caching (LRU) fuer Performance bei hohem Relay-Traffic

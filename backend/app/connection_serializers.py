@@ -13,6 +13,8 @@ def serialize_connected_account(db: Session, connection: ConnectedAccount) -> Co
         id=connection.id,
         user_id=connection.user_id,
         provider_app_id=connection.provider_app_id,
+        credential_scope=getattr(connection, "credential_scope", None) or "personal",
+        managed_by_user_id=getattr(connection, "managed_by_user_id", None),
         external_account_ref=connection.external_account_ref,
         external_email=connection.external_email,
         display_name=connection.display_name,

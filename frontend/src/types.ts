@@ -181,6 +181,8 @@ export type ConnectedAccountOut = {
   id: string;
   user_id: string;
   provider_app_id: string;
+  credential_scope?: string;
+  managed_by_user_id?: string | null;
   external_account_ref: string | null;
   external_email: string | null;
   display_name: string | null;
@@ -191,6 +193,24 @@ export type ConnectedAccountOut = {
   refresh_token_expires_at?: string | null;
   refresh_token_available?: boolean;
   token_material_updated_at?: string | null;
+};
+
+export type SharedCredentialOut = {
+  id: string;
+  provider_app_id: string;
+  provider_app_key: string | null;
+  provider_app_display_name: string | null;
+  credential_scope: string;
+  managed_by_user_id: string | null;
+  managed_by_display_name: string | null;
+  display_name: string | null;
+  external_account_ref: string | null;
+  external_email: string | null;
+  status: string;
+  connected_at: string;
+  access_token_expires_at?: string | null;
+  refresh_token_expires_at?: string | null;
+  refresh_token_available?: boolean;
 };
 
 export type DelegationGrantOut = {
@@ -306,6 +326,36 @@ export type ConnectionAccessDetails = {
   extra_blocks: AccessCopyBlock[];
   can_rotate: boolean;
   manage_path: string | null;
+};
+
+export type DiscoveredToolOut = {
+  id: string;
+  provider_app_id: string;
+  tool_name: string;
+  display_name: string;
+  description: string | null;
+  input_schema: Record<string, unknown>;
+  status: string;
+  first_seen_at: string;
+  last_seen_at: string;
+};
+
+export type ToolAccessPolicyOut = {
+  id: string;
+  discovered_tool_id: string;
+  tool_name: string | null;
+  visible: boolean;
+  allowed_with_personal: boolean;
+  allowed_with_shared: boolean;
+};
+
+export type ToolDiscoveryResult = {
+  ok: boolean;
+  provider_app_id: string;
+  tools_found: number;
+  tools_added: number;
+  tools_updated: number;
+  tools_removed: number;
 };
 
 export type AuditEventOut = {

@@ -105,8 +105,24 @@ def list_provider_apps(db: Session = Depends(get_db), current_user: User = Depen
 
 @router.get("/connections", response_model=list[ConnectedAccountOut])
 def list_connections(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    connections = db.scalars(select(ConnectedAccount).where(ConnectedAccount.user_id == current_user.id).order_by(ConnectedAccount.connected_at.desc())).all()
+    connections = db.scalars(
+        select(ConnectedAccount).where(
+            ConnectedAccount.user_id == current_user.id,
+        ).order_by(ConnectedAccount.connected_at.desc())
+    ).all()
     return [serialize_connected_account(db, connection) for connection in connections]
+
+
+@router.get("/shared-credentials", response_model=list[ConnectedAccountOut])
+def list_available_shared_credentials(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    shared = db.scalars(
+        select(ConnectedAccount).where(
+            ConnectedAccount.organization_id == current_user.organization_id,
+            ConnectedAccount.credential_scope == "shared",
+            ConnectedAccount.status == "connected",
+        ).order_by(ConnectedAccount.connected_at.desc())
+    ).all()
+    return [serialize_connected_account(db, connection) for connection in shared]
 
 
 def _load_user_connection(db: Session, current_user: User, connection_id: str) -> ConnectedAccount:
@@ -533,6 +549,7 @@ async def broker_proxy_miro(
     provider_instance = db.get(ProviderInstance, provider_app.provider_instance_id)
     if not provider_instance:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Provider instance not found")
+    cred_scope = getattr(connected_account, "credential_scope", None) or "personal"
     try:
         response = await execute_relay_request(
             db,
@@ -540,6 +557,7 @@ async def broker_proxy_miro(
             provider_instance=provider_instance,
             connected_account=connected_account,
             request=request,
+            credential_scope=cred_scope,
         )
     except HTTPException as exc:
         event = record_service_access_decision(

@@ -38,6 +38,7 @@ from app.schemas import (
     DelegationGrantCreate,
     DelegationGrantOut,
     DelegationGrantSecretResponse,
+    DiscoveredToolOut,
     IntegrationDeleteConflictDetail,
     IntegrationTestOut,
     IntegrationTestRequest,
@@ -50,6 +51,12 @@ from app.schemas import (
     ProviderAppUpdate,
     ProviderInstanceUpdate,
     ServiceClientOut,
+    SharedCredentialCreate,
+    SharedCredentialOut,
+    ToolAccessPolicyBulkUpdate,
+    ToolAccessPolicyOut,
+    ToolAccessPolicyUpdate,
+    ToolDiscoveryResult,
     TokenIssueEventOut,
     UserOut,
 )
@@ -561,10 +568,13 @@ def create_connected_account(payload: ConnectedAccountCreate, admin: User = Depe
     if not provider_app:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider app not found")
 
+    scope = payload.credential_scope if payload.credential_scope in ("personal", "shared") else "personal"
     connected_account = ConnectedAccount(
         organization_id=admin.organization_id,
         user_id=user.id,
         provider_app_id=provider_app.id,
+        credential_scope=scope,
+        managed_by_user_id=admin.id if scope == "shared" else None,
         external_account_ref=payload.external_account_ref,
         external_email=payload.external_email,
         display_name=payload.display_name,
@@ -599,6 +609,172 @@ def create_connected_account(payload: ConnectedAccountCreate, admin: User = Depe
     db.commit()
     db.refresh(connected_account)
     return serialize_connected_account(db, connected_account)
+
+
+# ---------------------------------------------------------------------------
+# Shared Credentials
+# ---------------------------------------------------------------------------
+
+def _serialize_shared_credential(db: Session, ca: ConnectedAccount) -> SharedCredentialOut:
+    from app.models import ProviderApp as PA, User as U, TokenMaterial as TM
+
+    provider_app = db.get(PA, ca.provider_app_id)
+    manager = db.get(U, ca.managed_by_user_id) if ca.managed_by_user_id else None
+    token_material = db.scalar(select(TM).where(TM.connected_account_id == ca.id))
+    return SharedCredentialOut(
+        id=ca.id,
+        provider_app_id=ca.provider_app_id,
+        provider_app_key=provider_app.key if provider_app else None,
+        provider_app_display_name=provider_app.display_name if provider_app else None,
+        credential_scope="shared",
+        managed_by_user_id=ca.managed_by_user_id,
+        managed_by_display_name=manager.display_name if manager else None,
+        display_name=ca.display_name,
+        external_account_ref=ca.external_account_ref,
+        external_email=ca.external_email,
+        status=ca.status,
+        connected_at=ca.connected_at,
+        access_token_expires_at=token_material.expires_at if token_material else None,
+        refresh_token_expires_at=token_material.refresh_expires_at if token_material else None,
+        refresh_token_available=bool(token_material and token_material.encrypted_refresh_token),
+    )
+
+
+@router.get("/shared-credentials", response_model=list[SharedCredentialOut], dependencies=[Depends(require_csrf)])
+def list_shared_credentials(
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+    provider_app_id: str | None = None,
+):
+    query = select(ConnectedAccount).where(
+        ConnectedAccount.organization_id == admin.organization_id,
+        ConnectedAccount.credential_scope == "shared",
+    )
+    if provider_app_id:
+        query = query.where(ConnectedAccount.provider_app_id == provider_app_id)
+    credentials = db.scalars(query.order_by(ConnectedAccount.connected_at.desc())).all()
+    return [_serialize_shared_credential(db, ca) for ca in credentials]
+
+
+@router.post("/shared-credentials", response_model=SharedCredentialOut, dependencies=[Depends(require_csrf)])
+def create_shared_credential(payload: SharedCredentialCreate, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    provider_app = db.scalar(
+        select(ProviderApp).where(
+            ProviderApp.organization_id == admin.organization_id,
+            ProviderApp.key == payload.provider_app_key,
+            ProviderApp.deleted_at.is_(None),
+        )
+    )
+    if not provider_app:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider app not found")
+
+    connected_account = ConnectedAccount(
+        organization_id=admin.organization_id,
+        user_id=admin.id,
+        provider_app_id=provider_app.id,
+        credential_scope="shared",
+        managed_by_user_id=admin.id,
+        external_account_ref=payload.external_account_ref,
+        external_email=payload.external_email,
+        display_name=payload.display_name,
+        consented_scopes_json=dumps_json(payload.consented_scopes),
+        status="connected",
+    )
+    db.add(connected_account)
+    db.flush()
+
+    token_material = TokenMaterial(
+        organization_id=admin.organization_id,
+        connected_account_id=connected_account.id,
+        encrypted_access_token=encrypt_text(payload.access_token),
+        encrypted_refresh_token=encrypt_text(payload.refresh_token),
+        token_type=payload.token_type,
+        scopes_json=dumps_json(payload.consented_scopes),
+        expires_at=payload.expires_at,
+        refresh_expires_at=payload.refresh_expires_at,
+    )
+    db.add(token_material)
+    record_audit(
+        db,
+        action="admin.shared_credential.created",
+        actor_type="user",
+        actor_id=admin.id,
+        organization_id=admin.organization_id,
+        metadata={"provider_app_key": provider_app.key, "connected_account_id": connected_account.id},
+    )
+    db.commit()
+    db.refresh(connected_account)
+    return _serialize_shared_credential(db, connected_account)
+
+
+@router.post("/shared-credentials/{credential_id}/revoke", response_model=SharedCredentialOut, dependencies=[Depends(require_csrf)])
+def revoke_shared_credential(credential_id: str, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    ca = db.scalar(
+        select(ConnectedAccount).where(
+            ConnectedAccount.id == credential_id,
+            ConnectedAccount.organization_id == admin.organization_id,
+            ConnectedAccount.credential_scope == "shared",
+        )
+    )
+    if not ca:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shared credential not found")
+    ca.status = "revoked"
+    ca.revoked_at = utcnow()
+    record_audit(
+        db,
+        action="admin.shared_credential.revoked",
+        actor_type="user",
+        actor_id=admin.id,
+        organization_id=admin.organization_id,
+        metadata={"connected_account_id": ca.id},
+    )
+    db.commit()
+    db.refresh(ca)
+    return _serialize_shared_credential(db, ca)
+
+
+@router.post("/shared-credentials/{credential_id}/refresh", response_model=SharedCredentialOut, dependencies=[Depends(require_csrf)])
+async def refresh_shared_credential(credential_id: str, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    ca = db.scalar(
+        select(ConnectedAccount).where(
+            ConnectedAccount.id == credential_id,
+            ConnectedAccount.organization_id == admin.organization_id,
+            ConnectedAccount.credential_scope == "shared",
+            ConnectedAccount.status == "connected",
+        )
+    )
+    if not ca:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shared credential not found")
+
+    provider_app = db.get(ProviderApp, ca.provider_app_id)
+    if not provider_app:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider app not found")
+
+    provider_instance = db.get(ProviderInstance, provider_app.provider_instance_id)
+    if not provider_instance:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider instance not found")
+
+    from app.oauth_connection_tokens import refresh_oauth_tokens
+
+    try:
+        await refresh_oauth_tokens(db, provider_app=provider_app, provider_instance=provider_instance, connected_account=ca)
+    except Exception as exc:
+        ca.last_error = str(exc)
+        db.commit()
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Token refresh failed: {exc}")
+
+    ca.last_error = None
+    record_audit(
+        db,
+        action="admin.shared_credential.refreshed",
+        actor_type="user",
+        actor_id=admin.id,
+        organization_id=admin.organization_id,
+        metadata={"connected_account_id": ca.id},
+    )
+    db.commit()
+    db.refresh(ca)
+    return _serialize_shared_credential(db, ca)
 
 
 @router.get("/delegation-grants", response_model=list[DelegationGrantOut], dependencies=[Depends(require_csrf)])
@@ -779,6 +955,180 @@ def list_token_issues(
         )
         for issue in issues
     ]
+
+
+# ---------------------------------------------------------------------------
+# Tool Discovery & Policies
+# ---------------------------------------------------------------------------
+
+def _serialize_discovered_tool(tool) -> DiscoveredToolOut:
+    from app.security import loads_json as _lj
+    return DiscoveredToolOut(
+        id=tool.id,
+        provider_app_id=tool.provider_app_id,
+        tool_name=tool.tool_name,
+        display_name=tool.display_name,
+        description=tool.description,
+        input_schema=_lj(tool.input_schema_json, {}),
+        status=tool.status,
+        first_seen_at=tool.first_seen_at,
+        last_seen_at=tool.last_seen_at,
+    )
+
+
+def _serialize_tool_policy(policy, tool=None) -> ToolAccessPolicyOut:
+    return ToolAccessPolicyOut(
+        id=policy.id,
+        discovered_tool_id=policy.discovered_tool_id,
+        tool_name=tool.tool_name if tool else None,
+        visible=policy.visible,
+        allowed_with_personal=policy.allowed_with_personal,
+        allowed_with_shared=policy.allowed_with_shared,
+    )
+
+
+@router.post("/provider-apps/{app_id}/discover-tools", response_model=ToolDiscoveryResult, dependencies=[Depends(require_csrf)])
+async def trigger_tool_discovery(app_id: str, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    from app.models import DiscoveredTool as DT
+    from app.tool_discovery import discover_tools
+
+    provider_app = db.get(ProviderApp, app_id)
+    if not provider_app or provider_app.organization_id != admin.organization_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider app not found")
+
+    provider_instance = db.get(ProviderInstance, provider_app.provider_instance_id)
+    if not provider_instance:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider instance not found")
+
+    ca = db.scalar(
+        select(ConnectedAccount).where(
+            ConnectedAccount.provider_app_id == provider_app.id,
+            ConnectedAccount.organization_id == admin.organization_id,
+            ConnectedAccount.status == "connected",
+        ).order_by(
+            ConnectedAccount.credential_scope.desc(),
+            ConnectedAccount.connected_at.desc(),
+        )
+    )
+    if not ca:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No active connection available for tool discovery")
+
+    try:
+        result = await discover_tools(db, provider_app=provider_app, provider_instance=provider_instance, connected_account=ca)
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Tool discovery failed: {exc}")
+
+    record_audit(
+        db,
+        action="admin.tools.discovery",
+        actor_type="user",
+        actor_id=admin.id,
+        organization_id=admin.organization_id,
+        metadata={"provider_app_id": provider_app.id, **result},
+    )
+    db.commit()
+    return ToolDiscoveryResult(provider_app_id=provider_app.id, **result)
+
+
+@router.get("/provider-apps/{app_id}/tools", response_model=list[DiscoveredToolOut], dependencies=[Depends(require_csrf)])
+def list_discovered_tools(app_id: str, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    from app.models import DiscoveredTool as DT
+
+    provider_app = db.get(ProviderApp, app_id)
+    if not provider_app or provider_app.organization_id != admin.organization_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider app not found")
+
+    tools = db.scalars(
+        select(DT).where(DT.provider_app_id == provider_app.id).order_by(DT.tool_name)
+    ).all()
+    return [_serialize_discovered_tool(t) for t in tools]
+
+
+@router.get("/provider-apps/{app_id}/tool-policies", response_model=list[ToolAccessPolicyOut], dependencies=[Depends(require_csrf)])
+def list_tool_policies(app_id: str, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    from app.models import DiscoveredTool as DT, ToolAccessPolicy as TAP
+
+    provider_app = db.get(ProviderApp, app_id)
+    if not provider_app or provider_app.organization_id != admin.organization_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider app not found")
+
+    tools = {
+        t.id: t
+        for t in db.scalars(select(DT).where(DT.provider_app_id == provider_app.id)).all()
+    }
+    policies = db.scalars(
+        select(TAP).where(TAP.discovered_tool_id.in_(list(tools.keys())))
+    ).all()
+    return [_serialize_tool_policy(p, tools.get(p.discovered_tool_id)) for p in policies]
+
+
+@router.patch("/tool-policies/{policy_id}", response_model=ToolAccessPolicyOut, dependencies=[Depends(require_csrf)])
+def update_tool_policy(policy_id: str, payload: ToolAccessPolicyUpdate, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    from app.models import DiscoveredTool as DT, ToolAccessPolicy as TAP
+
+    policy = db.get(TAP, policy_id)
+    if not policy or policy.organization_id != admin.organization_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tool policy not found")
+
+    if payload.visible is not None:
+        policy.visible = payload.visible
+    if payload.allowed_with_personal is not None:
+        policy.allowed_with_personal = payload.allowed_with_personal
+    if payload.allowed_with_shared is not None:
+        policy.allowed_with_shared = payload.allowed_with_shared
+
+    tool = db.get(DT, policy.discovered_tool_id)
+    record_audit(
+        db,
+        action="admin.tool_policy.updated",
+        actor_type="user",
+        actor_id=admin.id,
+        organization_id=admin.organization_id,
+        metadata={"policy_id": policy.id, "tool_name": tool.tool_name if tool else None},
+    )
+    db.commit()
+    db.refresh(policy)
+    return _serialize_tool_policy(policy, tool)
+
+
+@router.post("/provider-apps/{app_id}/tool-policies/bulk", response_model=list[ToolAccessPolicyOut], dependencies=[Depends(require_csrf)])
+def bulk_update_tool_policies(app_id: str, payload: ToolAccessPolicyBulkUpdate, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    from app.models import DiscoveredTool as DT, ToolAccessPolicy as TAP
+
+    provider_app = db.get(ProviderApp, app_id)
+    if not provider_app or provider_app.organization_id != admin.organization_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Provider app not found")
+
+    tools = {
+        t.id: t
+        for t in db.scalars(select(DT).where(DT.provider_app_id == provider_app.id)).all()
+    }
+
+    results: list[ToolAccessPolicyOut] = []
+    for item in payload.items:
+        if item.discovered_tool_id not in tools:
+            continue
+        policy = db.scalar(select(TAP).where(TAP.discovered_tool_id == item.discovered_tool_id))
+        if not policy:
+            continue
+        if item.visible is not None:
+            policy.visible = item.visible
+        if item.allowed_with_personal is not None:
+            policy.allowed_with_personal = item.allowed_with_personal
+        if item.allowed_with_shared is not None:
+            policy.allowed_with_shared = item.allowed_with_shared
+        results.append(_serialize_tool_policy(policy, tools.get(policy.discovered_tool_id)))
+
+    record_audit(
+        db,
+        action="admin.tool_policy.bulk_updated",
+        actor_type="user",
+        actor_id=admin.id,
+        organization_id=admin.organization_id,
+        metadata={"provider_app_id": provider_app.id, "count": len(results)},
+    )
+    db.commit()
+    return results
 
 
 @router.post("/integrations/test", response_model=IntegrationTestOut, dependencies=[Depends(require_csrf)])

@@ -20,6 +20,8 @@ import {
   buildOverviewStats,
   integrationLastUpdated,
 } from "./IntegrationOverview";
+import { ToolManagementPanel } from "./ToolManagementPanel";
+import { SharedCredentialsPanel } from "./SharedCredentialsPanel";
 import { ReadOnlyCopyField, SetupDrawer, SummaryRow, type WizardStep } from "./SetupDrawer";
 import {
   GRAPH_CLAIM_OPTIONS,
@@ -839,38 +841,55 @@ export function IntegrationsPage({
     <>
       {detailAppId ? (
         detailApp && detailInstance ? (
-          <IntegrationOverview
-            app={detailApp}
-            instance={detailInstance}
-            urls={urls}
-            statusLabel={integrationCardStatus(detailApp, detailInstance, detailApp.template_key !== TEMPLATE_MIRO).label}
-            needsTenant={detailApp.template_key !== TEMPLATE_MIRO}
-            stats={buildOverviewStats(detailApp.id, connections, tokenIssues)}
-            health={buildOverviewHealth(connections.filter((c) => c.provider_app_id === detailApp.id))}
-            lastUpdated={integrationLastUpdated(detailApp, connections, tokenIssues)}
-            onBack={() => navigate("/app/integrations")}
-            onEdit={() => {
-              const ed = appToTemplateEditorKey(detailApp);
-              if (ed) openEditor(ed);
-              else openCustomEdit(detailApp);
-            }}
-            onTest={() => {
-              if (detailTestKey) void runTest(detailTestKey);
-            }}
-            onToggleEnabled={() => void toggleIntegrationEnabled(detailApp, detailInstance)}
-            onRemove={
-              detailApp.template_key === null
-                ? () => {
-                    setRemoveRevokeDependencies(false);
-                    setRemoveConfirmApp(detailApp);
-                  }
-                : undefined
-            }
-            removing={removeBusy && removeConfirmApp?.id === detailApp.id}
-            testing={Boolean(detailTestKey && testing === detailTestKey)}
-            toggling={toggling}
-            testAvailable={Boolean(detailTestKey)}
-          />
+          <>
+            <IntegrationOverview
+              app={detailApp}
+              instance={detailInstance}
+              urls={urls}
+              statusLabel={integrationCardStatus(detailApp, detailInstance, detailApp.template_key !== TEMPLATE_MIRO).label}
+              needsTenant={detailApp.template_key !== TEMPLATE_MIRO}
+              stats={buildOverviewStats(detailApp.id, connections, tokenIssues)}
+              health={buildOverviewHealth(connections.filter((c) => c.provider_app_id === detailApp.id))}
+              lastUpdated={integrationLastUpdated(detailApp, connections, tokenIssues)}
+              onBack={() => navigate("/app/integrations")}
+              onEdit={() => {
+                const ed = appToTemplateEditorKey(detailApp);
+                if (ed) openEditor(ed);
+                else openCustomEdit(detailApp);
+              }}
+              onTest={() => {
+                if (detailTestKey) void runTest(detailTestKey);
+              }}
+              onToggleEnabled={() => void toggleIntegrationEnabled(detailApp, detailInstance)}
+              onRemove={
+                detailApp.template_key === null
+                  ? () => {
+                      setRemoveRevokeDependencies(false);
+                      setRemoveConfirmApp(detailApp);
+                    }
+                  : undefined
+              }
+              removing={removeBusy && removeConfirmApp?.id === detailApp.id}
+              testing={Boolean(detailTestKey && testing === detailTestKey)}
+              toggling={toggling}
+              testAvailable={Boolean(detailTestKey)}
+            />
+            {session.status === "authenticated" ? (
+              <>
+                <SharedCredentialsPanel
+                  appId={detailApp.id}
+                  providerAppKey={detailApp.key}
+                  csrfToken={session.csrfToken}
+                  onNotify={notify}
+                />
+                <ToolManagementPanel
+                  appId={detailApp.id}
+                  csrfToken={session.csrfToken}
+                  onNotify={notify}
+                />
+              </>
+            ) : null}
+          </>
         ) : (
           <>
             <PageIntro title="Integrations" description="Sign-in and third-party services for this deployment." />

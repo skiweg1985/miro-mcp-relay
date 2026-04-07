@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import time
+from dataclasses import dataclass
 from typing import Any
 from urllib.parse import parse_qsl, quote, urlencode, urlparse, urlunparse
 
@@ -14,6 +16,32 @@ from app.models import ConnectedAccount, ProviderApp, ProviderInstance
 from app.oauth_connection_tokens import ensure_access_token, refresh_oauth_tokens
 from app.relay_config import RelayConfig, effective_relay_config, resolve_upstream_base_url
 from app.security import decrypt_text
+
+
+@dataclass
+class McpRequestInfo:
+    method: str | None = None
+    tool_name: str | None = None
+    jsonrpc_id: Any = None
+
+
+def parse_mcp_request(body: bytes) -> McpRequestInfo:
+    if not body:
+        return McpRequestInfo()
+    try:
+        data = json.loads(body)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return McpRequestInfo()
+    if not isinstance(data, dict):
+        return McpRequestInfo()
+    method = data.get("method")
+    jsonrpc_id = data.get("id")
+    tool_name = None
+    if method == "tools/call":
+        params = data.get("params")
+        if isinstance(params, dict):
+            tool_name = params.get("name")
+    return McpRequestInfo(method=method, tool_name=tool_name, jsonrpc_id=jsonrpc_id)
 
 _HOP_BY_HOP = {
     "connection",
@@ -164,6 +192,120 @@ def _method_for(request: Request, config: RelayConfig) -> str:
     return request.method.upper()
 
 
+def _is_mcp_relay(provider_app: ProviderApp) -> bool:
+    protocol = (provider_app.relay_protocol or "").strip().lower()
+    return protocol in {"mcp_streamable_http", ""}
+
+
+def _apply_tool_policy(
+    db: Session,
+    *,
+    mcp_info: McpRequestInfo,
+    provider_app: ProviderApp,
+    credential_scope: str,
+) -> None:
+    if not mcp_info.tool_name:
+        return
+
+    from app.tool_policy import check_tool_access
+
+    decision = check_tool_access(
+        db,
+        tool_name=mcp_info.tool_name,
+        provider_app_id=provider_app.id,
+        credential_scope=credential_scope,
+    )
+    if not decision.allowed:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Tool access denied: {decision.reason}",
+        )
+
+
+def _filter_tools_list_in_response(
+    db: Session,
+    content: bytes,
+    *,
+    provider_app_id: str,
+    credential_scope: str,
+    media_type: str,
+) -> bytes:
+    from app.tool_policy import filter_tools_list_response
+
+    if "text/event-stream" in media_type:
+        return _filter_sse_tools_list(db, content, provider_app_id=provider_app_id, credential_scope=credential_scope)
+
+    try:
+        data = json.loads(content)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return content
+
+    if not isinstance(data, dict):
+        return content
+
+    result = data.get("result")
+    if isinstance(result, dict):
+        tools = result.get("tools")
+        if isinstance(tools, list):
+            result["tools"] = filter_tools_list_response(
+                db, provider_app_id=provider_app_id, credential_scope=credential_scope, tools=tools,
+            )
+            return json.dumps(data).encode()
+
+    tools = data.get("tools")
+    if isinstance(tools, list):
+        data["tools"] = filter_tools_list_response(
+            db, provider_app_id=provider_app_id, credential_scope=credential_scope, tools=tools,
+        )
+        return json.dumps(data).encode()
+
+    return content
+
+
+def _filter_sse_tools_list(
+    db: Session,
+    content: bytes,
+    *,
+    provider_app_id: str,
+    credential_scope: str,
+) -> bytes:
+    from app.tool_policy import filter_tools_list_response
+
+    text = content.decode("utf-8", errors="replace")
+    output_lines: list[str] = []
+
+    for line in text.splitlines():
+        if not line.startswith("data:"):
+            output_lines.append(line)
+            continue
+
+        payload = line[len("data:"):].strip()
+        if not payload:
+            output_lines.append(line)
+            continue
+
+        try:
+            data = json.loads(payload)
+        except json.JSONDecodeError:
+            output_lines.append(line)
+            continue
+
+        if isinstance(data, dict):
+            result = data.get("result")
+            if isinstance(result, dict):
+                tools = result.get("tools")
+                if isinstance(tools, list):
+                    result["tools"] = filter_tools_list_response(
+                        db, provider_app_id=provider_app_id, credential_scope=credential_scope, tools=tools,
+                    )
+                    output_lines.append(f"data: {json.dumps(data)}")
+                    continue
+
+        output_lines.append(line)
+
+    return "\n".join(output_lines).encode()
+
+
 async def execute_relay_request(
     db: Session,
     *,
@@ -171,6 +313,7 @@ async def execute_relay_request(
     provider_instance: ProviderInstance,
     connected_account: ConnectedAccount,
     request: Request,
+    credential_scope: str = "personal",
 ) -> Response:
     config = effective_relay_config(provider_app)
     if breaker_open_for(provider_app.id, config):
@@ -178,6 +321,17 @@ async def execute_relay_request(
 
     body = await request.body() if config.forward_body else b""
     method = _method_for(request, config)
+
+    mcp_info = McpRequestInfo()
+    if _is_mcp_relay(provider_app) and body:
+        mcp_info = parse_mcp_request(body)
+        if mcp_info.method == "tools/call" and mcp_info.tool_name:
+            _apply_tool_policy(
+                db,
+                mcp_info=mcp_info,
+                provider_app=provider_app,
+                credential_scope=credential_scope,
+            )
 
     async def send_upstream(access_token: str) -> tuple[httpx.Response, httpx.AsyncClient]:
         url = _build_upstream_url(request, provider_app, config)
@@ -232,14 +386,37 @@ async def execute_relay_request(
         else:
             breaker_mark_success(provider_app.id, config)
 
+        is_tools_list = mcp_info.method == "tools/list"
+
         if not config.stream_response:
             content = await last_response.aread()
             await last_response.aclose()
             await client.aclose()
+            response_media = last_response.headers.get("content-type", "application/json")
+            if is_tools_list and _is_mcp_relay(provider_app):
+                content = _filter_tools_list_in_response(
+                    db, content, provider_app_id=provider_app.id,
+                    credential_scope=credential_scope, media_type=response_media,
+                )
             return Response(
                 content=content,
                 status_code=last_response.status_code,
-                media_type=last_response.headers.get("content-type", "application/json"),
+                media_type=response_media,
+            )
+
+        if is_tools_list and _is_mcp_relay(provider_app):
+            full_content = await last_response.aread()
+            await last_response.aclose()
+            await client.aclose()
+            response_media = last_response.headers.get("content-type", "application/json")
+            filtered = _filter_tools_list_in_response(
+                db, full_content, provider_app_id=provider_app.id,
+                credential_scope=credential_scope, media_type=response_media,
+            )
+            return Response(
+                content=filtered,
+                status_code=last_response.status_code,
+                media_type=response_media,
             )
 
         async def iterator():

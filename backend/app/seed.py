@@ -119,8 +119,11 @@ def reconcile_schema() -> None:
                 "oauth_redirect_uri": "VARCHAR(512)",
                 "consented_scopes_json": "TEXT DEFAULT '[]'",
                 "last_error": "TEXT",
+                "credential_scope": "VARCHAR(32) DEFAULT 'personal'",
+                "managed_by_user_id": "VARCHAR(36)",
             },
         )
+        _backfill_credential_scope(conn, inspector)
         _ensure_columns(
             conn,
             inspector,
@@ -164,6 +167,23 @@ def reconcile_schema() -> None:
             "users",
             {
                 "is_active": "BOOLEAN DEFAULT TRUE",
+            },
+        )
+        _ensure_columns(
+            conn,
+            inspector,
+            "discovered_tools",
+            {
+                "first_seen_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+            },
+        )
+        _ensure_columns(
+            conn,
+            inspector,
+            "tool_access_policies",
+            {
+                "allowed_with_personal": "BOOLEAN DEFAULT TRUE",
+                "allowed_with_shared": "BOOLEAN DEFAULT FALSE",
             },
         )
         _backfill_service_client_created_by_user_id(conn, inspector)
@@ -227,6 +247,24 @@ def _ensure_delegation_grant_service_client_nullable(conn, inspector) -> None:
             conn.execute(text(f'ALTER TABLE "{table_name}" ALTER COLUMN "{column_name}" DROP NOT NULL'))
         else:
             conn.execute(text(f"ALTER TABLE {table_name} ALTER COLUMN {column_name} DROP NOT NULL"))
+    except OperationalError:
+        pass
+
+
+def _backfill_credential_scope(conn, inspector) -> None:
+    table_name = "connected_accounts"
+    existing_tables = set(inspector.get_table_names())
+    if table_name not in existing_tables:
+        return
+    columns = {c["name"] for c in inspector.get_columns(table_name)}
+    if "credential_scope" not in columns:
+        return
+    try:
+        conn.execute(
+            text(
+                f"UPDATE {table_name} SET credential_scope = 'personal' WHERE credential_scope IS NULL"
+            )
+        )
     except OperationalError:
         pass
 

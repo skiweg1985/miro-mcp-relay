@@ -6,6 +6,7 @@ import type {
   ConnectedAccountOut,
   DelegationGrantCreateResult,
   DelegationGrantOut,
+  DiscoveredToolOut,
   BrokerCallbackUrls,
   Health,
   IntegrationTestResult,
@@ -20,6 +21,9 @@ import type {
   ServiceClientCreateResult,
   ServiceClientOut,
   SessionResponse,
+  SharedCredentialOut,
+  ToolAccessPolicyOut,
+  ToolDiscoveryResult,
   TokenIssueEventOut,
   UserOut,
 } from "./types";
@@ -125,6 +129,9 @@ export const api = {
   },
   myConnections() {
     return request<ConnectedAccountOut[]>("/api/v1/connections");
+  },
+  availableSharedCredentials() {
+    return request<ConnectedAccountOut[]>("/api/v1/shared-credentials");
   },
   startMiroConnection(csrfToken: string, body: unknown = {}) {
     return request<{ ok: boolean; auth_url: string; state: string }>("/api/v1/connections/miro/start", {
@@ -338,6 +345,55 @@ export const api = {
       method: "POST",
       csrfToken,
       body: { template_key: templateKey },
+    });
+  },
+  sharedCredentials(csrfToken: string, providerAppId?: string) {
+    const q = providerAppId ? `?provider_app_id=${encodeURIComponent(providerAppId)}` : "";
+    return request<SharedCredentialOut[]>(`/api/v1/admin/shared-credentials${q}`, { csrfToken });
+  },
+  createSharedCredential(csrfToken: string, body: unknown) {
+    return request<SharedCredentialOut>("/api/v1/admin/shared-credentials", {
+      method: "POST",
+      csrfToken,
+      body,
+    });
+  },
+  revokeSharedCredential(csrfToken: string, credentialId: string) {
+    return request<SharedCredentialOut>(`/api/v1/admin/shared-credentials/${encodeURIComponent(credentialId)}/revoke`, {
+      method: "POST",
+      csrfToken,
+    });
+  },
+  refreshSharedCredential(csrfToken: string, credentialId: string) {
+    return request<SharedCredentialOut>(`/api/v1/admin/shared-credentials/${encodeURIComponent(credentialId)}/refresh`, {
+      method: "POST",
+      csrfToken,
+    });
+  },
+  discoverTools(csrfToken: string, appId: string) {
+    return request<ToolDiscoveryResult>(`/api/v1/admin/provider-apps/${encodeURIComponent(appId)}/discover-tools`, {
+      method: "POST",
+      csrfToken,
+    });
+  },
+  discoveredTools(csrfToken: string, appId: string) {
+    return request<DiscoveredToolOut[]>(`/api/v1/admin/provider-apps/${encodeURIComponent(appId)}/tools`, { csrfToken });
+  },
+  toolPolicies(csrfToken: string, appId: string) {
+    return request<ToolAccessPolicyOut[]>(`/api/v1/admin/provider-apps/${encodeURIComponent(appId)}/tool-policies`, { csrfToken });
+  },
+  updateToolPolicy(csrfToken: string, policyId: string, body: unknown) {
+    return request<ToolAccessPolicyOut>(`/api/v1/admin/tool-policies/${encodeURIComponent(policyId)}`, {
+      method: "PATCH",
+      csrfToken,
+      body,
+    });
+  },
+  bulkUpdateToolPolicies(csrfToken: string, appId: string, body: unknown) {
+    return request<ToolAccessPolicyOut[]>(`/api/v1/admin/provider-apps/${encodeURIComponent(appId)}/tool-policies/bulk`, {
+      method: "POST",
+      csrfToken,
+      body,
     });
   },
   adminTokenIssues(

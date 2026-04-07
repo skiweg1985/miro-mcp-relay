@@ -15,6 +15,7 @@ import {
 } from "./components";
 import { isApiError } from "./errors";
 import type { ConnectedAccountOut, ConnectionProbeResult, ProviderAppOut, ProviderDefinitionOut } from "./types";
+import { brokerUi } from "./brokerTerminology";
 import { formatDateTime, relativeTime } from "./utils";
 
 const CONNECT_WIZARD_STEPS: WizardStep[] = [
@@ -73,6 +74,7 @@ export function UserIntegrationsPage() {
   const [providerApps, setProviderApps] = useState<ProviderAppOut[]>([]);
   const [definitions, setDefinitions] = useState<ProviderDefinitionOut[]>([]);
   const [connections, setConnections] = useState<ConnectedAccountOut[]>([]);
+  const [sharedCredentials, setSharedCredentials] = useState<ConnectedAccountOut[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<Set<string>>(() => new Set());
   const [probeById, setProbeById] = useState<Record<string, ConnectionProbeResult>>({});
@@ -86,14 +88,16 @@ export function UserIntegrationsPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const [appData, defData, connectionData] = await Promise.all([
+      const [appData, defData, connectionData, sharedData] = await Promise.all([
         api.providerAppsForUser(),
         api.providerDefinitions(),
         api.myConnections(),
+        api.availableSharedCredentials().catch(() => [] as ConnectedAccountOut[]),
       ]);
       setProviderApps(appData);
       setDefinitions(defData);
       setConnections(connectionData);
+      setSharedCredentials(sharedData);
     } catch (error) {
       notify({
         tone: "error",
@@ -309,6 +313,25 @@ export function UserIntegrationsPage() {
         </div>
       )}
 
+      {sharedCredentials.length > 0 ? (
+        <Card title={brokerUi.sharedAccessAvailable}>
+          <div className="stack-list">
+            {sharedCredentials.map((sc) => {
+              const app = providerAppById[sc.provider_app_id];
+              return (
+                <div key={sc.id} className="stack-cell">
+                  <strong>{app?.display_name ?? "Integration"}</strong>
+                  <span>
+                    <StatusBadge tone="neutral">Shared</StatusBadge>{" "}
+                    {sc.display_name || sc.external_email || sc.external_account_ref || "—"}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      ) : null}
+
       {connectWizardApp ? (
         <SetupDrawer
           title={connectWizardApp.display_name}
@@ -448,6 +471,16 @@ export function UserIntegrationsPage() {
                       detailsConnection.external_email ||
                       detailsConnection.external_account_ref ||
                       detailsConnection.id}
+                  </span>
+                </div>
+                <div className="stack-cell">
+                  <strong>{brokerUi.executionIdentity}</strong>
+                  <span>
+                    {detailsConnection.credential_scope === "shared" ? (
+                      <StatusBadge tone="neutral">{brokerUi.runsAsShared}</StatusBadge>
+                    ) : (
+                      <StatusBadge tone="success">{brokerUi.runsAsPersonal}</StatusBadge>
+                    )}
                   </span>
                 </div>
                 <div className="stack-cell">

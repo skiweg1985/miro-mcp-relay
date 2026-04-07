@@ -772,6 +772,16 @@ function GrantDetailPanel({ grant }: { grant: SelfServiceDelegationGrantOut }) {
                 <strong>Integration</strong>
                 <span>{grant.provider_app_display_name}</span>
               </div>
+              {resolvedConnectionId && connections ? (
+                <div className="stack-cell">
+                  <strong>Runs as</strong>
+                  <span>
+                    {connections.find((c) => c.id === resolvedConnectionId)?.credential_scope === "shared"
+                      ? "Shared credential (managed by admin)"
+                      : "Your account"}
+                  </span>
+                </div>
+              ) : null}
               <div className="stack-cell">
                 <strong>Status</strong>
                 <span>

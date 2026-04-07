@@ -259,6 +259,7 @@ class ServiceClientSecretResponse(BaseModel):
 class ConnectedAccountCreate(BaseModel):
     user_email: str
     provider_app_key: str
+    credential_scope: str = "personal"
     external_account_ref: str | None = None
     external_email: str | None = None
     display_name: str | None = None
@@ -279,6 +280,8 @@ class ConnectedAccountOut(BaseModel):
     id: str
     user_id: str
     provider_app_id: str
+    credential_scope: str = "personal"
+    managed_by_user_id: str | None = None
     external_account_ref: str | None = None
     external_email: str | None = None
     display_name: str | None = None
@@ -289,6 +292,37 @@ class ConnectedAccountOut(BaseModel):
     refresh_token_expires_at: datetime | None = None
     refresh_token_available: bool = False
     token_material_updated_at: datetime | None = None
+
+
+class SharedCredentialCreate(BaseModel):
+    provider_app_key: str
+    display_name: str = Field(min_length=1, max_length=255)
+    external_account_ref: str | None = None
+    external_email: str | None = None
+    consented_scopes: list[str] = Field(default_factory=list)
+    access_token: str
+    refresh_token: str | None = None
+    token_type: str | None = "Bearer"
+    expires_at: datetime | None = None
+    refresh_expires_at: datetime | None = None
+
+
+class SharedCredentialOut(BaseModel):
+    id: str
+    provider_app_id: str
+    provider_app_key: str | None = None
+    provider_app_display_name: str | None = None
+    credential_scope: str = "shared"
+    managed_by_user_id: str | None = None
+    managed_by_display_name: str | None = None
+    display_name: str | None = None
+    external_account_ref: str | None = None
+    external_email: str | None = None
+    status: str
+    connected_at: datetime
+    access_token_expires_at: datetime | None = None
+    refresh_token_expires_at: datetime | None = None
+    refresh_token_available: bool = False
 
 
 class MiroConnectStartRequest(BaseModel):
@@ -469,6 +503,57 @@ class ProviderAccessIssueResponse(BaseModel):
     expires_at: datetime | None = None
     scopes: list[str] = Field(default_factory=list)
     audit_event_id: str
+
+
+class DiscoveredToolOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    provider_app_id: str
+    tool_name: str
+    display_name: str
+    description: str | None = None
+    input_schema: dict[str, Any] = Field(default_factory=dict)
+    status: str
+    first_seen_at: datetime
+    last_seen_at: datetime
+
+
+class ToolAccessPolicyOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    discovered_tool_id: str
+    tool_name: str | None = None
+    visible: bool = True
+    allowed_with_personal: bool = True
+    allowed_with_shared: bool = False
+
+
+class ToolAccessPolicyUpdate(BaseModel):
+    visible: bool | None = None
+    allowed_with_personal: bool | None = None
+    allowed_with_shared: bool | None = None
+
+
+class ToolAccessPolicyBulkItem(BaseModel):
+    discovered_tool_id: str
+    visible: bool | None = None
+    allowed_with_personal: bool | None = None
+    allowed_with_shared: bool | None = None
+
+
+class ToolAccessPolicyBulkUpdate(BaseModel):
+    items: list[ToolAccessPolicyBulkItem] = Field(min_length=1)
+
+
+class ToolDiscoveryResult(BaseModel):
+    ok: bool = True
+    provider_app_id: str
+    tools_found: int = 0
+    tools_added: int = 0
+    tools_updated: int = 0
+    tools_removed: int = 0
 
 
 class AuditEventOut(BaseModel):

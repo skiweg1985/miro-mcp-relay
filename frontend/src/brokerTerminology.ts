@@ -27,6 +27,14 @@ export const brokerUi = {
   registrationEndpoint: "Registration endpoint",
   registrationAuthMethod: "Registration auth method",
   tokenDeliveryDetail: "Token delivery (detail)",
+  personalConnection: "Personal connection",
+  sharedCredential: "Shared credential",
+  executionIdentity: "Execution identity",
+  runsAsPersonal: "Your account",
+  runsAsShared: "Shared credential (managed by admin)",
+  sharedAccessAvailable: "Shared access available",
+  discoveredTools: "Discovered tools",
+  toolPolicy: "Tool access policy",
 } as const;
 
 export function formatRelayTypeLabel(raw: string | undefined): string {

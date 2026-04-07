@@ -156,6 +156,11 @@ class UserAuthIdentity(Base):
     __table_args__ = (UniqueConstraint("provider_instance_id", "subject", name="uq_auth_identity_provider_subject"),)
 
 
+class CredentialScope(StrEnum):
+    PERSONAL = "personal"
+    SHARED = "shared"
+
+
 class ConnectedAccount(Base):
     __tablename__ = "connected_accounts"
 
@@ -163,6 +168,8 @@ class ConnectedAccount(Base):
     organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
     provider_app_id: Mapped[str] = mapped_column(ForeignKey("provider_apps.id"), index=True)
+    credential_scope: Mapped[str] = mapped_column(String(32), default=CredentialScope.PERSONAL.value, index=True)
+    managed_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
     external_account_ref: Mapped[str | None] = mapped_column(String(255), nullable=True)
     external_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     display_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -174,6 +181,44 @@ class ConnectedAccount(Base):
     connected_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
+
+
+class ToolStatus(StrEnum):
+    ACTIVE = "active"
+    REMOVED = "removed"
+    DISABLED = "disabled"
+
+
+class DiscoveredTool(Base):
+    __tablename__ = "discovered_tools"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    provider_app_id: Mapped[str] = mapped_column(ForeignKey("provider_apps.id"), index=True)
+    tool_name: Mapped[str] = mapped_column(String(255), index=True)
+    display_name: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    input_schema_json: Mapped[str] = mapped_column(Text, default="{}")
+    status: Mapped[str] = mapped_column(String(32), default=ToolStatus.ACTIVE.value)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
+
+    __table_args__ = (UniqueConstraint("provider_app_id", "tool_name", name="uq_discovered_tools_app_name"),)
+
+
+class ToolAccessPolicy(Base):
+    __tablename__ = "tool_access_policies"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    discovered_tool_id: Mapped[str] = mapped_column(ForeignKey("discovered_tools.id"), unique=True, index=True)
+    visible: Mapped[bool] = mapped_column(Boolean, default=True)
+    allowed_with_personal: Mapped[bool] = mapped_column(Boolean, default=True)
+    allowed_with_shared: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
 

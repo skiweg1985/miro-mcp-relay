@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Credential Scope**: `ConnectedAccount` unterscheidet `personal` und `shared` (`credential_scope`, `managed_by_user_id`); Backfill vorhandener Einträge auf `personal`.
+- **Shared Credential Management (Admin)**: CRUD-Endpunkte `POST/GET /admin/shared-credentials`, `POST .../revoke`, `POST .../refresh`; Admin-UI zeigt Shared Credentials pro Integration mit Revoke/Refresh.
+- **MCP Tool Discovery**: Modell `DiscoveredTool` mit stabilem Schlüssel (`provider_app_id + tool_name`); `tool_discovery.py` ruft `tools/list` vom Upstream ab, normalisiert und persistiert; Admin-Trigger `POST /admin/provider-apps/{id}/discover-tools`.
+- **Tool Access Policy**: Modell `ToolAccessPolicy` pro Tool (`visible`, `allowed_with_personal`, `allowed_with_shared`); Standard: Personal erlaubt, Shared gesperrt (Least Privilege); CRUD + Bulk-Endpunkte; `tool_policy.py` mit `check_tool_access()`.
+- **Serverseitiges Policy Enforcement**: Relay Engine parst MCP-Body (`tools/call` → Tool-Name, `tools/list` → Response-Filterung); `403` bei Policy-Verstoß; Defense-in-Depth unabhängig von Client-seitiger Filterung.
+- **Execution Identity (User UI)**: Badge "Your account" / "Shared credential (managed by admin)" in Verbindungsdetails und Grant-Ansicht; Shared-Credentials-Sektion auf der Integrations-Seite.
+- **Admin Tool Management UI**: Panel in Integration-Detail mit "Discover tools"-Button, Policy-Tabelle (Visible/Personal/Shared Checkboxen), Removed-Tools-Sektion.
+- User-Endpunkt `GET /api/v1/shared-credentials` für verfügbare organisationsweite Credentials (Metadaten).
+- `brokerTerminology.ts` erweitert: `personalConnection`, `sharedCredential`, `executionIdentity`, `runsAsPersonal`, `runsAsShared`, `discoveredTools`, `toolPolicy`.
+
 ### Changed
 
 - Admin **Integrations** · Detail: kontextsensitive **Basic**-Ansicht nach `template_key` (Miro / Microsoft Graph / Microsoft Login / Custom). Miro-Default ohne „Overview“-Karte; operative Felder (Redirect, Sign-in-Bereitschaft, Upstream, Zugriffsmodus, kompakte Upstream-Auth) sichtbar; Metadaten, Scopes, Roh-OAuth-Endpoints und Low-level-Relay (Keys, `forward_*`, Retries, Circuit Breaker, Header-Maps) unter **Technical details** (eingeklappt). Custom-OAuth: OAuth-Endpoints und DCR-Kurzzeile im Basic; Issuer und Registrierungsdetails zusätzlich unter Technical.

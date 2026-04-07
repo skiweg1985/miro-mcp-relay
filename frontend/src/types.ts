@@ -82,6 +82,7 @@ export type IntegrationInstanceV2Out = {
   access_config: Record<string, unknown>;
   created_at: string;
   updated_at: string;
+  oauth_connected: boolean;
 };
 
 export type IntegrationToolV2Out = {

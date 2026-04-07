@@ -186,6 +186,7 @@ class UserConnection(Base):
     integration_instance_id: Mapped[str] = mapped_column(ForeignKey("integration_instances.id"), index=True)
     status: Mapped[str] = mapped_column(String(32), index=True, default=UserConnectionStatus.ACTIVE.value)
     oauth_access_token_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
+    oauth_refresh_token_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
     metadata_json: Mapped[str] = mapped_column(Text, default="{}")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)

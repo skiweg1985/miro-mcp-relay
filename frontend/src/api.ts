@@ -140,6 +140,17 @@ export const api = {
       },
     );
   },
+  startIntegrationOAuth(instanceId: string) {
+    return request<AuthFlowStartResponse>(`/api/v1/integration-instances/${encodeURIComponent(instanceId)}/oauth/start`, {
+      method: "POST",
+    });
+  },
+  disconnectIntegrationOAuth(csrfToken: string, instanceId: string) {
+    return request<{ ok: boolean }>(`/api/v1/integration-instances/${encodeURIComponent(instanceId)}/oauth/disconnect`, {
+      method: "POST",
+      csrfToken,
+    });
+  },
   accessGrants() {
     return request<AccessGrantOut[]>("/api/v1/access-grants");
   },

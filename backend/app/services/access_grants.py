@@ -7,7 +7,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import AccessGrant, AccessGrantStatus, IntegrationInstance, UserConnection, UserConnectionStatus
-from app.security import decrypt_text, dumps_json, lookup_secret_hash, utcnow, verify_lookup_secret
+from app.security import dumps_json, lookup_secret_hash, utcnow, verify_lookup_secret
+from app.upstream_oauth import oauth_token_from_connection_row
 
 
 BROKER_ACCESS_KEY_PREFIX = "bkr_"
@@ -116,9 +117,7 @@ def resolve_upstream_oauth_token_for_grant(
             and conn.integration_instance_id == instance.id
             and conn.status == UserConnectionStatus.ACTIVE.value
         ):
-            token = decrypt_text(conn.oauth_access_token_encrypted)
-            if token and token.strip():
-                return token.strip()
+            return oauth_token_from_connection_row(conn)
         return None
     if x_user_token and x_user_token.strip():
         return x_user_token.strip()
@@ -130,8 +129,4 @@ def resolve_upstream_oauth_token_for_grant(
             UserConnection.status == UserConnectionStatus.ACTIVE.value,
         )
     )
-    if conn:
-        token = decrypt_text(conn.oauth_access_token_encrypted)
-        if token and token.strip():
-            return token.strip()
-    return None
+    return oauth_token_from_connection_row(conn)

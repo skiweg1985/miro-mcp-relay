@@ -26,6 +26,7 @@ from app.schemas import (
     IntegrationToolOut,
 )
 from app.security import dumps_json, loads_json
+from app.upstream_oauth import get_upstream_oauth_token_for_session, user_has_oauth_connection
 
 router = APIRouter(tags=["integrations-v2"])
 
@@ -42,7 +43,15 @@ def _integration_out(item: Integration) -> IntegrationOut:
     )
 
 
-def _instance_out(item: IntegrationInstance) -> IntegrationInstanceOut:
+def _instance_out(db: Session, item: IntegrationInstance, user: User) -> IntegrationInstanceOut:
+    connected = False
+    if item.auth_mode == AuthMode.OAUTH.value:
+        connected = user_has_oauth_connection(
+            db,
+            user_id=user.id,
+            organization_id=user.organization_id,
+            instance_id=item.id,
+        )
     return IntegrationInstanceOut(
         id=item.id,
         name=item.name,
@@ -53,6 +62,7 @@ def _instance_out(item: IntegrationInstance) -> IntegrationInstanceOut:
         access_config=loads_json(item.access_config_json, {}),
         created_at=item.created_at,
         updated_at=item.updated_at,
+        oauth_connected=connected,
     )
 
 
@@ -112,7 +122,7 @@ def list_instances(db: Session = Depends(get_db), current_user: User = Depends(g
         .where(IntegrationInstance.organization_id == current_user.organization_id)
         .order_by(IntegrationInstance.created_at.desc())
     ).all()
-    return [_instance_out(row) for row in rows]
+    return [_instance_out(db, row, current_user) for row in rows]
 
 
 @router.post("/integration-instances", response_model=IntegrationInstanceOut)
@@ -144,7 +154,7 @@ def create_instance(
     db.add(row)
     db.commit()
     db.refresh(row)
-    return _instance_out(row)
+    return _instance_out(db, row, current_user)
 
 
 @router.post("/integration-instances/{instance_id}/execute", response_model=IntegrationExecuteResponse)
@@ -171,13 +181,16 @@ async def execute_instance(
     )
     if not integration:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="integration_not_found")
+    upstream_token = get_upstream_oauth_token_for_session(
+        db, user=current_user, instance=instance, x_user_token=x_user_token
+    )
     result = await execute_instance_action(
         instance,
         integration_config=loads_json(integration.config_json, {}),
         action=payload.action,
         tool_name=payload.tool_name,
         arguments=payload.arguments,
-        x_user_token=x_user_token,
+        x_user_token=upstream_token,
     )
     return IntegrationExecuteResponse(result=result)
 
@@ -205,13 +218,16 @@ async def discover_tools(
     )
     if not integration or not integration.mcp_enabled:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="integration_not_mcp_enabled")
+    upstream_token = get_upstream_oauth_token_for_session(
+        db, user=current_user, instance=instance, x_user_token=x_user_token
+    )
     result = await execute_instance_action(
         instance,
         integration_config=loads_json(integration.config_json, {}),
         action="discover_tools",
         tool_name=None,
         arguments={},
-        x_user_token=x_user_token,
+        x_user_token=upstream_token,
     )
     tools = result.get("tools") if isinstance(result, dict) else []
     if not isinstance(tools, list):

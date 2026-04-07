@@ -1,3 +1,19 @@
+## 2026-04-07 – Cursor Agent – User-OAuth Connect (Integration Instances)
+
+- Done:
+  - `upstream_oauth.py` + Session-`execute`/`discover-tools` nutzen `UserConnection` vor `X-User-Token`; `IntegrationInstanceOut.oauth_connected`.
+  - Router `integration_oauth`: `POST .../oauth/start`, `GET .../oauth/callback`, `POST .../oauth/disconnect`; Microsoft Graph via `resolve_microsoft_oauth`; Miro via Endpoints in Seed + `MIRO_OAUTH_*`.
+  - `UserConnection.oauth_refresh_token_encrypted`; `seed.reconcile_schema` für SQLite.
+  - Frontend `IntegrationsV2Page`: Verbinden/Trennen, Query `connection_status`; `api.startIntegrationOAuth` / `disconnectIntegrationOAuth`.
+  - `docs/CHANGELOG.md`, `docs/technische-referenz.md`, `.env.example`; `backend/test_smoke.py`.
+- Next: Refresh-Token-Rotation bei Ablauf
+- Blockers: keine
+- Branch/PR: branch `codex/hard-refactor-integration-model`, PR none
+- Files touched: `backend/app/upstream_oauth.py`, `backend/app/routers/integration_oauth.py`, `backend/app/routers/integrations_v2.py`, `backend/app/services/access_grants.py`, `backend/app/models.py`, `backend/app/core/config.py`, `backend/app/default_integrations.py`, `backend/app/seed.py`, `backend/app/main.py`, `backend/test_smoke.py`, `frontend/src/IntegrationsV2Page.tsx`, `frontend/src/api.ts`, `frontend/src/types.ts`, `docs/CHANGELOG.md`, `docs/technische-referenz.md`, `.env.example`, `planning/coordination/WORKLOG.md`
+- Test notes: `PYTHONPATH=backend python3 -m unittest backend.test_smoke -v`, `cd frontend && npm run build`
+- Changelog updated: yes (Unreleased Added/Changed)
+- Follow-ups: Entra Redirect-URI in Deployment prüfen
+
 ## 2026-04-07 – Cursor Agent – Integrations-Anlage nur Admin
 
 - Done:

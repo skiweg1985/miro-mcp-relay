@@ -85,6 +85,7 @@ class IntegrationInstanceOut(BaseModel):
     access_config: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
     updated_at: datetime
+    oauth_connected: bool = False
 
 
 class IntegrationToolOut(BaseModel):

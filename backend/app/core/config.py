@@ -35,6 +35,8 @@ class Settings(BaseSettings):
 
     miro_mcp_base: str = "https://mcp.miro.com"
     miro_api_base: str = "https://api.miro.com"
+    miro_oauth_client_id: str = ""
+    miro_oauth_client_secret: str = ""
     miro_oauth_scope: str = "boards:read boards:write"
     miro_oauth_email_mode: str = "warn"
     miro_retry_count: int = 2

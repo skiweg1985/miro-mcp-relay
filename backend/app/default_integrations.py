@@ -27,6 +27,8 @@ def _miro_integration_config(settings: Settings) -> dict:
         "template_key": "miro_default",
         "endpoint": f"{base}/mcp",
         "oauth_registration_endpoint": f"{base}/register",
+        "oauth_authorization_endpoint": "https://miro.com/oauth/authorize",
+        "oauth_token_endpoint": "https://api.miro.com/v1/oauth/token",
     }
 
 

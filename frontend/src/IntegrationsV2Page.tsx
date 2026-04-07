@@ -65,6 +65,23 @@ export function IntegrationsV2Page() {
     });
   }, [session.status]);
 
+  useEffect(() => {
+    if (session.status !== "authenticated") return;
+    const params = new URLSearchParams(window.location.search);
+    const connectionStatus = params.get("connection_status");
+    if (connectionStatus === "connected") {
+      notify({ tone: "success", title: "Verbindung gespeichert" });
+      window.history.replaceState({}, "", window.location.pathname);
+    } else if (connectionStatus === "error") {
+      notify({
+        tone: "error",
+        title: "OAuth",
+        description: params.get("message") || "Verbindung fehlgeschlagen",
+      });
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, [session.status, notify]);
+
   const createIntegration = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (session.status !== "authenticated" || !isAdmin) return;
@@ -127,6 +144,40 @@ export function IntegrationsV2Page() {
       notify({
         tone: "error",
         title: "Instanz fehlgeschlagen",
+        description: isApiError(error) ? error.message : "Unbekannter Fehler",
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const connectOAuth = async (instanceId: string) => {
+    if (session.status !== "authenticated") return;
+    setBusy(true);
+    try {
+      const out = await api.startIntegrationOAuth(instanceId);
+      window.location.assign(out.auth_url);
+    } catch (error) {
+      setBusy(false);
+      notify({
+        tone: "error",
+        title: "OAuth-Start fehlgeschlagen",
+        description: isApiError(error) ? error.message : "Unbekannter Fehler",
+      });
+    }
+  };
+
+  const disconnectOAuth = async (instanceId: string) => {
+    if (session.status !== "authenticated") return;
+    setBusy(true);
+    try {
+      await api.disconnectIntegrationOAuth(session.csrfToken, instanceId);
+      await load();
+      notify({ tone: "success", title: "Verbindung getrennt" });
+    } catch (error) {
+      notify({
+        tone: "error",
+        title: "Trennen fehlgeschlagen",
         description: isApiError(error) ? error.message : "Unbekannter Fehler",
       });
     } finally {
@@ -235,10 +286,38 @@ export function IntegrationsV2Page() {
         <div className="stack-list">
           {instances.map((instance) => (
             <div className="stack-cell" key={instance.id}>
-              <strong>{instance.name}</strong>
-              <span>
-                auth={instance.auth_mode}, access={instance.access_mode}, integration={instance.integration_id}
-              </span>
+              <div>
+                <strong>{instance.name}</strong>
+                <span>
+                  auth={instance.auth_mode}, access={instance.access_mode}, integration={instance.integration_id}
+                  {instance.auth_mode === "oauth" ? (
+                    <span className="muted"> · {instance.oauth_connected ? "verbunden" : "nicht verbunden"}</span>
+                  ) : null}
+                </span>
+              </div>
+              {instance.auth_mode === "oauth" ? (
+                <div className="modal-form-actions">
+                  {instance.oauth_connected ? (
+                    <button
+                      type="button"
+                      className="ghost-button"
+                      disabled={busy}
+                      onClick={() => void disconnectOAuth(instance.id)}
+                    >
+                      Verbindung trennen
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="primary-button"
+                      disabled={busy}
+                      onClick={() => void connectOAuth(instance.id)}
+                    >
+                      Verbinden
+                    </button>
+                  )}
+                </div>
+              ) : null}
             </div>
           ))}
           {!instances.length ? <p className="muted">Keine Instanzen vorhanden.</p> : null}

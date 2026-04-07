@@ -40,6 +40,17 @@ class TestSmoke(unittest.TestCase):
             response = client.post("/api/v1/access-grants/validate", json={"token": "bkr_invalid"})
             self.assertEqual(response.status_code, 401)
 
+    def test_integration_oauth_start_requires_session(self) -> None:
+        with TestClient(app) as client:
+            response = client.post("/api/v1/integration-instances/x/oauth/start")
+            self.assertEqual(response.status_code, 401)
+
+    def test_integration_oauth_callback_redirects_without_params(self) -> None:
+        with TestClient(app, follow_redirects=False) as client:
+            response = client.get("/api/v1/integration-instances/oauth/callback")
+            self.assertEqual(response.status_code, 302)
+            self.assertIn("connection_status=error", response.headers.get("location", ""))
+
     def test_seed_creates_default_integrations(self) -> None:
         init_db()
         with Session(engine) as db:

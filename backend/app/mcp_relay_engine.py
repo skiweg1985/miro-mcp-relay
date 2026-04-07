@@ -27,6 +27,15 @@ _BLOCKED_REQUEST = frozenset(
         "authorization",
         "cookie",
         "x-broker-access-key",
+        "x-user-token",
+        "x-forwarded-for",
+        "x-forwarded-host",
+        "x-forwarded-proto",
+        "x-forwarded-port",
+        "x-forwarded-server",
+        "x-real-ip",
+        "forwarded",
+        "via",
     }
 )
 

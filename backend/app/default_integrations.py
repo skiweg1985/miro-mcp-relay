@@ -31,6 +31,7 @@ def _miro_integration_config(settings: Settings) -> dict:
         "template_key": TEMPLATE_KEY_MIRO_DEFAULT,
         "oauth_dynamic_client_registration_enabled": True,
         "endpoint": f"{base}/mcp",
+        "mcp_relay_base_url": f"{base}/",
         "oauth_registration_endpoint": f"{base}/register",
         "oauth_authorization_endpoint": f"{base}/authorize",
         "oauth_token_endpoint": f"{base}/token",
@@ -47,15 +48,20 @@ def reconcile_miro_default_integration_token_endpoint(db: Session) -> None:
     if str(cfg.get("template_key") or "").strip() != TEMPLATE_KEY_MIRO_DEFAULT:
         return
     base = settings.miro_mcp_base.rstrip("/")
-    expected = f"{base}/token"
-    current = str(cfg.get("oauth_token_endpoint") or "").strip()
-    if current == expected:
-        return
-    if current not in ("", LEGACY_MIRO_REST_OAUTH_TOKEN_ENDPOINT):
-        return
-    cfg["oauth_token_endpoint"] = expected
-    row.config_json = dumps_json(cfg)
-    db.add(row)
+    changed = False
+    expected_token = f"{base}/token"
+    current_token = str(cfg.get("oauth_token_endpoint") or "").strip()
+    if current_token != expected_token and current_token in ("", LEGACY_MIRO_REST_OAUTH_TOKEN_ENDPOINT):
+        cfg["oauth_token_endpoint"] = expected_token
+        changed = True
+    expected_relay = f"{base}/"
+    current_relay = str(cfg.get("mcp_relay_base_url") or "").strip()
+    if current_relay != expected_relay:
+        cfg["mcp_relay_base_url"] = expected_relay
+        changed = True
+    if changed:
+        row.config_json = dumps_json(cfg)
+        db.add(row)
 
 
 def _graph_integration_config(settings: Settings) -> dict:

@@ -53,19 +53,15 @@ def _consumer_mcp_relay_enabled(access_config_json: str) -> bool:
     return True
 
 
-def _integration_endpoint(integration_config: dict) -> str:
+def _relay_base_url(integration_config: dict) -> str:
+    """MCP relay base URL: prefer explicit `mcp_relay_base_url`, fall back to `endpoint`."""
+    explicit = str(integration_config.get("mcp_relay_base_url") or "").strip()
+    if explicit:
+        return explicit
     return str(integration_config.get("endpoint") or "").strip()
 
 
-@router.api_route(
-    "/consumer/integration-instances/{instance_id}/mcp",
-    methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
-)
-@router.api_route(
-    "/consumer/integration-instances/{instance_id}/mcp/{path:path}",
-    methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
-)
-async def consumer_mcp_streamable_relay(
+async def _mcp_relay_handler(
     request: Request,
     instance_id: str,
     path: str = "",
@@ -90,7 +86,7 @@ async def consumer_mcp_streamable_relay(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="consumer_mcp_relay_disabled")
 
     integration_config = loads_json(integration.config_json, {})
-    base_endpoint = _integration_endpoint(integration_config if isinstance(integration_config, dict) else {})
+    base_endpoint = _relay_base_url(integration_config if isinstance(integration_config, dict) else {})
     if not base_endpoint:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="integration_endpoint_missing")
 
@@ -206,3 +202,17 @@ def consumer_mcp_connection_info(
             "upstream": "resolved_by_broker",
         },
     }
+
+
+_RELAY_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]
+
+router.add_api_route(
+    "/consumer/integration-instances/{instance_id}/mcp",
+    _mcp_relay_handler,
+    methods=_RELAY_METHODS,
+)
+router.add_api_route(
+    "/consumer/integration-instances/{instance_id}/mcp/{path:path}",
+    _mcp_relay_handler,
+    methods=_RELAY_METHODS,
+)

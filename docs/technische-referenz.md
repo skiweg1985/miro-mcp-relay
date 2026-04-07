@@ -221,18 +221,14 @@ Beim Start wird `init_db()` aus `backend/app/seed.py` ausgefuehrt.
 Dabei werden:
 
 - die Datenbanktabellen erzeugt
-- Schema-Erweiterungen nachgezogen
 - eine Default-Organisation angelegt
-- ein Bootstrap-Admin erzeugt
-- Provider-Definitionen und Standard-Provider-Apps angelegt
+- ein Bootstrap-Admin erzeugt (sofern konfiguriert)
+- vordefinierte V2-Integrationen und -Instanzen angelegt (`ensure_default_integrations` in `default_integrations.py`), falls noch nicht vorhanden
 
-Vordefinierte Seed-Objekte:
+Vordefinierte Integrationen (stabile IDs, pro Default-Organisation):
 
-- `miro`
-- `microsoft`
-- `miro-default`
-- `microsoft-broker-default`
-- `microsoft-graph-default`
+- **Miro MCP** (`Integration` `mcp_server`, MCP aktiv): Upstream-Endpoint aus `MIRO_*` / `miro_mcp_base`, Instanz mit Upstream-Auth `oauth` (Nutzer-Token an den MCP).
+- **Microsoft Graph** (`Integration` `oauth_provider`, MCP nicht aktiv): OAuth-Metadaten (Authorize/Token-URL aus Broker-Einstellungen) und Graph-Basis-URL; Instanz mit `oauth` fuer Ressourcen-Zugriff ueber Nutzer-Token — kein MCP-`discover_tools` bis ein MCP-faehiger Endpoint angebunden wird.
 
 ## Authentifizierung und Sessions
 

@@ -1,8 +1,13 @@
 import unittest
 
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
+from app.database import engine
+from app.default_integrations import INTEGRATION_GRAPH_DEFAULT_ID, INTEGRATION_MIRO_DEFAULT_ID
 from app.main import app
+from app.models import Integration
+from app.seed import init_db
 
 
 class TestSmoke(unittest.TestCase):
@@ -34,6 +39,18 @@ class TestSmoke(unittest.TestCase):
         with TestClient(app) as client:
             response = client.post("/api/v1/access-grants/validate", json={"token": "bkr_invalid"})
             self.assertEqual(response.status_code, 401)
+
+    def test_seed_creates_default_integrations(self) -> None:
+        init_db()
+        with Session(engine) as db:
+            miro = db.get(Integration, INTEGRATION_MIRO_DEFAULT_ID)
+            graph = db.get(Integration, INTEGRATION_GRAPH_DEFAULT_ID)
+        self.assertIsNotNone(miro)
+        self.assertIsNotNone(graph)
+        self.assertEqual(miro.type, "mcp_server")
+        self.assertTrue(miro.mcp_enabled)
+        self.assertEqual(graph.type, "oauth_provider")
+        self.assertFalse(graph.mcp_enabled)
 
 
 if __name__ == "__main__":

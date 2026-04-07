@@ -1,3 +1,17 @@
+## 2026-04-07 – Cursor Agent – Default-Integrationen Miro + Graph (V2-Seed)
+
+- Done:
+  - `backend/app/default_integrations.py`: idempotente Vorlagen **Miro MCP** (`mcp_server`, Endpoint unter `miro_mcp_base`, OAuth-Instanz) und **Microsoft Graph** (`oauth_provider`, OAuth-URLs aus Settings, `mcp_enabled` false).
+  - `seed.py`: `ensure_default_integrations` nach Bootstrap-User.
+  - Tests: `test_seed_creates_default_integrations`; Doku `docs/technische-referenz.md`, `docs/CHANGELOG.md`.
+- Next: optional UI-Kennzeichnung `template_key` in der Integrationsliste.
+- Blockers: keine
+- Branch/PR: branch `codex/hard-refactor-integration-model`, PR none
+- Files touched: `backend/app/default_integrations.py`, `backend/app/seed.py`, `backend/test_smoke.py`, `docs/CHANGELOG.md`, `docs/technische-referenz.md`, `planning/coordination/WORKLOG.md`
+- Test notes: `PYTHONPATH=backend python3 -m unittest backend.test_smoke -v`
+- Changelog updated: yes (Unreleased Added)
+- Follow-ups: Graph-REST-Executor falls gewünscht (aktuell kein MCP-Upstream)
+
 ## 2026-04-07 – Cursor Agent – AccessGrant / Consumer Access (Domain-Fix)
 
 - Done:

@@ -11,6 +11,7 @@
 - Frontend-Seite `Integrations V2` mit 3-Schritt-Flow (Typ → Auth-Mode → Konfiguration) und Navigation unter `/workspace/integrations-v2`.
 - AccessGrant (Broker-Access-Keys, Speicher nur als Hash und Prefix): Tabellen `access_grants`, `user_connections`; API `GET/POST /api/v1/access-grants`, `POST /api/v1/access-grants/validate`, `POST /api/v1/access-grants/{id}/revoke`; Consumer-Pfade `POST /api/v1/consumer/integration-instances/{id}/execute` und `.../discover-tools` mit `X-Broker-Access-Key` oder `Authorization: Bearer bkr_...` (getrennt von Upstream-Auth). Frontend: `/workspace/broker-access`.
 - `execution_engine_v2.enforce_consumer_tool_policy` verbindet IntegrationTool-Policy und optionale Grant-Tool-Liste.
+- Seed: `default_integrations.py` legt je Default-Organisation **Miro MCP** (`mcp_server` + OAuth-Instanz, Endpoint `…/mcp` unter `miro_mcp_base`) und **Microsoft Graph** (`oauth_provider`, Graph-OAuth-Metadaten, ohne MCP-Flag) an; idempotent mit festen Primärschlüsseln.
 
 ### Changed
 

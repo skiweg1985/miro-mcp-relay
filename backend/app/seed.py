@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.database import Base, engine
+from app.default_integrations import ensure_default_integrations
 from app.models import Organization, User
 from app.security import hash_secret
 
@@ -31,5 +32,8 @@ def init_db() -> None:
                 is_active=True,
             )
             db.add(admin)
+            db.flush()
+
+        ensure_default_integrations(db, org.id, admin.id if admin else None)
 
         db.commit()

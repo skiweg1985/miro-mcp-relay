@@ -2289,3 +2289,16 @@
   - endpoints: `POST /api/v1/consumer/integration-instances/{id}/mcp` (Streaming)
 - Changelog updated: yes ([Unreleased] Fixed)
 - Follow-ups: keine
+
+## 2026-04-07 – Cursor Agent – debug-mcp-consumer-relay script
+
+- Done:
+  - `scripts/debug-mcp-consumer-relay.py`: Health, `mcp-connection-info`, JSON-RPC initialize / notifications/initialized / tools/list gegen Consumer-MCP-Relay; httpx; `.env` optional; `--insecure` für lokales HTTPS; Maskierung des Keys in der Ausgabe.
+  - `docs/CHANGELOG.md` [Unreleased] Added, `AGENTS.md` Practical Verification.
+- Next: keine
+- Blockers: keine
+- Branch/PR: branch lokal, PR none
+- Files touched: `scripts/debug-mcp-consumer-relay.py`, `docs/CHANGELOG.md`, `AGENTS.md`, `planning/coordination/WORKLOG.md`
+- Test notes: `python3 -m py_compile scripts/debug-mcp-consumer-relay.py`
+- Changelog updated: yes ([Unreleased] Added)
+- Follow-ups: keine

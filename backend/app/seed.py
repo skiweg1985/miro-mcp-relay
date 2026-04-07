@@ -13,6 +13,9 @@ from app.security import hash_secret
 def reconcile_schema() -> None:
     from sqlalchemy import inspect, text
 
+    # SQLite uses DATETIME; PostgreSQL has no DATETIME type (use TIMESTAMP).
+    dt_sql = "TIMESTAMP" if engine.dialect.name == "postgresql" else "DATETIME"
+
     insp = inspect(engine)
     if insp.has_table("integrations"):
         cols = {c["name"] for c in insp.get_columns("integrations")}
@@ -21,17 +24,17 @@ def reconcile_schema() -> None:
                 conn.execute(text("ALTER TABLE integrations ADD COLUMN oauth_client_secret_encrypted TEXT"))
         if "deleted_at" not in cols:
             with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE integrations ADD COLUMN deleted_at DATETIME"))
+                conn.execute(text(f"ALTER TABLE integrations ADD COLUMN deleted_at {dt_sql}"))
     if insp.has_table("integration_instances"):
         cols_i = {c["name"] for c in insp.get_columns("integration_instances")}
         if "deleted_at" not in cols_i:
             with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE integration_instances ADD COLUMN deleted_at DATETIME"))
+                conn.execute(text(f"ALTER TABLE integration_instances ADD COLUMN deleted_at {dt_sql}"))
     if insp.has_table("access_grants"):
         cols_g = {c["name"] for c in insp.get_columns("access_grants")}
         if "invalidated_at" not in cols_g:
             with engine.begin() as conn:
-                conn.execute(text("ALTER TABLE access_grants ADD COLUMN invalidated_at DATETIME"))
+                conn.execute(text(f"ALTER TABLE access_grants ADD COLUMN invalidated_at {dt_sql}"))
     if not insp.has_table("user_connections"):
         return
     cols = {c["name"] for c in insp.get_columns("user_connections")}

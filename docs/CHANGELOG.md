@@ -16,6 +16,8 @@
 
 ### Fixed
 
+- `seed.reconcile_schema`: Zeitstempel-Spalten (`deleted_at`, `invalidated_at`) für PostgreSQL als `TIMESTAMP` statt `DATETIME` (SQLite-Syntax verursachte Startfehler unter Docker/Postgres).
+
 - Miro MCP Integration-OAuth: Default `oauth_token_endpoint` ist `{miro_mcp_base}/token` (MCP-Authorization-Server), nicht `https://api.miro.com/v1/oauth/token`; behebt 401 „Client not found“ bei Token-Austausch nach DCR. `reconcile_miro_default_integration_token_endpoint` setzt bei bestehender Default-Integration fehlende oder frühere REST-Token-URL auf die MCP-Token-URL; Fallback in `integration_oauth` nutzt `{miro_mcp_base}/token`.
 
 ### Changed

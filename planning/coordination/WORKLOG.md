@@ -1,3 +1,16 @@
+## 2026-04-07 – Cursor Agent – reconcile_schema PostgreSQL TIMESTAMP
+
+- Done:
+  - `backend/app/seed.py`: `reconcile_schema` setzt `deleted_at` / `invalidated_at` dialectabhängig (`TIMESTAMP` für PostgreSQL, `DATETIME` für SQLite).
+  - `docs/CHANGELOG.md` [Unreleased] Fixed.
+- Next: keine
+- Blockers: keine
+- Branch/PR: branch lokal, PR none
+- Files touched: `backend/app/seed.py`, `docs/CHANGELOG.md`, `planning/coordination/WORKLOG.md`
+- Test notes: `python3 -m py_compile backend/app/seed.py`
+- Changelog updated: yes (Unreleased Fixed)
+- Follow-ups: keine
+
 ## 2026-04-07 – Cursor Agent – Destructive actions & Access-Grant-Lifecycle
 
 - Done:

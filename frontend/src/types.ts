@@ -57,6 +57,7 @@ export type Health = {
 export type BrokerCallbackUrls = {
   ok: boolean;
   microsoft_login: string;
+  integration_oauth: string;
   microsoft_graph: string;
   miro: string;
   custom_oauth: string;
@@ -70,6 +71,8 @@ export type IntegrationV2Out = {
   mcp_enabled: boolean;
   created_at: string;
   updated_at: string;
+  oauth_client_secret_configured?: boolean;
+  integration_oauth_callback_url?: string;
 };
 
 export type IntegrationInstanceV2Out = {

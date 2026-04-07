@@ -4,6 +4,17 @@
 
 ### Added
 
+- Microsoft Graph (Integration): optionale eigene Entra-App über `PATCH /api/v1/integrations/{id}` (Admin, CSRF): `config_json` mit `graph_oauth_use_broker_defaults`, `graph_oauth_authority_base`, `graph_oauth_tenant_id`, `graph_oauth_client_id`, `graph_oauth_scope`; Body-Feld `graph_oauth_client_secret` speichert verschlüsselt in `integrations.oauth_client_secret_encrypted`. Resolver `resolve_microsoft_oauth_for_graph_integration`. `IntegrationOut`: `oauth_client_secret_configured`, `integration_oauth_callback_url`.
+- Miro MCP: OAuth mit dynamischer Client-Registrierung am `oauth_registration_endpoint` (Default `…/register` unter `miro_mcp_base`), PKCE; DCR-Credentials pro Nutzer/Instanz in `user_connections.oauth_dcr_client_id` / `oauth_dcr_client_secret_encrypted`; Default `oauth_authorization_endpoint` unter `miro_mcp_base`; weiterhin statische `MIRO_OAUTH_*` oder `oauth_client_id`/`oauth_client_secret` in Config/Env.
+- `GET /api/v1/broker-callback-urls`: Feld `integration_oauth` (Redirect-URI für Integration-OAuth-Connect); `microsoft_graph` und `miro` zeigen denselben Pfad.
+
+### Changed
+
+- `seed.reconcile_schema`: SQLite-Spalten `integrations.oauth_client_secret_encrypted`, `user_connections.oauth_dcr_*`.
+- Default-Integration Miro: `oauth_dynamic_client_registration_enabled`, Authorize unter MCP-Basis statt nur `miro.com`.
+
+### Added
+
 - Microsoft-Enduser-Login: Tabelle `microsoft_oauth_settings` (org-bezogen, verschlüsseltes Client-Secret); Resolver wählt vollständige DB-Konfiguration vor Umgebungsvariablen `MICROSOFT_BROKER_*`. Admin-API `GET/PUT /api/v1/admin/microsoft-oauth` (Admin-Session, `PUT` mit `X-CSRF-Token`). Frontend: Workspace-Route `/workspace/admin/microsoft-oauth` (nur `is_admin`), Navigation „Microsoft sign-in“.
 - V2-Integrationsplattform: neue Datenmodelle `Integration`, `IntegrationInstance`, `IntegrationTool` mit Trennung von Integrationstyp, Authentisierung und Zugriffskanal.
 - Neue API-Routen unter `/api/v1`: `GET/POST /integrations`, `GET/POST /integration-instances`, `POST /integration-instances/{id}/execute`, `POST /integration-instances/{id}/discover-tools`.

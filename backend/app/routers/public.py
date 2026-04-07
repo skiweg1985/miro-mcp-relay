@@ -21,11 +21,13 @@ def broker_callback_urls():
     settings = get_settings()
     base = settings.broker_public_base_url.rstrip("/")
     api = settings.api_v1_prefix
+    integration_cb = f"{base}{api}/integration-instances/oauth/callback"
     return BrokerCallbackUrlsOut(
         microsoft_login=f"{base}{api}/auth/microsoft/callback",
-        microsoft_graph="",
-        miro="",
-        custom_oauth="",
+        integration_oauth=integration_cb,
+        microsoft_graph=integration_cb,
+        miro=integration_cb,
+        custom_oauth=integration_cb,
     )
 
 

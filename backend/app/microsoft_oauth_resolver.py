@@ -6,8 +6,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
-from app.models import MicrosoftOAuthSettings, Organization
-from app.security import decrypt_text
+from app.models import Integration, MicrosoftOAuthSettings, Organization
+from app.security import decrypt_text, loads_json
 
 
 @dataclass(frozen=True)
@@ -79,6 +79,41 @@ def resolve_microsoft_oauth(db: Session, settings: Settings) -> ResolvedMicrosof
         )
 
     return _from_env(settings)
+
+
+GRAPH_TEMPLATE_KEY = "microsoft_graph_default"
+
+
+def resolve_microsoft_oauth_for_graph_integration(
+    db: Session,
+    integration: Integration,
+    settings: Settings,
+) -> ResolvedMicrosoftOAuth | None:
+    """Broker defaults vs. custom Entra app for the Microsoft Graph integration template."""
+    cfg = loads_json(integration.config_json, {})
+    if str(cfg.get("template_key") or "") != GRAPH_TEMPLATE_KEY:
+        return resolve_microsoft_oauth(db, settings)
+    if cfg.get("graph_oauth_use_broker_defaults", True) is not False:
+        return resolve_microsoft_oauth(db, settings)
+    authority = str(cfg.get("graph_oauth_authority_base") or "").strip() or settings.microsoft_broker_authority_base
+    tenant = str(cfg.get("graph_oauth_tenant_id") or "").strip() or settings.microsoft_broker_tenant_id
+    cid = str(cfg.get("graph_oauth_client_id") or "").strip()
+    if not cid:
+        return None
+    if not integration.oauth_client_secret_encrypted:
+        return None
+    secret_plain = decrypt_text(integration.oauth_client_secret_encrypted)
+    if not secret_plain or not str(secret_plain).strip():
+        return None
+    scope_raw = str(cfg.get("graph_oauth_scope") or "").strip() or settings.microsoft_broker_scope
+    scope_list = _scope_list_from_string(scope_raw)
+    return ResolvedMicrosoftOAuth(
+        authority_base=authority,
+        tenant_id=tenant,
+        client_id=cid,
+        client_secret=str(secret_plain).strip(),
+        scope_list=scope_list,
+    )
 
 
 def effective_microsoft_oauth_source(db: Session, settings: Settings) -> str:

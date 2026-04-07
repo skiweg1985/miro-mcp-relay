@@ -14,12 +14,23 @@ def reconcile_schema() -> None:
     from sqlalchemy import inspect, text
 
     insp = inspect(engine)
+    if insp.has_table("integrations"):
+        cols = {c["name"] for c in insp.get_columns("integrations")}
+        if "oauth_client_secret_encrypted" not in cols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE integrations ADD COLUMN oauth_client_secret_encrypted TEXT"))
     if not insp.has_table("user_connections"):
         return
     cols = {c["name"] for c in insp.get_columns("user_connections")}
     if "oauth_refresh_token_encrypted" not in cols:
         with engine.begin() as conn:
             conn.execute(text("ALTER TABLE user_connections ADD COLUMN oauth_refresh_token_encrypted TEXT"))
+    if "oauth_dcr_client_id" not in cols:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE user_connections ADD COLUMN oauth_dcr_client_id VARCHAR(512)"))
+    if "oauth_dcr_client_secret_encrypted" not in cols:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE user_connections ADD COLUMN oauth_dcr_client_secret_encrypted TEXT"))
 
 
 def init_db() -> None:

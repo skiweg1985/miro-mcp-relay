@@ -29,6 +29,18 @@ export function IntegrationsV2Page() {
   const [selectedIntegrationId, setSelectedIntegrationId] = useState("");
   const [busy, setBusy] = useState(false);
 
+  const graphIntegration = useMemo(
+    () => integrations.find((i) => i.config?.template_key === "microsoft_graph_default"),
+    [integrations],
+  );
+  const [graphBrokerDefaults, setGraphBrokerDefaults] = useState(true);
+  const [graphAuthority, setGraphAuthority] = useState("");
+  const [graphTenant, setGraphTenant] = useState("");
+  const [graphClientId, setGraphClientId] = useState("");
+  const [graphScope, setGraphScope] = useState("");
+  const [graphSecret, setGraphSecret] = useState("");
+  const [graphClearSecret, setGraphClearSecret] = useState(false);
+
   const authModeOptions = useMemo(() => {
     if (step1Type === "oauth_provider") {
       return [{ value: "oauth", label: "oauth" }];
@@ -53,6 +65,18 @@ export function IntegrationsV2Page() {
       setSelectedIntegrationId(i[0].id);
     }
   };
+
+  useEffect(() => {
+    if (!graphIntegration) return;
+    const c = graphIntegration.config;
+    setGraphBrokerDefaults(c.graph_oauth_use_broker_defaults !== false);
+    setGraphAuthority(typeof c.graph_oauth_authority_base === "string" ? c.graph_oauth_authority_base : "");
+    setGraphTenant(typeof c.graph_oauth_tenant_id === "string" ? c.graph_oauth_tenant_id : "");
+    setGraphClientId(typeof c.graph_oauth_client_id === "string" ? c.graph_oauth_client_id : "");
+    setGraphScope(typeof c.graph_oauth_scope === "string" ? c.graph_oauth_scope : "");
+    setGraphSecret("");
+    setGraphClearSecret(false);
+  }, [graphIntegration]);
 
   useEffect(() => {
     if (session.status !== "authenticated") return;
@@ -164,6 +188,37 @@ export function IntegrationsV2Page() {
         title: "OAuth-Start fehlgeschlagen",
         description: isApiError(error) ? error.message : "Unbekannter Fehler",
       });
+    }
+  };
+
+  const saveGraphOAuth = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (session.status !== "authenticated" || !isAdmin || !graphIntegration) return;
+    setBusy(true);
+    try {
+      await api.patchIntegrationV2(session.csrfToken, graphIntegration.id, {
+        config: {
+          graph_oauth_use_broker_defaults: graphBrokerDefaults,
+          graph_oauth_authority_base: graphAuthority.trim(),
+          graph_oauth_tenant_id: graphTenant.trim(),
+          graph_oauth_client_id: graphClientId.trim(),
+          graph_oauth_scope: graphScope.trim(),
+        },
+        clear_graph_oauth_client_secret: graphClearSecret,
+        ...(graphSecret.trim() ? { graph_oauth_client_secret: graphSecret.trim() } : {}),
+      });
+      await load();
+      setGraphSecret("");
+      setGraphClearSecret(false);
+      notify({ tone: "success", title: "Graph-OAuth gespeichert" });
+    } catch (error) {
+      notify({
+        tone: "error",
+        title: "Speichern fehlgeschlagen",
+        description: isApiError(error) ? error.message : "Unbekannter Fehler",
+      });
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -280,6 +335,80 @@ export function IntegrationsV2Page() {
           </div>
         </form>
       </Card>
+      ) : null}
+
+      {isAdmin && graphIntegration ? (
+        <Card title="Microsoft Graph OAuth">
+          <form className="stack-form" onSubmit={saveGraphOAuth}>
+            <p className="muted">
+              Redirect-URI (Entra): {graphIntegration.integration_oauth_callback_url || "—"}
+            </p>
+            <div className="form-grid">
+              <Field label="Broker-Standards">
+                <div className="lede">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={graphBrokerDefaults}
+                      onChange={(event) => setGraphBrokerDefaults(event.target.checked)}
+                    />{" "}
+                    gleiche Entra-App wie Broker-Login
+                  </label>
+                </div>
+              </Field>
+              {!graphBrokerDefaults ? (
+                <>
+                  <Field label="Authority (Basis-URL)">
+                    <input
+                      value={graphAuthority}
+                      onChange={(event) => setGraphAuthority(event.target.value)}
+                      placeholder="https://login.microsoftonline.com"
+                    />
+                  </Field>
+                  <Field label="Verzeichnis-Mandanten-ID">
+                    <input value={graphTenant} onChange={(event) => setGraphTenant(event.target.value)} placeholder="common" />
+                  </Field>
+                  <Field label="Client-ID">
+                    <input value={graphClientId} onChange={(event) => setGraphClientId(event.target.value)} />
+                  </Field>
+                  <Field label="Berechtigungen (Scopes)">
+                    <input value={graphScope} onChange={(event) => setGraphScope(event.target.value)} />
+                  </Field>
+                  <Field label="Client-Geheimnis">
+                    <input
+                      type="password"
+                      autoComplete="new-password"
+                      value={graphSecret}
+                      onChange={(event) => {
+                        setGraphSecret(event.target.value);
+                        setGraphClearSecret(false);
+                      }}
+                      placeholder={graphIntegration.oauth_client_secret_configured ? "••••••••" : ""}
+                    />
+                  </Field>
+                  <div className="lede">
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={graphClearSecret}
+                        onChange={(event) => {
+                          setGraphClearSecret(event.target.checked);
+                          if (event.target.checked) setGraphSecret("");
+                        }}
+                      />{" "}
+                      gespeichertes Client-Geheimnis entfernen
+                    </label>
+                  </div>
+                </>
+              ) : null}
+            </div>
+            <div className="modal-form-actions">
+              <button type="submit" className="primary-button" disabled={busy}>
+                Speichern
+              </button>
+            </div>
+          </form>
+        </Card>
       ) : null}
 
       <Card title="Bestehende Instanzen">

@@ -17,10 +17,16 @@ from app.core.config import get_settings
 from app.database import get_db
 from app.deps import get_current_user, require_csrf
 from app.models import AuthMode, Integration, IntegrationInstance, User, UserConnection, UserConnectionStatus
-from app.microsoft_oauth_resolver import microsoft_authorize_url, microsoft_token_url, resolve_microsoft_oauth
+from app.microsoft_oauth_resolver import (
+    ResolvedMicrosoftOAuth,
+    microsoft_authorize_url,
+    microsoft_token_url,
+    resolve_microsoft_oauth_for_graph_integration,
+)
+from app.oauth_dcr import register_oauth_client_at_endpoint
 from app.oauth_pending_store import put_oauth_pending, pop_oauth_pending_payload
 from app.schemas import AuthFlowStartResponse
-from app.security import encrypt_text, loads_json
+from app.security import decrypt_text, encrypt_text, loads_json
 
 router = APIRouter(tags=["integration-oauth"])
 
@@ -59,6 +65,15 @@ def _redirect_workspace(*, ok: bool, message: str | None = None) -> RedirectResp
     return RedirectResponse(f"{base}?connection_status=error&message={msg}", status_code=302)
 
 
+def _graph_scope_for_authorize(cfg: dict, resolved: ResolvedMicrosoftOAuth) -> str:
+    if cfg.get("graph_oauth_use_broker_defaults", True) is not False:
+        return _graph_scope_string(cfg)
+    parts = list(resolved.scope_list) if resolved.scope_list else []
+    if not parts:
+        return _graph_scope_string(cfg)
+    return " ".join(parts)
+
+
 def _graph_scope_string(cfg: dict) -> str:
     raw = cfg.get("default_scopes")
     parts: list[str] = ["openid", "offline_access"]
@@ -75,11 +90,101 @@ def _graph_scope_string(cfg: dict) -> str:
     return " ".join(out)
 
 
-def _miro_client_credentials(cfg: dict) -> tuple[str, str]:
+def _miro_static_client_credentials(cfg: dict) -> tuple[str, str]:
     settings = get_settings()
     cid = str(cfg.get("oauth_client_id") or settings.miro_oauth_client_id or "").strip()
     sec = str(cfg.get("oauth_client_secret") or settings.miro_oauth_client_secret or "").strip()
     return cid, sec
+
+
+def _get_or_create_user_connection_row(
+    db: Session,
+    *,
+    organization_id: str,
+    user_id: str,
+    instance_id: str,
+) -> UserConnection:
+    row = db.scalar(
+        select(UserConnection).where(
+            UserConnection.user_id == user_id,
+            UserConnection.integration_instance_id == instance_id,
+        )
+    )
+    if not row:
+        row = UserConnection(
+            organization_id=organization_id,
+            user_id=user_id,
+            integration_instance_id=instance_id,
+        )
+        db.add(row)
+        db.flush()
+    return row
+
+
+def _ensure_miro_oauth_client_credentials(
+    db: Session,
+    *,
+    current_user: User,
+    instance: IntegrationInstance,
+    cfg: dict,
+    settings,
+    redirect_uri: str,
+) -> tuple[str, str]:
+    dcr_enabled = cfg.get("oauth_dynamic_client_registration_enabled", True) is not False
+    static_id, static_sec = _miro_static_client_credentials(cfg)
+    if static_id and static_sec:
+        return static_id, static_sec
+    if not dcr_enabled:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="miro_oauth_not_configured")
+    conn = _get_or_create_user_connection_row(
+        db,
+        organization_id=current_user.organization_id,
+        user_id=current_user.id,
+        instance_id=instance.id,
+    )
+    reg_url = str(cfg.get("oauth_registration_endpoint") or f"{settings.miro_mcp_base.rstrip('/')}/register").strip()
+    if not conn.oauth_dcr_client_id or not conn.oauth_dcr_client_secret_encrypted:
+        try:
+            cid, sec = register_oauth_client_at_endpoint(
+                registration_url=reg_url,
+                redirect_uri=redirect_uri,
+                client_name=f"broker-miro-{current_user.id[:12]}",
+            )
+        except Exception:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="miro_oauth_registration_failed")
+        conn.oauth_dcr_client_id = cid
+        conn.oauth_dcr_client_secret_encrypted = encrypt_text(sec)
+        db.add(conn)
+        db.flush()
+    secret_plain = decrypt_text(conn.oauth_dcr_client_secret_encrypted)
+    if not conn.oauth_dcr_client_id or not secret_plain or not str(secret_plain).strip():
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="miro_oauth_not_configured")
+    return conn.oauth_dcr_client_id, str(secret_plain).strip()
+
+
+def _miro_resolve_client_for_token_exchange(
+    db: Session,
+    *,
+    user: User,
+    instance: IntegrationInstance,
+    cfg: dict,
+    settings,
+) -> tuple[str, str] | tuple[None, None]:
+    static_id, static_sec = _miro_static_client_credentials(cfg)
+    if static_id and static_sec:
+        return static_id, static_sec
+    conn = db.scalar(
+        select(UserConnection).where(
+            UserConnection.user_id == user.id,
+            UserConnection.integration_instance_id == instance.id,
+        )
+    )
+    if not conn or not conn.oauth_dcr_client_id or not conn.oauth_dcr_client_secret_encrypted:
+        return None, None
+    sec = decrypt_text(conn.oauth_dcr_client_secret_encrypted)
+    if not sec or not str(sec).strip():
+        return None, None
+    return conn.oauth_dcr_client_id, str(sec).strip()
 
 
 def _upsert_user_connection(
@@ -139,12 +244,12 @@ def start_integration_oauth(
     redirect_uri = integration_oauth_redirect_uri()
 
     if template == TEMPLATE_GRAPH:
-        resolved = resolve_microsoft_oauth(db, settings)
+        resolved = resolve_microsoft_oauth_for_graph_integration(db, integration, settings)
         if not resolved:
             raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="microsoft_oauth_not_configured")
         verifier, challenge = _make_pkce()
         state = _make_state()
-        scope_str = _graph_scope_string(cfg)
+        scope_str = _graph_scope_for_authorize(cfg, resolved)
         put_oauth_pending(
             db,
             state,
@@ -171,11 +276,21 @@ def start_integration_oauth(
         return AuthFlowStartResponse(auth_url=f"{auth_base}?{httpx.QueryParams(params)}", state=state)
 
     if template == TEMPLATE_MIRO:
-        client_id, client_secret = _miro_client_credentials(cfg)
-        if not client_id or not client_secret:
-            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="miro_oauth_not_configured")
-        auth_ep = str(cfg.get("oauth_authorization_endpoint") or "https://miro.com/oauth/authorize").strip()
+        client_id, _client_secret_unused = _ensure_miro_oauth_client_credentials(
+            db,
+            current_user=current_user,
+            instance=instance,
+            cfg=cfg,
+            settings=settings,
+            redirect_uri=redirect_uri,
+        )
+        verifier, challenge = _make_pkce()
         state = _make_state()
+        scope_parts = cfg.get("oauth_scope")
+        if isinstance(scope_parts, list) and scope_parts:
+            scope_str = " ".join(str(x).strip() for x in scope_parts if str(x).strip())
+        else:
+            scope_str = " ".join(settings.miro_scope_list)
         put_oauth_pending(
             db,
             state,
@@ -184,13 +299,20 @@ def start_integration_oauth(
                 "kind": KIND_MIRO,
                 "user_id": current_user.id,
                 "instance_id": instance.id,
+                "verifier": verifier,
+                "miro_use_pkce": True,
             },
         )
+        mcp_base = settings.miro_mcp_base.rstrip("/")
+        auth_ep = str(cfg.get("oauth_authorization_endpoint") or f"{mcp_base}/authorize").strip()
         params = {
             "client_id": client_id,
             "response_type": "code",
             "redirect_uri": redirect_uri,
             "state": state,
+            "scope": scope_str,
+            "code_challenge": challenge,
+            "code_challenge_method": "S256",
         }
         db.commit()
         return AuthFlowStartResponse(auth_url=f"{auth_ep}?{httpx.QueryParams(params)}", state=state)
@@ -239,7 +361,7 @@ async def integration_oauth_callback(
 
     try:
         if kind == KIND_MICROSOFT_GRAPH:
-            resolved = resolve_microsoft_oauth(db, settings)
+            resolved = resolve_microsoft_oauth_for_graph_integration(db, integration, settings)
             if not resolved:
                 db.commit()
                 return _redirect_workspace(ok=False, message="microsoft_oauth_not_configured")
@@ -269,21 +391,31 @@ async def integration_oauth_callback(
                 return _redirect_workspace(ok=False, message="missing_access_token")
 
         else:
-            client_id, client_secret = _miro_client_credentials(cfg)
+            client_id, client_secret = _miro_resolve_client_for_token_exchange(
+                db,
+                user=user,
+                instance=instance,
+                cfg=cfg,
+                settings=settings,
+            )
             token_ep = str(cfg.get("oauth_token_endpoint") or "https://api.miro.com/v1/oauth/token").strip()
             if not client_id or not client_secret:
                 db.commit()
                 return _redirect_workspace(ok=False, message="miro_oauth_not_configured")
+            verifier = str(raw.get("verifier") or "") if raw.get("miro_use_pkce") else ""
+            token_body: dict[str, str] = {
+                "grant_type": "authorization_code",
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "code": code,
+                "redirect_uri": redirect_uri,
+            }
+            if verifier:
+                token_body["code_verifier"] = verifier
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(
                     token_ep,
-                    data={
-                        "grant_type": "authorization_code",
-                        "client_id": client_id,
-                        "client_secret": client_secret,
-                        "code": code,
-                        "redirect_uri": redirect_uri,
-                    },
+                    data=token_body,
                     headers={"Content-Type": "application/x-www-form-urlencoded"},
                 )
             if response.status_code >= 400:
@@ -335,6 +467,8 @@ def disconnect_integration_oauth(
     if conn:
         conn.oauth_access_token_encrypted = None
         conn.oauth_refresh_token_encrypted = None
+        conn.oauth_dcr_client_id = None
+        conn.oauth_dcr_client_secret_encrypted = None
         conn.status = UserConnectionStatus.DISCONNECTED.value
         db.add(conn)
     db.commit()

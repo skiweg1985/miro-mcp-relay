@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.database import get_db
 from app.deps import get_current_user, require_admin, require_csrf
 from app.execution_engine_v2 import execute_instance_action
@@ -24,14 +25,17 @@ from app.schemas import (
     IntegrationInstanceOut,
     IntegrationOut,
     IntegrationToolOut,
+    IntegrationUpdate,
 )
-from app.security import dumps_json, loads_json
+from app.security import dumps_json, encrypt_text, loads_json
 from app.upstream_oauth import get_upstream_oauth_token_for_session, user_has_oauth_connection
 
 router = APIRouter(tags=["integrations-v2"])
 
 
 def _integration_out(item: Integration) -> IntegrationOut:
+    settings = get_settings()
+    callback = f"{settings.broker_public_base_url.rstrip('/')}{settings.api_v1_prefix}/integration-instances/oauth/callback"
     return IntegrationOut(
         id=item.id,
         name=item.name,
@@ -40,6 +44,8 @@ def _integration_out(item: Integration) -> IntegrationOut:
         mcp_enabled=item.mcp_enabled,
         created_at=item.created_at,
         updated_at=item.updated_at,
+        oauth_client_secret_configured=bool(item.oauth_client_secret_encrypted),
+        integration_oauth_callback_url=callback,
     )
 
 
@@ -92,6 +98,39 @@ def list_integrations(db: Session = Depends(get_db), current_user: User = Depend
         select(Integration).where(Integration.organization_id == current_user.organization_id).order_by(Integration.name.asc())
     ).all()
     return [_integration_out(row) for row in rows]
+
+
+@router.patch("/integrations/{integration_id}", response_model=IntegrationOut)
+def patch_integration(
+    integration_id: str,
+    payload: IntegrationUpdate = Body(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+    _csrf: str = Depends(require_csrf),
+):
+    row = db.scalar(
+        select(Integration).where(
+            Integration.id == integration_id,
+            Integration.organization_id == current_user.organization_id,
+        )
+    )
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="integration_not_found")
+    if payload.config is not None:
+        base_cfg = loads_json(row.config_json, {})
+        merged = {**base_cfg, **payload.config}
+        row.config_json = dumps_json(merged)
+    if payload.clear_graph_oauth_client_secret:
+        row.oauth_client_secret_encrypted = None
+    elif payload.graph_oauth_client_secret is not None:
+        secret_raw = str(payload.graph_oauth_client_secret).strip()
+        if secret_raw:
+            row.oauth_client_secret_encrypted = encrypt_text(secret_raw)
+        else:
+            row.oauth_client_secret_encrypted = None
+    db.commit()
+    db.refresh(row)
+    return _integration_out(row)
 
 
 @router.post("/integrations", response_model=IntegrationOut)

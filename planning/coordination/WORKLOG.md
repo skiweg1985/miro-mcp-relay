@@ -1,3 +1,19 @@
+## 2026-04-07 – Cursor Agent – Graph custom Entra + Miro DCR
+
+- Done:
+  - `resolve_microsoft_oauth_for_graph_integration`; `integration_oauth` Graph-Start/Callback; Miro DCR (`oauth_dcr.py`, `user_connections.oauth_dcr_*`), PKCE, statischer OAuth-Client optional; Disconnect leert DCR-Felder.
+  - `PATCH /api/v1/integrations/{id}`; `IntegrationOut` mit Callback-URL und Secret-Flag; `broker-callback-urls` inkl. `integration_oauth`.
+  - `seed.reconcile_schema` für neue Spalten; Default-Integration Miro (`oauth_authorization_endpoint` unter MCP-Basis, DCR-Flag).
+  - Frontend: Graph-OAuth-Formular auf Integrations V2; `patchIntegrationV2`.
+  - `docs/CHANGELOG.md`, `docs/technische-referenz.md`.
+- Next: keine
+- Blockers: keine
+- Branch/PR: branch `codex/hard-refactor-integration-model`, PR none
+- Files touched: `backend/app/microsoft_oauth_resolver.py`, `backend/app/routers/integration_oauth.py`, `backend/app/routers/integrations_v2.py`, `backend/app/routers/public.py`, `backend/app/schemas.py`, `backend/app/seed.py`, `backend/app/default_integrations.py`, `frontend/src/IntegrationsV2Page.tsx`, `frontend/src/api.ts`, `frontend/src/types.ts`, `docs/CHANGELOG.md`, `docs/technische-referenz.md`, `planning/coordination/WORKLOG.md`
+- Test notes: `PYTHONPATH=backend python3 -m unittest backend.test_smoke -v`, `cd frontend && npm run build`
+- Changelog updated: yes (Unreleased Added/Changed)
+- Follow-ups: bestehende DBs ohne Re-Seed: Miro-`config_json` manuell um DCR/Authorize-URL ergänzen oder neue Integration anlegen
+
 ## 2026-04-07 – Cursor Agent – User-OAuth Connect (Integration Instances)
 
 - Done:

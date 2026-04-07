@@ -25,9 +25,10 @@ def _miro_integration_config(settings: Settings) -> dict:
     base = settings.miro_mcp_base.rstrip("/")
     return {
         "template_key": "miro_default",
+        "oauth_dynamic_client_registration_enabled": True,
         "endpoint": f"{base}/mcp",
         "oauth_registration_endpoint": f"{base}/register",
-        "oauth_authorization_endpoint": "https://miro.com/oauth/authorize",
+        "oauth_authorization_endpoint": f"{base}/authorize",
         "oauth_token_endpoint": "https://api.miro.com/v1/oauth/token",
     }
 
@@ -35,6 +36,11 @@ def _miro_integration_config(settings: Settings) -> dict:
 def _graph_integration_config(settings: Settings) -> dict:
     return {
         "template_key": "microsoft_graph_default",
+        "graph_oauth_use_broker_defaults": True,
+        "graph_oauth_authority_base": settings.microsoft_broker_authority_base,
+        "graph_oauth_tenant_id": settings.microsoft_broker_tenant_id,
+        "graph_oauth_client_id": "",
+        "graph_oauth_scope": settings.microsoft_broker_scope,
         "graph_base_url": "https://graph.microsoft.com/v1.0",
         "oauth": {
             "authorization_endpoint": settings.microsoft_authorize_url,

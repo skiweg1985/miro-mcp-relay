@@ -44,6 +44,7 @@ class LoginOptionsResponse(BaseModel):
 class BrokerCallbackUrlsOut(BaseModel):
     ok: bool = True
     microsoft_login: str
+    integration_oauth: str
     microsoft_graph: str
     miro: str
     custom_oauth: str
@@ -64,6 +65,14 @@ class IntegrationOut(BaseModel):
     mcp_enabled: bool
     created_at: datetime
     updated_at: datetime
+    oauth_client_secret_configured: bool = False
+    integration_oauth_callback_url: str = ""
+
+
+class IntegrationUpdate(BaseModel):
+    config: dict[str, Any] | None = None
+    graph_oauth_client_secret: str | None = None
+    clear_graph_oauth_client_secret: bool = False
 
 
 class IntegrationInstanceCreate(BaseModel):

@@ -116,6 +116,13 @@ export const api = {
       body,
     });
   },
+  patchIntegrationV2(csrfToken: string, integrationId: string, body: Record<string, unknown>) {
+    return request<IntegrationV2Out>(`/api/v1/integrations/${encodeURIComponent(integrationId)}`, {
+      method: "PATCH",
+      csrfToken,
+      body,
+    });
+  },
   integrationInstancesV2() {
     return request<IntegrationInstanceV2Out[]>("/api/v1/integration-instances");
   },

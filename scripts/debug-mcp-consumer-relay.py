@@ -57,7 +57,9 @@ def _mask_secret(s: str) -> str:
 
 def _parse_mcp_body(body: bytes, content_type: str | None) -> Any:
     ct = (content_type or "").split(";")[0].strip().lower()
-    text = body.decode("utf-8", errors="replace")
+    text = body.decode("utf-8", errors="replace").strip()
+    if not text:
+        return {"_empty": True}
     if "text/event-stream" in ct:
         events: list[Any] = []
         for line in text.splitlines():
@@ -65,17 +67,53 @@ def _parse_mcp_body(body: bytes, content_type: str | None) -> Any:
             if not line.startswith("data:"):
                 continue
             payload = line[5:].strip()
-            if not payload:
+            if not payload or payload == "[DONE]":
                 continue
             try:
                 events.append(json.loads(payload))
             except json.JSONDecodeError:
                 events.append({"_unparsed": payload[:500]})
-        return {"_transport": "sse", "_events": events}
+        if events:
+            return {"_transport": "sse", "_events": events}
+        if text.startswith("{"):
+            try:
+                return json.loads(text)
+            except json.JSONDecodeError:
+                pass
+        return {"_transport": "sse", "_events": [], "_raw_preview": text[:4000]}
     try:
         return json.loads(text)
     except json.JSONDecodeError:
         return {"_raw_text": text[:8000]}
+
+
+def _tool_names_from_mcp_parsed(parsed: Any) -> list[str]:
+    """Extrahiert Tool-Namen aus JSON-RPC-Antwort oder SSE-Events."""
+    names: list[str] = []
+
+    def from_result_obj(res: Any) -> None:
+        if not isinstance(res, dict):
+            return
+        tools = res.get("tools")
+        if not isinstance(tools, list):
+            return
+        for t in tools:
+            if isinstance(t, dict):
+                n = t.get("name")
+                if n:
+                    names.append(str(n))
+
+    if isinstance(parsed, dict):
+        if parsed.get("_transport") == "sse":
+            for ev in parsed.get("_events") or []:
+                if isinstance(ev, dict) and "result" in ev:
+                    from_result_obj(ev.get("result"))
+                elif isinstance(ev, dict) and ev.get("error"):
+                    continue
+        else:
+            if "result" in parsed:
+                from_result_obj(parsed.get("result"))
+    return names
 
 
 def _session_from_headers(headers: httpx.Headers) -> str | None:
@@ -223,8 +261,18 @@ def main() -> int:
                     log(f"  event[{i}]: {json.dumps(ev, ensure_ascii=False)[:800]}")
                 if len(events) > 5:
                     log(f"  … ({len(events) - 5} weitere)")
+                if not events and parsed.get("_raw_preview"):
+                    log(f"  (kein data:-Frame, Rohanfang): {parsed['_raw_preview'][:500]}")
             else:
                 log(f"  body: {json.dumps(parsed, indent=2, ensure_ascii=False)[:12000]}")
+            if label == "tools/list":
+                tools_found = _tool_names_from_mcp_parsed(parsed)
+                if tools_found:
+                    log(f"  --- Tools ({len(tools_found)}) ---")
+                    for tn in tools_found:
+                        log(f"    · {tn}")
+                elif isinstance(parsed, dict) and not parsed.get("_empty"):
+                    log("  (keine Tool-Namen im geparsten Ergebnis — ggf. Rohformat prüfen)")
             log("")
             return code, resp_headers, parsed
 

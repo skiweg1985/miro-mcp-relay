@@ -20,6 +20,8 @@
 
 ### Fixed
 
+- Consumer-MCP-Relay: Upstream-`httpx.AsyncClient` wird pro Access-Grant wiederverwendet (Pool mit LRU, Shutdown schließt Clients). Streamable-HTTP-Ziele wie Miro MCP erwarten dieselbe TCP-Verbindung für `initialize` und Folge-POSTs (`tools/list` lieferte zuvor oft einen leeren Body). Hinweis: bei mehreren Uvicorn-Workern kann dieselbe Grant-ID auf verschiedene Prozesse fallen — dann ggf. `--workers 1` oder Sticky Routing.
+
 - Consumer-MCP-Relay: Bei abgebrochenem Upstream-Stream (`httpx.ReadError` beim Lesen der Antwort) wird eine Warnung geloggt und der Stream beendet — kein ASGI-Traceback mehr durch `StreamingResponse`-Passthrough.
 
 - `seed.reconcile_schema`: Zeitstempel-Spalten (`deleted_at`, `invalidated_at`) für PostgreSQL als `TIMESTAMP` statt `DATETIME` (SQLite-Syntax verursachte Startfehler unter Docker/Postgres).

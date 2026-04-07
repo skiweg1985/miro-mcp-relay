@@ -33,6 +33,12 @@ def create_app() -> FastAPI:
     def startup():
         init_db()
 
+    @app.on_event("shutdown")
+    async def shutdown():
+        from app.routers.consumer_mcp_relay import shutdown_relay_upstream_clients
+
+        await shutdown_relay_upstream_clients()
+
     app.include_router(public.router, prefix=settings.api_v1_prefix)
     app.include_router(auth.router, prefix=settings.api_v1_prefix)
     app.include_router(integrations_v2.router, prefix=settings.api_v1_prefix)

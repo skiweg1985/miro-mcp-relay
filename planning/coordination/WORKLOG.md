@@ -2302,3 +2302,19 @@
 - Test notes: `python3 -m py_compile scripts/debug-mcp-consumer-relay.py`
 - Changelog updated: yes ([Unreleased] Added)
 - Follow-ups: keine
+
+## 2026-04-07 – Cursor Agent – MCP relay upstream client reuse (tools/list)
+
+- Done:
+  - `consumer_mcp_relay.py`: `httpx.AsyncClient` pro Access-Grant gecacht (`OrderedDict`, LRU 256, `Limits(max_connections=1)`), `shutdown_relay_upstream_clients` für Prozessende.
+  - `main.py`: `shutdown`-Event schließt Relay-Clients.
+  - `mcp_relay_engine.py`: `import httpx` für `filter_upstream_response_headers`-Annotation.
+  - `debug-mcp-consumer-relay.py`: Tool-Namen nach `tools/list`, robustere SSE-/Body-Parsing-Hilfen.
+  - `docs/CHANGELOG.md` [Unreleased] Fixed.
+- Next: keine
+- Blockers: keine
+- Branch/PR: branch lokal, PR none
+- Files touched: `backend/app/routers/consumer_mcp_relay.py`, `backend/app/main.py`, `backend/app/mcp_relay_engine.py`, `scripts/debug-mcp-consumer-relay.py`, `docs/CHANGELOG.md`, `planning/coordination/WORKLOG.md`
+- Test notes: `docker compose build broker-backend`, recreate `broker-backend`, `scripts/debug-mcp-consumer-relay.py` gegen localhost — `tools/list` liefert u. a. 13 Miro-Tool-Namen.
+- Changelog updated: yes ([Unreleased] Fixed)
+- Follow-ups: Multi-Worker / Sticky-Session dokumentiert in Changelog

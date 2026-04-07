@@ -3,6 +3,7 @@ from __future__ import annotations
 import ipaddress
 from urllib.parse import urlparse
 
+import httpx
 from starlette.datastructures import Headers
 
 # Hop-by-hop and proxy headers (RFC 7230); not forwarded to upstream or back to client.

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import logging
+from collections import OrderedDict
 
 import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
@@ -30,6 +32,34 @@ from app.services.consumer_access import resolve_consumer_grant_context
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["consumer-mcp-relay"])
+
+# Streamable-HTTP-Upstreams (z. B. Miro) erwarten oft dieselbe TCP-Verbindung für initialize und Folge-POSTs.
+_relay_upstream_clients: OrderedDict[str, httpx.AsyncClient] = OrderedDict()
+_relay_upstream_lock = asyncio.Lock()
+_RELAY_UPSTREAM_CLIENT_CAP = 256
+
+
+async def shutdown_relay_upstream_clients() -> None:
+    async with _relay_upstream_lock:
+        for c in _relay_upstream_clients.values():
+            await c.aclose()
+        _relay_upstream_clients.clear()
+
+
+async def _relay_upstream_client(grant_id: str, timeout: httpx.Timeout) -> httpx.AsyncClient:
+    async with _relay_upstream_lock:
+        if grant_id in _relay_upstream_clients:
+            c = _relay_upstream_clients.pop(grant_id)
+            _relay_upstream_clients[grant_id] = c
+            return c
+        while len(_relay_upstream_clients) >= _RELAY_UPSTREAM_CLIENT_CAP:
+            _evict_id, old = _relay_upstream_clients.popitem(last=False)
+            await old.aclose()
+            logger.info("mcp_relay_upstream_client_evicted grant_id=%s", _evict_id)
+        limits = httpx.Limits(max_connections=1, max_keepalive_connections=1)
+        c = httpx.AsyncClient(timeout=timeout, follow_redirects=False, limits=limits)
+        _relay_upstream_clients[grant_id] = c
+        return c
 
 _METHODS_WITH_BODY = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
@@ -133,9 +163,9 @@ async def _mcp_relay_handler(
         content = body_iter()
 
     try:
-        async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
-            req = client.build_request(method, target_url, headers=merged, content=content)
-            upstream = await client.send(req, stream=True)
+        client = await _relay_upstream_client(grant.id, timeout)
+        req = client.build_request(method, target_url, headers=merged, content=content)
+        upstream = await client.send(req, stream=True)
     except httpx.RequestError as exc:
         logger.warning("mcp_relay_upstream_error instance_id=%s detail=%s", instance_id, type(exc).__name__)
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="mcp_relay_upstream_unreachable") from exc

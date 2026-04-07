@@ -9,10 +9,11 @@ type Props = {
   integrationName: string;
   onClose: () => void;
   onRevoke: () => void;
+  onOpenUsage?: () => void;
   busy: boolean;
 };
 
-export function AccessGrantDetailModal({ grant, integrationName, onClose, onRevoke, busy }: Props) {
+export function AccessGrantDetailModal({ grant, integrationName, onClose, onRevoke, onOpenUsage, busy }: Props) {
   const statusTone =
     grant.status === "active" ? "success" : grant.status === "revoked" ? "danger" : "neutral";
   const tools =
@@ -53,6 +54,11 @@ export function AccessGrantDetailModal({ grant, integrationName, onClose, onRevo
       <RawJsonDisclosure title="Raw details" data={grant} />
 
       <div className="modal-form-actions">
+        {onOpenUsage ? (
+          <button type="button" className="ghost-button" onClick={() => onOpenUsage()}>
+            How to use
+          </button>
+        ) : null}
         <button
           type="button"
           className="ghost-button"

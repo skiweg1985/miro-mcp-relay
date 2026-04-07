@@ -1,3 +1,20 @@
+## 2026-04-07 – Cursor Agent – Access Usage Modal
+
+- Done:
+  - `AccessGrantUsageModal.tsx`: produktorientierte „How to use this access“-Ansicht (Overview, What this access is for, Authentication, Available endpoints, optional MCP/Direct token, Examples mit Copy, Advanced `X-User-Token`, aufklappbare Raw details).
+  - `BrokerAccessPage.tsx`: Aktion **Usage** pro Zeile; nach Key-Erstellung **How to use**; `AccessGrantDetailModal` optional **How to use**.
+  - `frontend/src/index.css`: Styles für Usage-Snippets.
+  - `docs/CHANGELOG.md` [Unreleased] Added.
+- Next: keine
+- Blockers: keine
+- Branch/PR: branch lokal, PR none
+- Files touched: `frontend/src/AccessGrantUsageModal.tsx`, `frontend/src/BrokerAccessPage.tsx`, `frontend/src/AccessGrantDetailModal.tsx`, `frontend/src/index.css`, `docs/CHANGELOG.md`, `planning/coordination/WORKLOG.md`
+- Test notes: `cd frontend && npm run build`
+- endpoints: Consumer `POST /api/v1/consumer/integration-instances/{id}/execute`, optional `…/discover-tools`, `POST /api/v1/access-grants/validate`
+- UI path: `/workspace/broker-access` → Usage / How to use
+- Changelog updated: yes (Unreleased Added)
+- Follow-ups: keine
+
 ## 2026-04-07 – Cursor Agent – Graph OAuth Profil via GET /me
 
 - Done:

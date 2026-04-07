@@ -3146,3 +3146,102 @@ html.dark .integration-card:hover {
   border-top: 1px solid var(--line);
   background: var(--bg-subtle);
 }
+
+.usage-modal-section {
+  margin-top: var(--space-4);
+}
+
+.usage-modal-section .detail-modal-section-title {
+  margin-bottom: var(--space-2);
+}
+
+.usage-prose {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-body-sm);
+  line-height: 1.55;
+  color: var(--ink);
+}
+
+.usage-prose:last-child {
+  margin-bottom: 0;
+}
+
+.usage-list {
+  margin: 0;
+  padding-left: 1.25rem;
+  font-size: var(--font-body-sm);
+  line-height: 1.55;
+  color: var(--ink);
+}
+
+.usage-list li {
+  margin-bottom: var(--space-2);
+}
+
+.usage-list li:last-child {
+  margin-bottom: 0;
+}
+
+.usage-inline-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.85em;
+  padding: 0.1em 0.35em;
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+  border: 1px solid var(--line);
+}
+
+.usage-example-block {
+  margin-top: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.usage-example-block:first-of-type {
+  margin-top: var(--space-2);
+}
+
+.usage-example-block-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-subtle);
+  border-bottom: 1px solid var(--line);
+}
+
+.usage-example-block-title {
+  font-size: var(--font-caption);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.usage-example-caption {
+  margin: 0;
+  padding: var(--space-2) var(--space-3) 0;
+  font-size: var(--font-caption);
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.usage-example-pre {
+  margin: 0;
+  max-height: 14rem;
+  overflow: auto;
+  padding: var(--space-3);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  background: var(--bg-subtle);
+  color: var(--ink);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ghost-button--compact {
+  padding: 0.25rem 0.6rem;
+  font-size: var(--font-caption);
+}

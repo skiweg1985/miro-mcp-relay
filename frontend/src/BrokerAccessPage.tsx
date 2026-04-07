@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 import { useAppContext } from "./app-context";
 import { api } from "./api";
 import { AccessGrantDetailModal } from "./AccessGrantDetailModal";
+import { AccessGrantUsageModal } from "./AccessGrantUsageModal";
 import { Card, DataTable, Field, Modal, PageIntro, StatusBadge } from "./components";
 import type { AccessGrantCreatedResponse, AccessGrantOut, IntegrationInstanceV2Out, IntegrationV2Out } from "./types";
 import { copyToClipboard, formatDateTime } from "./utils";
@@ -121,7 +122,9 @@ export function BrokerAccessPage() {
   const [busy, setBusy] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [revealedKey, setRevealedKey] = useState<string | null>(null);
+  const [lastCreatedGrantId, setLastCreatedGrantId] = useState<string | null>(null);
   const [detailGrant, setDetailGrant] = useState<AccessGrantOut | null>(null);
+  const [usageGrant, setUsageGrant] = useState<AccessGrantOut | null>(null);
 
   const load = useCallback(async () => {
     const [ins, i, g] = await Promise.all([
@@ -153,6 +156,17 @@ export function BrokerAccessPage() {
       return int?.name ?? "—";
     },
     [instances, integrations],
+  );
+
+  const instanceForGrant = useCallback(
+    (grant: AccessGrantOut) => instances.find((row) => row.id === grant.integration_instance_id) ?? null,
+    [instances],
+  );
+
+  const integrationForInstance = useCallback(
+    (instance: IntegrationInstanceV2Out | null) =>
+      instance ? integrations.find((row) => row.id === instance.integration_id) ?? null : null,
+    [integrations],
   );
 
   const revoke = useCallback(
@@ -191,6 +205,9 @@ export function BrokerAccessPage() {
         </StatusBadge>,
         <span key="e">{formatDateTime(grant.expires_at)}</span>,
         <div key="a" className="inline-actions" onClick={(event) => event.stopPropagation()}>
+          <button type="button" className="ghost-button" onClick={() => setUsageGrant(grant)} aria-label="Usage instructions">
+            Usage
+          </button>
           <button type="button" className="ghost-button" onClick={() => setDetailGrant(grant)}>
             Open
           </button>
@@ -221,12 +238,25 @@ export function BrokerAccessPage() {
         }
       />
 
+      {usageGrant ? (
+        <AccessGrantUsageModal
+          grant={usageGrant}
+          integration={integrationForInstance(instanceForGrant(usageGrant))}
+          instance={instanceForGrant(usageGrant)}
+          onClose={() => setUsageGrant(null)}
+        />
+      ) : null}
+
       {detailGrant ? (
         <AccessGrantDetailModal
           grant={detailGrant}
           integrationName={integrationNameForInstance(detailGrant.integration_instance_id)}
           onClose={() => setDetailGrant(null)}
           onRevoke={() => void revoke(detailGrant.id)}
+          onOpenUsage={() => {
+            setUsageGrant(detailGrant);
+            setDetailGrant(null);
+          }}
           busy={busy}
         />
       ) : null}
@@ -241,6 +271,7 @@ export function BrokerAccessPage() {
           onCreated={(created) => {
             setGrants((prev) => [created.grant, ...prev]);
             setRevealedKey(created.access_key);
+            setLastCreatedGrantId(created.grant.id);
             notify({ tone: "success", title: "Access key created" });
           }}
           onError={(message) => notify({ tone: "error", title: "Could not create access key", description: message })}
@@ -261,7 +292,24 @@ export function BrokerAccessPage() {
             >
               Copy
             </button>
-            <button type="button" className="primary-button" onClick={() => setRevealedKey(null)}>
+            <button
+              type="button"
+              className="ghost-button"
+              onClick={() => {
+                const g = lastCreatedGrantId ? grants.find((row) => row.id === lastCreatedGrantId) : null;
+                if (g) setUsageGrant(g);
+              }}
+            >
+              How to use
+            </button>
+            <button
+              type="button"
+              className="primary-button"
+              onClick={() => {
+                setRevealedKey(null);
+                setLastCreatedGrantId(null);
+              }}
+            >
               Done
             </button>
           </div>

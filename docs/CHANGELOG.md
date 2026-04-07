@@ -4,6 +4,8 @@
 
 ### Added
 
+- Workspace Access: pro Access Key ein **Usage**-Modal mit broker-spezifischer Anleitung (Endpunkte `POST /api/v1/consumer/integration-instances/{id}/execute`, optional `…/discover-tools`, `POST /api/v1/access-grants/validate`), Auth (`X-Broker-Access-Key` / `Authorization: Bearer bkr_…`), copybare curl-/Env-/JSON-Beispiele; nach Key-Erstellung **How to use**; Detailmodal **How to use**.
+
 - **`GET /api/v1/integration-instances/{id}/inspect`**: Liefert `IntegrationInstanceOut`, `IntegrationOut` und optional `user_connection` (`id`, `status`, Zeitstempel, `profile` aus `metadata_json`).
 - Integration-OAuth-Callback: Profil-Metadaten in `user_connections.metadata_json` (Microsoft Graph: **`GET https://graph.microsoft.com/v1.0/me`** mit Access Token, Fallback Claims aus `id_token` wenn vorhanden; Miro: optional `GET https://api.miro.com/v1/users/me`); bei `oauth/disconnect` wird `metadata_json` geleert.
 - Workspace-UI: Detail-Modale für Connections (Zusammenfassung, verknüpftes Konto, aufklappbare Rohdaten), erweiterte Integrations-Detailansicht (Open), Access-Key-Details mit Roh-JSON; Tabellenzeilen öffnen Details; Hilfsfunktion `decode_jwt_payload_unverified` in `app.security`.

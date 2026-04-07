@@ -88,6 +88,20 @@ export type IntegrationInstanceV2Out = {
   oauth_connected: boolean;
 };
 
+export type UserConnectionSummaryOut = {
+  id: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  profile: Record<string, unknown>;
+};
+
+export type IntegrationInstanceInspectOut = {
+  instance: IntegrationInstanceV2Out;
+  integration: IntegrationV2Out;
+  user_connection: UserConnectionSummaryOut | null;
+};
+
 export type IntegrationToolV2Out = {
   id: string;
   name: string;

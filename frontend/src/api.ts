@@ -5,6 +5,7 @@ import type {
   AuthFlowStartResponse,
   BrokerCallbackUrls,
   Health,
+  IntegrationInstanceInspectOut,
   IntegrationInstanceV2Out,
   IntegrationToolV2Out,
   IntegrationV2Out,
@@ -125,6 +126,11 @@ export const api = {
   },
   integrationInstancesV2() {
     return request<IntegrationInstanceV2Out[]>("/api/v1/integration-instances");
+  },
+  integrationInstanceInspect(instanceId: string) {
+    return request<IntegrationInstanceInspectOut>(
+      `/api/v1/integration-instances/${encodeURIComponent(instanceId)}/inspect`,
+    );
   },
   createIntegrationInstanceV2(csrfToken: string, body: unknown) {
     return request<IntegrationInstanceV2Out>("/api/v1/integration-instances", {

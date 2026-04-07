@@ -6,7 +6,8 @@ import { api } from "./api";
 import { ConnectionCreateModal } from "./ConnectionCreateModal";
 import { GraphOAuthSettingsModal } from "./GraphOAuthSettingsModal";
 import { IntegrationCreateModal } from "./IntegrationCreateModal";
-import { Modal, PageIntro, StatusBadge } from "./components";
+import { IntegrationInspectModal } from "./IntegrationInspectModal";
+import { PageIntro, StatusBadge } from "./components";
 import type { IntegrationInstanceV2Out, IntegrationV2Out } from "./types";
 import { isApiError } from "./errors";
 import {
@@ -16,48 +17,6 @@ import {
   isMicrosoftGraphIntegration,
 } from "./integrationLabels";
 import { formatOAuthCallbackMessage } from "./utils";
-
-function IntegrationDetailModal({
-  integration,
-  connectionCount,
-  onClose,
-  onGoToConnections,
-}: {
-  integration: IntegrationV2Out;
-  connectionCount: number;
-  onClose: () => void;
-  onGoToConnections: () => void;
-}) {
-  return (
-    <Modal
-      title={integration.name}
-      description={integrationCardDescription(integration)}
-      onClose={onClose}
-    >
-      <div className="stack-list">
-        <div className="stack-cell">
-          <span className="muted-copy">Kind</span>
-          <strong>{integrationTypeLabel(integration.type)}</strong>
-        </div>
-        <div className="stack-cell">
-          <span className="muted-copy">Connections</span>
-          {connectionCount === 0 ? (
-            <span>None yet</span>
-          ) : (
-            <button type="button" className="ghost-button" onClick={onGoToConnections}>
-              View connections ({connectionCount})
-            </button>
-          )}
-        </div>
-      </div>
-      <div className="modal-form-actions">
-        <button type="button" className="primary-button" onClick={onClose}>
-          Close
-        </button>
-      </div>
-    </Modal>
-  );
-}
 
 export function IntegrationsV2Page() {
   const { session, notify } = useAppContext();
@@ -215,14 +174,24 @@ export function IntegrationsV2Page() {
       ) : null}
 
       {detailIntegration ? (
-        <IntegrationDetailModal
+        <IntegrationInspectModal
           integration={detailIntegration}
-          connectionCount={countByIntegration.get(detailIntegration.id) ?? 0}
+          relatedInstances={instances.filter((i) => i.integration_id === detailIntegration.id)}
+          isAdmin={isAdmin}
           onClose={() => setDetailIntegration(null)}
           onGoToConnections={() => {
             setDetailIntegration(null);
             openConnectionsFor(detailIntegration.id);
           }}
+          onAddConnection={
+            isAdmin
+              ? () => {
+                  setDetailIntegration(null);
+                  setConnectionDefaultId(detailIntegration.id);
+                  setConnectionModalOpen(true);
+                }
+              : undefined
+          }
         />
       ) : null}
 

@@ -97,6 +97,20 @@ class IntegrationInstanceOut(BaseModel):
     oauth_connected: bool = False
 
 
+class UserConnectionSummaryOut(BaseModel):
+    id: str
+    status: str
+    created_at: datetime
+    updated_at: datetime
+    profile: dict[str, Any] = Field(default_factory=dict)
+
+
+class IntegrationInstanceInspectOut(BaseModel):
+    instance: IntegrationInstanceOut
+    integration: IntegrationOut
+    user_connection: UserConnectionSummaryOut | None = None
+
+
 class IntegrationToolOut(BaseModel):
     id: str
     name: str

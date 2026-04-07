@@ -88,3 +88,17 @@ export function connectionRowStatus(instance: IntegrationInstanceV2Out): { label
   }
   return { label: "Ready", tone: "neutral" };
 }
+
+export function userConnectionStatusLabel(status: string): string {
+  const map: Record<string, string> = {
+    active: "Active",
+    disconnected: "Disconnected",
+  };
+  return map[status] ?? status;
+}
+
+export function oauthProviderProductLabel(provider: unknown): string | null {
+  if (provider === "microsoft_graph") return "Microsoft 365";
+  if (provider === "miro") return "Miro";
+  return null;
+}

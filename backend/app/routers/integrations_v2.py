@@ -16,16 +16,19 @@ from app.models import (
     IntegrationTool,
     IntegrationType,
     User,
+    UserConnection,
 )
 from app.schemas import (
     IntegrationCreate,
     IntegrationExecuteRequest,
     IntegrationExecuteResponse,
     IntegrationInstanceCreate,
+    IntegrationInstanceInspectOut,
     IntegrationInstanceOut,
     IntegrationOut,
     IntegrationToolOut,
     IntegrationUpdate,
+    UserConnectionSummaryOut,
 )
 from app.security import dumps_json, encrypt_text, loads_json
 from app.microsoft_oauth_resolver import microsoft_graph_oauth_redirect_uri
@@ -167,6 +170,55 @@ def list_instances(db: Session = Depends(get_db), current_user: User = Depends(g
         .order_by(IntegrationInstance.created_at.desc())
     ).all()
     return [_instance_out(db, row, current_user) for row in rows]
+
+
+@router.get("/integration-instances/{instance_id}/inspect", response_model=IntegrationInstanceInspectOut)
+def inspect_integration_instance(
+    instance_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    instance = db.scalar(
+        select(IntegrationInstance).where(
+            IntegrationInstance.id == instance_id,
+            IntegrationInstance.organization_id == current_user.organization_id,
+        )
+    )
+    if not instance:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="instance_not_found")
+    integration = db.scalar(
+        select(Integration).where(
+            Integration.id == instance.integration_id,
+            Integration.organization_id == current_user.organization_id,
+        )
+    )
+    if not integration:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="integration_not_found")
+
+    conn = db.scalar(
+        select(UserConnection).where(
+            UserConnection.user_id == current_user.id,
+            UserConnection.integration_instance_id == instance_id,
+        )
+    )
+    uc_out: UserConnectionSummaryOut | None = None
+    if conn:
+        profile = loads_json(conn.metadata_json, {})
+        if not isinstance(profile, dict):
+            profile = {}
+        uc_out = UserConnectionSummaryOut(
+            id=conn.id,
+            status=conn.status,
+            created_at=conn.created_at,
+            updated_at=conn.updated_at,
+            profile=profile,
+        )
+
+    return IntegrationInstanceInspectOut(
+        instance=_instance_out(db, instance, current_user),
+        integration=_integration_out(integration),
+        user_connection=uc_out,
+    )
 
 
 @router.post("/integration-instances", response_model=IntegrationInstanceOut)

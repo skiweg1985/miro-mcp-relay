@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import { useAppContext } from "./app-context";
 import { api } from "./api";
 import { ConnectionCreateModal } from "./ConnectionCreateModal";
+import { ConnectionDetailModal } from "./ConnectionDetailModal";
 import { Card, DataTable, PageIntro, StatusBadge } from "./components";
 import type { IntegrationInstanceV2Out, IntegrationV2Out } from "./types";
 import { isApiError } from "./errors";
@@ -22,6 +23,7 @@ export function ConnectionsPage() {
   const [busy, setBusy] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [defaultIntegrationId, setDefaultIntegrationId] = useState<string | undefined>(undefined);
+  const [detailInstanceId, setDetailInstanceId] = useState<string | null>(null);
 
   const integrationNameById = useMemo(() => {
     const m = new Map<string, string>();
@@ -139,7 +141,10 @@ export function ConnectionsPage() {
     const intType = integrations.find((i) => i.id === instance.integration_id);
     const status = connectionRowStatus(instance);
     const actions = (
-      <div className="inline-actions">
+      <div className="inline-actions" onClick={(event) => event.stopPropagation()}>
+        <button type="button" className="ghost-button" onClick={() => setDetailInstanceId(instance.id)}>
+          Open
+        </button>
         <button type="button" className="ghost-button" disabled={busy} onClick={() => void testConnection(instance.id)}>
           Test
         </button>
@@ -198,6 +203,19 @@ export function ConnectionsPage() {
       />
 
       {session.status === "authenticated" ? (
+        <ConnectionDetailModal
+          open={detailInstanceId !== null}
+          instanceId={detailInstanceId}
+          instanceVersion={instances.find((i) => i.id === detailInstanceId)?.updated_at ?? null}
+          onClose={() => setDetailInstanceId(null)}
+          busy={busy}
+          onConnect={(id) => void connectOAuth(id)}
+          onDisconnect={(id) => void disconnectOAuth(id)}
+          onTest={(id) => void testConnection(id)}
+        />
+      ) : null}
+
+      {session.status === "authenticated" ? (
         <ConnectionCreateModal
           open={createOpen}
           onClose={() => {
@@ -221,6 +239,11 @@ export function ConnectionsPage() {
           rows={rows}
           emptyTitle="No connections yet"
           emptyBody="Create a connection to route traffic through the broker."
+          onRowClick={(rowIndex) => {
+            const id = instances[rowIndex]?.id;
+            if (id) setDetailInstanceId(id);
+          }}
+          getRowAriaLabel={(rowIndex) => `Connection ${instances[rowIndex]?.name ?? ""}`}
         />
       </Card>
     </>

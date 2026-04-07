@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import secrets
 from base64 import urlsafe_b64decode
+from typing import Any
 from datetime import datetime, timedelta, timezone
 
 from cryptography.fernet import Fernet
@@ -89,3 +91,18 @@ def loads_json(value: str | None, fallback):
         return json.loads(value)
     except json.JSONDecodeError:
         return fallback
+
+
+def decode_jwt_payload_unverified(token: str | None) -> dict[str, Any] | None:
+    """Decode JWT payload (second segment) without signature verification."""
+    try:
+        raw = str(token or "")
+        parts = raw.split(".")
+        if len(parts) < 2:
+            return None
+        payload_b64 = parts[1].replace("-", "+").replace("_", "/")
+        padded = payload_b64 + "=" * ((4 - len(payload_b64) % 4) % 4)
+        data = json.loads(base64.b64decode(padded).decode("utf-8"))
+        return data if isinstance(data, dict) else None
+    except Exception:
+        return None

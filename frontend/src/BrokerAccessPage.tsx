@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 
 import { useAppContext } from "./app-context";
 import { api } from "./api";
+import { AccessGrantDetailModal } from "./AccessGrantDetailModal";
 import { Card, DataTable, Field, Modal, PageIntro, StatusBadge } from "./components";
 import type { AccessGrantCreatedResponse, AccessGrantOut, IntegrationInstanceV2Out, IntegrationV2Out } from "./types";
 import { copyToClipboard, formatDateTime } from "./utils";
@@ -120,6 +121,7 @@ export function BrokerAccessPage() {
   const [busy, setBusy] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [revealedKey, setRevealedKey] = useState<string | null>(null);
+  const [detailGrant, setDetailGrant] = useState<AccessGrantOut | null>(null);
 
   const load = useCallback(async () => {
     const [ins, i, g] = await Promise.all([
@@ -161,6 +163,7 @@ export function BrokerAccessPage() {
         const updated = await api.revokeAccessGrant(session.csrfToken, grantId);
         setGrants((prev) => prev.map((row) => (row.id === grantId ? updated : row)));
         notify({ tone: "success", title: "Access revoked" });
+        setDetailGrant((g) => (g?.id === grantId ? null : g));
       } catch (error) {
         notify({
           tone: "error",
@@ -187,15 +190,19 @@ export function BrokerAccessPage() {
           {accessGrantStatusLabel(grant.status)}
         </StatusBadge>,
         <span key="e">{formatDateTime(grant.expires_at)}</span>,
-        <button
-          key="a"
-          type="button"
-          className="ghost-button"
-          disabled={busy || grant.status !== "active"}
-          onClick={() => void revoke(grant.id)}
-        >
-          Revoke
-        </button>,
+        <div key="a" className="inline-actions" onClick={(event) => event.stopPropagation()}>
+          <button type="button" className="ghost-button" onClick={() => setDetailGrant(grant)}>
+            Open
+          </button>
+          <button
+            type="button"
+            className="ghost-button"
+            disabled={busy || grant.status !== "active"}
+            onClick={() => void revoke(grant.id)}
+          >
+            Revoke
+          </button>
+        </div>,
       ];
     });
   }, [grants, integrationNameForInstance, busy, revoke]);
@@ -213,6 +220,16 @@ export function BrokerAccessPage() {
           </button>
         }
       />
+
+      {detailGrant ? (
+        <AccessGrantDetailModal
+          grant={detailGrant}
+          integrationName={integrationNameForInstance(detailGrant.integration_instance_id)}
+          onClose={() => setDetailGrant(null)}
+          onRevoke={() => void revoke(detailGrant.id)}
+          busy={busy}
+        />
+      ) : null}
 
       {session.status === "authenticated" ? (
         <AccessKeyCreateModal
@@ -257,6 +274,11 @@ export function BrokerAccessPage() {
           rows={rows}
           emptyTitle="No access keys"
           emptyBody="Create a key and give it to the app that should call the broker."
+          onRowClick={(rowIndex) => {
+            const g = grants[rowIndex];
+            if (g) setDetailGrant(g);
+          }}
+          getRowAriaLabel={(rowIndex) => `Access key ${grants[rowIndex]?.name ?? ""}`}
         />
       </Card>
     </>

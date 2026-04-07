@@ -1,3 +1,17 @@
+## 2026-04-07 – Cursor Agent – Detail-Modale & GET integration-instances inspect
+
+- Done:
+  - Backend: `decode_jwt_payload_unverified` in `security.py`; OAuth-Callback schreibt Profil-Metadaten in `user_connections.metadata_json` (Graph: `id_token`; Miro: optional User-API); Disconnect leert Metadaten; `GET /api/v1/integration-instances/{id}/inspect` mit `IntegrationInstanceInspectOut`.
+  - Frontend: `ConnectionDetailModal`, `IntegrationInspectModal`, `AccessGrantDetailModal`, `object-detail-ui` (Raw JSON); API `integrationInstanceInspect`; Connections- und Access-Tabelle zeilenklickbar + Open; Integrations „Open“ mit erweiterter Ansicht.
+  - `docs/CHANGELOG.md`, `docs/technische-referenz.md`, `backend/test_smoke.py` (401 auf inspect).
+- Next: keine
+- Blockers: keine
+- Branch/PR: branch lokal, PR none
+- Files touched: `backend/app/security.py`, `backend/app/routers/auth.py`, `backend/app/routers/integration_oauth.py`, `backend/app/routers/integrations_v2.py`, `backend/app/schemas.py`, `backend/test_smoke.py`, `frontend/src/*.tsx`, `frontend/src/index.css`, `docs/CHANGELOG.md`, `docs/technische-referenz.md`, `planning/coordination/WORKLOG.md`
+- Test notes: `PYTHONPATH=backend python3 -m unittest backend.test_smoke -v`; `cd frontend && npm run build`
+- Changelog updated: yes (Unreleased Added)
+- Follow-ups: Bestehende Verbindungen einmal neu verbinden, damit Profil-Metadaten gefüllt werden
+
 ## 2026-04-07 – Cursor Agent – Miro MCP OAuth Token-Endpoint (401 Client not found)
 
 - Done:

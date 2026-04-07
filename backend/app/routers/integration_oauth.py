@@ -6,6 +6,7 @@ import base64
 import hashlib
 import logging
 import secrets
+from typing import Any
 from urllib.parse import quote
 
 import httpx
@@ -28,7 +29,7 @@ from app.microsoft_oauth_resolver import (
 from app.oauth_dcr import register_oauth_client_at_endpoint
 from app.oauth_pending_store import put_oauth_pending, pop_oauth_pending_payload
 from app.schemas import AuthFlowStartResponse
-from app.security import decrypt_text, encrypt_text, loads_json
+from app.security import decode_jwt_payload_unverified, decrypt_text, dumps_json, encrypt_text, loads_json
 
 router = APIRouter(tags=["integration-oauth"])
 logger = logging.getLogger(__name__)
@@ -209,6 +210,7 @@ def _upsert_user_connection(
     instance_id: str,
     access_token: str,
     refresh_token: str | None,
+    profile_metadata: dict[str, Any] | None = None,
 ) -> None:
     row = db.scalar(
         select(UserConnection).where(
@@ -226,7 +228,65 @@ def _upsert_user_connection(
     row.status = UserConnectionStatus.ACTIVE.value
     row.oauth_access_token_encrypted = encrypt_text(access_token)
     row.oauth_refresh_token_encrypted = encrypt_text(refresh_token) if refresh_token else None
+    if profile_metadata:
+        existing = loads_json(row.metadata_json, {})
+        if not isinstance(existing, dict):
+            existing = {}
+        merged = {**existing, **profile_metadata}
+        row.metadata_json = dumps_json(merged)
     db.flush()
+
+
+async def _profile_metadata_for_oauth(
+    *,
+    kind: str,
+    token_data: dict[str, Any],
+    access_token: str,
+) -> dict[str, Any]:
+    meta: dict[str, Any] = {}
+    scope_raw = token_data.get("scope")
+    if isinstance(scope_raw, str) and scope_raw.strip():
+        meta["scopes_granted"] = scope_raw.strip()
+    if kind == KIND_MICROSOFT_GRAPH:
+        meta["provider"] = "microsoft_graph"
+        claims = decode_jwt_payload_unverified(token_data.get("id_token"))
+        if isinstance(claims, dict):
+            name = str(claims.get("name") or "").strip()
+            given = str(claims.get("given_name") or "").strip()
+            family = str(claims.get("family_name") or "").strip()
+            display = name or (f"{given} {family}".strip() if given or family else "")
+            if display:
+                meta["display_name"] = display
+            email = str(claims.get("email") or "").strip()
+            preferred = str(claims.get("preferred_username") or "").strip()
+            if not email and preferred and "@" in preferred:
+                email = preferred
+            if email:
+                meta["email"] = email
+            if preferred:
+                meta["username"] = preferred
+            tid = str(claims.get("tid") or "").strip()
+            if tid:
+                meta["tenant_id"] = tid
+        return meta
+
+    meta["provider"] = "miro"
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.get(
+                "https://api.miro.com/v1/users/me",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+        if response.status_code == 200:
+            body = response.json()
+            if isinstance(body, dict):
+                if body.get("name"):
+                    meta["display_name"] = str(body.get("name"))
+                if body.get("email"):
+                    meta["email"] = str(body.get("email"))
+    except Exception:
+        pass
+    return meta
 
 
 @router.post("/integration-instances/{instance_id}/oauth/start", response_model=AuthFlowStartResponse)
@@ -401,7 +461,8 @@ async def _integration_oauth_callback_impl(
                 _log_upstream_token_error(provider="microsoft_graph", endpoint=token_endpoint, response=response)
                 db.commit()
                 return _redirect_workspace(ok=False, message="token_exchange_failed")
-            token_data = response.json()
+            raw_td = response.json()
+            token_data = raw_td if isinstance(raw_td, dict) else {}
             access_token = str(token_data.get("access_token") or "").strip()
             refresh_token = str(token_data.get("refresh_token") or "").strip() or None
             if not access_token:
@@ -441,13 +502,15 @@ async def _integration_oauth_callback_impl(
                 _log_upstream_token_error(provider="miro", endpoint=token_ep, response=response)
                 db.commit()
                 return _redirect_workspace(ok=False, message="token_exchange_failed")
-            token_data = response.json()
+            raw_td = response.json()
+            token_data = raw_td if isinstance(raw_td, dict) else {}
             access_token = str(token_data.get("access_token") or "").strip()
             refresh_token = str(token_data.get("refresh_token") or "").strip() or None
             if not access_token:
                 db.commit()
                 return _redirect_workspace(ok=False, message="missing_access_token")
 
+        profile_meta = await _profile_metadata_for_oauth(kind=kind, token_data=token_data, access_token=access_token)
         _upsert_user_connection(
             db,
             organization_id=user.organization_id,
@@ -455,6 +518,7 @@ async def _integration_oauth_callback_impl(
             instance_id=instance.id,
             access_token=access_token,
             refresh_token=refresh_token,
+            profile_metadata=profile_meta,
         )
         db.commit()
         return _redirect_workspace(ok=True)
@@ -509,6 +573,7 @@ def disconnect_integration_oauth(
         conn.oauth_refresh_token_encrypted = None
         conn.oauth_dcr_client_id = None
         conn.oauth_dcr_client_secret_encrypted = None
+        conn.metadata_json = dumps_json({})
         conn.status = UserConnectionStatus.DISCONNECTED.value
         db.add(conn)
     db.commit()

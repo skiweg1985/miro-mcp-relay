@@ -3031,3 +3031,118 @@ html.dark .integration-card:hover {
     min-width: 520px;
   }
 }
+
+.detail-modal-section {
+  margin-top: var(--space-4);
+}
+
+.detail-modal-section:first-of-type {
+  margin-top: 0;
+}
+
+.detail-modal-section-title {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 var(--space-3);
+}
+
+.detail-modal-row {
+  display: grid;
+  grid-template-columns: minmax(7.5rem, 34%) 1fr;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--line);
+  align-items: start;
+}
+
+.detail-modal-row:last-child {
+  border-bottom: none;
+}
+
+.detail-modal-row-label {
+  color: var(--muted);
+  font-size: var(--font-body-sm);
+}
+
+.detail-modal-row-value {
+  font-size: var(--font-body-sm);
+  word-break: break-word;
+  color: var(--ink);
+}
+
+.detail-scopes {
+  font-size: var(--font-caption);
+  line-height: var(--line-relaxed);
+}
+
+.detail-modal-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.detail-modal-actions-row {
+  margin-top: var(--space-2);
+}
+
+.raw-json-disclosure {
+  margin-top: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.raw-json-disclosure-toggle {
+  width: 100%;
+  text-align: left;
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-subtle);
+  border: none;
+  font: inherit;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink);
+  font-weight: 600;
+  font-size: var(--font-body-sm);
+}
+
+.raw-json-disclosure-toggle:hover {
+  background: var(--line);
+}
+
+.raw-json-disclosure-chevron {
+  color: var(--muted);
+  font-size: var(--font-caption);
+}
+
+.raw-json-disclosure-body {
+  border-top: 1px solid var(--line);
+}
+
+.raw-json-pre {
+  margin: 0;
+  max-height: 18rem;
+  overflow: auto;
+  padding: var(--space-3) var(--space-4);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  background: var(--bg-subtle);
+  color: var(--ink);
+}
+
+.raw-json-disclosure-actions {
+  padding: 0 var(--space-4) var(--space-3);
+  border-top: 1px solid var(--line);
+  background: var(--bg-subtle);
+}

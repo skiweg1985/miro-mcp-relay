@@ -2,13 +2,16 @@
 
 ## [Unreleased]
 
+### Added
+
+- **`GET /api/v1/integration-instances/{id}/inspect`**: Liefert `IntegrationInstanceOut`, `IntegrationOut` und optional `user_connection` (`id`, `status`, Zeitstempel, `profile` aus `metadata_json`).
+- Integration-OAuth-Callback: Profil-Metadaten in `user_connections.metadata_json` (Microsoft Graph: Claims aus `id_token`; Miro: optional `GET https://api.miro.com/v1/users/me`); bei `oauth/disconnect` wird `metadata_json` geleert.
+- Workspace-UI: Detail-Modale für Connections (Zusammenfassung, verknüpftes Konto, aufklappbare Rohdaten), erweiterte Integrations-Detailansicht (Open), Access-Key-Details mit Roh-JSON; Tabellenzeilen öffnen Details; Hilfsfunktion `decode_jwt_payload_unverified` in `app.security`.
+- Integration-OAuth: Bei fehlgeschlagenem Token-Austausch mit Miro oder Microsoft Graph schreibt das Backend HTTP-Status und einen gekürzten Antworttext des Upstream-Endpoints ins Log (`integration_oauth`).
+
 ### Fixed
 
 - Miro MCP Integration-OAuth: Default `oauth_token_endpoint` ist `{miro_mcp_base}/token` (MCP-Authorization-Server), nicht `https://api.miro.com/v1/oauth/token`; behebt 401 „Client not found“ bei Token-Austausch nach DCR. `reconcile_miro_default_integration_token_endpoint` setzt bei bestehender Default-Integration fehlende oder frühere REST-Token-URL auf die MCP-Token-URL; Fallback in `integration_oauth` nutzt `{miro_mcp_base}/token`.
-
-### Added
-
-- Integration-OAuth: Bei fehlgeschlagenem Token-Austausch mit Miro oder Microsoft Graph schreibt das Backend HTTP-Status und einen gekürzten Antworttext des Upstream-Endpoints ins Log (`integration_oauth`).
 
 ### Changed
 

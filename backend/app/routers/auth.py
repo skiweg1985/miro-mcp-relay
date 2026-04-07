@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import base64
 import hashlib
-import json
 import secrets
 from urllib.parse import quote
 
@@ -19,7 +18,16 @@ from app.deps import clear_session_cookie, get_current_session, get_current_user
 from app.models import OAuthIdentity, Organization, Session as SessionModel, User
 from app.oauth_pending_store import pop_oauth_pending_payload, put_oauth_pending
 from app.schemas import AuthFlowStartResponse, LoginRequest, SessionResponse, UserOut
-from app.security import dumps_json, hash_secret, issue_plain_secret, loads_json, session_expiry, utcnow, verify_secret
+from app.security import (
+    decode_jwt_payload_unverified,
+    dumps_json,
+    hash_secret,
+    issue_plain_secret,
+    loads_json,
+    session_expiry,
+    utcnow,
+    verify_secret,
+)
 
 router = APIRouter(tags=["auth"])
 
@@ -49,19 +57,6 @@ def _parse_email_like(value: str | None) -> str | None:
     if raw and "@" in raw and "." in raw.rsplit("@", 1)[-1]:
         return raw
     return None
-
-
-def _decode_jwt_payload(token: str | None) -> dict[str, object] | None:
-    try:
-        raw = str(token or "")
-        parts = raw.split(".")
-        if len(parts) < 2:
-            return None
-        payload_b64 = parts[1].replace("-", "+").replace("_", "/")
-        padded = payload_b64 + "=" * ((4 - len(payload_b64) % 4) % 4)
-        return json.loads(base64.b64decode(padded).decode("utf-8"))
-    except Exception:
-        return None
 
 
 def _microsoft_redirect_uri(settings) -> str:
@@ -193,7 +188,7 @@ async def microsoft_callback(code: str | None = None, state: str | None = None, 
             return _login_error_redirect(f"Microsoft token exchange failed ({response.status_code})")
 
         token_data = response.json()
-        claims = _decode_jwt_payload(token_data.get("id_token")) or {}
+        claims = decode_jwt_payload_unverified(token_data.get("id_token")) or {}
         nonce = str(claims.get("nonce") or "").strip()
         if not nonce or nonce != pending_nonce:
             return _login_error_redirect("Microsoft login nonce validation failed")

@@ -1,3 +1,21 @@
+## 2026-04-07 – Cursor Agent – Microsoft OAuth Admin (Workspace)
+
+- Done:
+  - DB-Modell `MicrosoftOAuthSettings`, Resolver `microsoft_oauth_resolver` (vollständige DB-Konfiguration vor `MICROSOFT_BROKER_*`), Anpassungen in `auth` und `public` (`login-options`).
+  - Router `admin_microsoft_oauth`: `GET/PUT /api/v1/admin/microsoft-oauth` (Admin, `PUT` mit CSRF).
+  - Frontend: `MicrosoftOAuthAdminPage`, Route `/workspace/admin/microsoft-oauth`, Sidebar-Eintrag für Admins, `HttpMethod` um `PUT` ergänzt.
+  - `test_smoke`: `TestClient` als Kontextmanager (Lifespan), Test `test_admin_microsoft_oauth_requires_session`.
+  - `docs/CHANGELOG.md`, `docs/technische-referenz.md`.
+- Next: keine
+- Blockers: keine
+- Branch/PR: branch `codex/hard-refactor-integration-model`, PR none
+- Files touched: `backend/app/models.py`, `backend/app/microsoft_oauth_resolver.py`, `backend/app/routers/auth.py`, `backend/app/routers/public.py`, `backend/app/routers/admin_microsoft_oauth.py`, `backend/app/main.py`, `backend/app/schemas.py`, `backend/test_smoke.py`, `frontend/src/App.tsx`, `frontend/src/api.ts`, `frontend/src/types.ts`, `frontend/src/utils.ts`, `frontend/src/MicrosoftOAuthAdminPage.tsx`, `docs/CHANGELOG.md`, `docs/technische-referenz.md`, `planning/coordination/WORKLOG.md`
+- Test notes: `PYTHONPATH=backend python3 -m unittest backend.test_smoke -v`, `cd frontend && npm run build`
+- endpoints: `GET/PUT /api/v1/admin/microsoft-oauth`
+- UI path: `/workspace/admin/microsoft-oauth`
+- Changelog updated: yes (Unreleased Added/Changed)
+- Follow-ups: bei Bedarf weitere Admin-Einstellungen nach gleichem Muster
+
 ## 2026-04-07 – Cursor Agent – OAuth-Broker UX-Terminologie (Admin/User)
 
 - Done:

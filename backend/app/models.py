@@ -98,6 +98,23 @@ class OAuthPendingState(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
 
+class MicrosoftOAuthSettings(Base):
+    """Tenant-scoped Microsoft Entra (Azure AD) app registration for end-user sign-in."""
+
+    __tablename__ = "microsoft_oauth_settings"
+    __table_args__ = (UniqueConstraint("organization_id", name="uq_microsoft_oauth_org"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    authority_base: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    tenant_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    client_id: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    encrypted_client_secret: Mapped[str | None] = mapped_column(Text, nullable=True)
+    scope: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
+
+
 class IntegrationType(StrEnum):
     MCP_SERVER = "mcp_server"
     OAUTH_PROVIDER = "oauth_provider"

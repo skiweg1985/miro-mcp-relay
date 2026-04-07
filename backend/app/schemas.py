@@ -105,3 +105,23 @@ class IntegrationExecuteRequest(BaseModel):
 class IntegrationExecuteResponse(BaseModel):
     ok: bool = True
     result: dict[str, Any] = Field(default_factory=dict)
+
+
+class MicrosoftOAuthAdminOut(BaseModel):
+    ok: bool = True
+    authority_base: str = ""
+    tenant_id: str = ""
+    client_id: str = ""
+    scope: str = ""
+    has_client_secret: bool = False
+    effective_source: str
+    microsoft_login_enabled: bool
+    redirect_uri: str
+
+
+class MicrosoftOAuthAdminUpdate(BaseModel):
+    authority_base: str = Field(default="", max_length=512)
+    tenant_id: str = Field(default="", max_length=120)
+    client_id: str = Field(default="", max_length=512)
+    scope: str = Field(default="", max_length=2000)
+    client_secret: str | None = None

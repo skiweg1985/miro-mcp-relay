@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.database import get_db
+from app.microsoft_oauth_resolver import resolve_microsoft_oauth
 from app.schemas import BrokerCallbackUrlsOut, LoginOptionsResponse
 
 router = APIRouter(tags=["public"])
@@ -27,10 +30,7 @@ def broker_callback_urls():
 
 
 @router.get("/auth/login-options", response_model=LoginOptionsResponse)
-def login_options():
+def login_options(db: Session = Depends(get_db)):
     settings = get_settings()
-    enabled = bool(
-        str(settings.microsoft_broker_client_id or "").strip()
-        and str(settings.microsoft_broker_client_secret or "").strip()
-    )
-    return LoginOptionsResponse(microsoft_enabled=enabled, microsoft_display_name="Microsoft")
+    resolved = resolve_microsoft_oauth(db, settings)
+    return LoginOptionsResponse(microsoft_enabled=resolved is not None, microsoft_display_name="Microsoft")

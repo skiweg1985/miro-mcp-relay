@@ -1,10 +1,11 @@
-import { startTransition, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { startTransition, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 
 import { AppProvider, useAppContext } from "./app-context";
 import { ThemeToggle } from "./theme-toggle";
 import { api } from "./api";
 import { Card, Field, LoadingScreen, PageIntro, ToastViewport } from "./components";
 import { IntegrationsV2Page } from "./IntegrationsV2Page";
+import { MicrosoftOAuthAdminPage } from "./MicrosoftOAuthAdminPage";
 import { isApiError } from "./errors";
 import type { RouteMatch } from "./types";
 import { matchesRoute, replaceLegacyAdminPath } from "./utils";
@@ -260,18 +261,27 @@ function Shell({
   );
 }
 
-const USER_WORKSPACE_NAV = [{ href: "/workspace/integrations-v2", label: "Integrations" }];
-
 function AuthenticatedApp() {
   const { route, navigate } = usePathname();
   const { session } = useAppContext();
 
+  const isAdmin = session.status === "authenticated" && session.user.is_admin;
+  const workspaceNav = useMemo(() => {
+    const base = [{ href: "/workspace/integrations-v2", label: "Integrations" }];
+    if (isAdmin) {
+      base.push({ href: "/workspace/admin/microsoft-oauth", label: "Microsoft sign-in" });
+    }
+    return base;
+  }, [isAdmin]);
+
   useEffect(() => {
     if (session.status !== "authenticated") return;
-    if (route.name !== "workspaceIntegrationsV2") {
+    const allowed =
+      route.name === "workspaceIntegrationsV2" || (route.name === "workspaceAdminMicrosoftOAuth" && session.user.is_admin);
+    if (!allowed) {
       navigate("/workspace/integrations-v2");
     }
-  }, [navigate, route.name, session.status]);
+  }, [navigate, route.name, session]);
 
   if (session.status === "booting") {
     return <LoadingScreen label="Restoring your session…" />;
@@ -281,19 +291,26 @@ function AuthenticatedApp() {
     return <LoginPage onSuccess={navigate} />;
   }
 
-  if (route.name !== "workspaceIntegrationsV2") {
+  if (route.name === "workspaceAdminMicrosoftOAuth" && !isAdmin) {
+    return <LoadingScreen label="Redirecting…" />;
+  }
+
+  if (
+    route.name !== "workspaceIntegrationsV2" &&
+    !(route.name === "workspaceAdminMicrosoftOAuth" && isAdmin)
+  ) {
     return <LoadingScreen label="Redirecting to integrations..." />;
   }
 
   return (
     <Shell
       currentPath={route.path}
-      navItems={USER_WORKSPACE_NAV}
+      navItems={workspaceNav}
       onNavigate={navigate}
       title="Workspace"
       subtitle="Integration Platform"
     >
-      <IntegrationsV2Page />
+      {route.name === "workspaceAdminMicrosoftOAuth" && isAdmin ? <MicrosoftOAuthAdminPage /> : <IntegrationsV2Page />}
     </Shell>
   );
 }

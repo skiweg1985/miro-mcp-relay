@@ -14,6 +14,7 @@ from starlette.responses import RedirectResponse
 
 from app.core.config import get_settings
 from app.database import get_db
+from app.microsoft_oauth_resolver import microsoft_authorize_url, microsoft_token_url, resolve_microsoft_oauth
 from app.deps import clear_session_cookie, get_current_session, get_current_user, record_audit, refresh_csrf_token
 from app.models import OAuthIdentity, Organization, Session as SessionModel, User
 from app.oauth_pending_store import pop_oauth_pending_payload, put_oauth_pending
@@ -65,13 +66,6 @@ def _decode_jwt_payload(token: str | None) -> dict[str, object] | None:
 
 def _microsoft_redirect_uri(settings) -> str:
     return f"{settings.broker_public_base_url.rstrip('/')}{settings.api_v1_prefix}/auth/microsoft/callback"
-
-
-def _microsoft_oauth_configured(settings) -> bool:
-    return bool(
-        str(settings.microsoft_broker_client_id or "").strip()
-        and str(settings.microsoft_broker_client_secret or "").strip()
-    )
 
 
 def _set_session_cookie(response: Response, session_token: str) -> None:
@@ -138,7 +132,8 @@ def login(payload: LoginRequest, response: Response, db: Session = Depends(get_d
 @router.post("/auth/microsoft/start", response_model=AuthFlowStartResponse)
 def start_microsoft_login(db: Session = Depends(get_db)):
     settings = get_settings()
-    if not _microsoft_oauth_configured(settings):
+    resolved = resolve_microsoft_oauth(db, settings)
+    if not resolved:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Microsoft login is not configured")
 
     verifier, challenge = _make_pkce()
@@ -147,17 +142,18 @@ def start_microsoft_login(db: Session = Depends(get_db)):
     put_oauth_pending(db, state, "microsoft_login", {"verifier": verifier, "nonce": nonce})
     db.commit()
     params = {
-        "client_id": settings.microsoft_broker_client_id.strip(),
+        "client_id": resolved.client_id,
         "response_type": "code",
         "redirect_uri": _microsoft_redirect_uri(settings),
         "response_mode": "query",
-        "scope": " ".join(settings.microsoft_scope_list),
+        "scope": " ".join(resolved.scope_list),
         "state": state,
         "nonce": nonce,
         "code_challenge": challenge,
         "code_challenge_method": "S256",
     }
-    return AuthFlowStartResponse(auth_url=f"{settings.microsoft_authorize_url}?{httpx.QueryParams(params)}", state=state)
+    auth_base = microsoft_authorize_url(resolved.authority_base, resolved.tenant_id)
+    return AuthFlowStartResponse(auth_url=f"{auth_base}?{httpx.QueryParams(params)}", state=state)
 
 
 @router.get("/auth/microsoft/callback")
@@ -175,16 +171,18 @@ async def microsoft_callback(code: str | None = None, state: str | None = None, 
 
     try:
         settings = get_settings()
-        if not _microsoft_oauth_configured(settings):
+        resolved = resolve_microsoft_oauth(db, settings)
+        if not resolved:
             return _login_error_redirect("Microsoft login is not configured")
 
+        token_endpoint = microsoft_token_url(resolved.authority_base, resolved.tenant_id)
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
-                settings.microsoft_token_url,
+                token_endpoint,
                 data={
                     "grant_type": "authorization_code",
-                    "client_id": settings.microsoft_broker_client_id.strip(),
-                    "client_secret": settings.microsoft_broker_client_secret.strip(),
+                    "client_id": resolved.client_id,
+                    "client_secret": resolved.client_secret,
                     "code": code,
                     "redirect_uri": _microsoft_redirect_uri(settings),
                     "code_verifier": pending_verifier,

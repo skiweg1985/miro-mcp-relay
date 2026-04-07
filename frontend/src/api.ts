@@ -7,10 +7,11 @@ import type {
   IntegrationToolV2Out,
   IntegrationV2Out,
   LoginOptionsResponse,
+  MicrosoftOAuthAdminOut,
   SessionResponse,
 } from "./types";
 
-type HttpMethod = "GET" | "POST" | "PATCH" | "DELETE";
+type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 type RequestOptions = {
   method?: HttpMethod;
@@ -136,5 +137,15 @@ export const api = {
         body,
       },
     );
+  },
+  getMicrosoftOAuthAdmin() {
+    return request<MicrosoftOAuthAdminOut>("/api/v1/admin/microsoft-oauth");
+  },
+  putMicrosoftOAuthAdmin(csrfToken: string, body: Record<string, unknown>) {
+    return request<MicrosoftOAuthAdminOut>("/api/v1/admin/microsoft-oauth", {
+      method: "PUT",
+      csrfToken,
+      body,
+    });
   },
 };

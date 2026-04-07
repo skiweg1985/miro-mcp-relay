@@ -93,9 +93,22 @@ export type IntegrationToolV2Out = {
   allowed: boolean;
 };
 
+export type MicrosoftOAuthAdminOut = {
+  ok: boolean;
+  authority_base: string;
+  tenant_id: string;
+  client_id: string;
+  scope: string;
+  has_client_secret: boolean;
+  effective_source: "database" | "environment" | "none";
+  microsoft_login_enabled: boolean;
+  redirect_uri: string;
+};
+
 export type RouteMatch =
   | { name: "login"; path: "/login" }
   | { name: "workspaceIntegrationsV2"; path: "/workspace/integrations-v2" }
+  | { name: "workspaceAdminMicrosoftOAuth"; path: "/workspace/admin/microsoft-oauth" }
   | { name: "notFound"; path: string };
 
 export type Toast = {

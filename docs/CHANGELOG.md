@@ -4,6 +4,7 @@
 
 ### Added
 
+- Microsoft-Enduser-Login: Tabelle `microsoft_oauth_settings` (org-bezogen, verschlüsseltes Client-Secret); Resolver wählt vollständige DB-Konfiguration vor Umgebungsvariablen `MICROSOFT_BROKER_*`. Admin-API `GET/PUT /api/v1/admin/microsoft-oauth` (Admin-Session, `PUT` mit `X-CSRF-Token`). Frontend: Workspace-Route `/workspace/admin/microsoft-oauth` (nur `is_admin`), Navigation „Microsoft sign-in“.
 - V2-Integrationsplattform: neue Datenmodelle `Integration`, `IntegrationInstance`, `IntegrationTool` mit Trennung von Integrationstyp, Authentisierung und Zugriffskanal.
 - Neue API-Routen unter `/api/v1`: `GET/POST /integrations`, `GET/POST /integration-instances`, `POST /integration-instances/{id}/execute`, `POST /integration-instances/{id}/discover-tools`.
 - Generischer MCP-Client (`discover_tools`, `call_tool`) und V2-Execution-Engine mit Auth-Injektion für `none`, `oauth`, `api_key`, `shared_credentials`.
@@ -11,7 +12,8 @@
 
 ### Changed
 
-- Runtime-Hard-Cut im Backend: `main.py` bindet nur noch `public`, `auth` und `integrations_v2`; frühere Connection-/Token-Issuance-/Admin-/User-Router sind nicht mehr aktiv.
+- `GET /api/v1/auth/login-options` nutzt den OAuth-Resolver (DB mit vollständiger Registrierung oder ENV-Fallback).
+- Runtime-Hard-Cut im Backend: `main.py` bindet `public`, `auth`, `integrations_v2` und `admin_microsoft_oauth`; frühere Connection-/Token-Issuance-/Legacy-Admin-/User-Router sind nicht mehr aktiv.
 - Frontend-Routing priorisiert den neuen V2-Pfad; Legacy-Workspace-Pfade leiten auf `/workspace/integrations-v2`.
 
 ### Removed

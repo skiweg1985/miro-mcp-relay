@@ -82,6 +82,9 @@ export function matchesRoute(pathname: string): RouteMatch {
   if (path === "/workspace/integrations-v2") {
     return { name: "workspaceIntegrationsV2", path: "/workspace/integrations-v2" };
   }
+  if (path === "/workspace/admin/microsoft-oauth") {
+    return { name: "workspaceAdminMicrosoftOAuth", path: "/workspace/admin/microsoft-oauth" };
+  }
   if (
     path.startsWith("/workspace") ||
     path.startsWith("/app") ||

@@ -2318,3 +2318,17 @@
 - Test notes: `docker compose build broker-backend`, recreate `broker-backend`, `scripts/debug-mcp-consumer-relay.py` gegen localhost — `tools/list` liefert u. a. 13 Miro-Tool-Namen.
 - Changelog updated: yes ([Unreleased] Fixed)
 - Follow-ups: Multi-Worker / Sticky-Session dokumentiert in Changelog
+
+## 2026-04-07 – Cursor Agent – MCP-Relay Troubleshooting-Doku + Logging
+
+- Done:
+  - `docs/troubleshooting-consumer-mcp-relay.md`, `AGENTS.md` (Link + Rule-Files-Zeile), `.cursor/rules/mcp-relay-troubleshooting.mdc`.
+  - `consumer_mcp_relay.py`: `mcp_relay_upstream_client_cache_hit` / `cache_miss`, `mcp_relay_upstream_response_start`.
+  - `docs/CHANGELOG.md` [Unreleased] Added/Changed.
+- Next: keine
+- Blockers: keine
+- Branch/PR: branch lokal, PR none
+- Files touched: `docs/troubleshooting-consumer-mcp-relay.md`, `AGENTS.md`, `.cursor/rules/mcp-relay-troubleshooting.mdc`, `backend/app/routers/consumer_mcp_relay.py`, `docs/CHANGELOG.md`, `planning/coordination/WORKLOG.md`
+- Test notes: `python3 -m py_compile backend/app/routers/consumer_mcp_relay.py`
+- Changelog updated: yes ([Unreleased] Added, Changed)
+- Follow-ups: keine

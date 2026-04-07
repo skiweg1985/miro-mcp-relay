@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections import OrderedDict
+from urllib.parse import urlparse
 
 import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
@@ -51,11 +52,13 @@ async def _relay_upstream_client(grant_id: str, timeout: httpx.Timeout) -> httpx
         if grant_id in _relay_upstream_clients:
             c = _relay_upstream_clients.pop(grant_id)
             _relay_upstream_clients[grant_id] = c
+            logger.info("mcp_relay_upstream_client_cache_hit grant_id=%s", grant_id)
             return c
         while len(_relay_upstream_clients) >= _RELAY_UPSTREAM_CLIENT_CAP:
             _evict_id, old = _relay_upstream_clients.popitem(last=False)
             await old.aclose()
             logger.info("mcp_relay_upstream_client_evicted grant_id=%s", _evict_id)
+        logger.info("mcp_relay_upstream_client_cache_miss grant_id=%s", grant_id)
         limits = httpx.Limits(max_connections=1, max_keepalive_connections=1)
         c = httpx.AsyncClient(timeout=timeout, follow_redirects=False, limits=limits)
         _relay_upstream_clients[grant_id] = c
@@ -166,6 +169,18 @@ async def _mcp_relay_handler(
         client = await _relay_upstream_client(grant.id, timeout)
         req = client.build_request(method, target_url, headers=merged, content=content)
         upstream = await client.send(req, stream=True)
+        upstream_ct = upstream.headers.get("content-type") or "none"
+        upstream_host = urlparse(target_url).hostname or ""
+        logger.info(
+            "mcp_relay_upstream_response_start instance_id=%s grant_id=%s method=%s path_suffix=%s upstream_status=%s upstream_content_type=%s upstream_host=%s",
+            instance_id,
+            grant.id,
+            method,
+            subpath or "",
+            upstream.status_code,
+            upstream_ct,
+            upstream_host,
+        )
     except httpx.RequestError as exc:
         logger.warning("mcp_relay_upstream_error instance_id=%s detail=%s", instance_id, type(exc).__name__)
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="mcp_relay_upstream_unreachable") from exc

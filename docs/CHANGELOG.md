@@ -4,6 +4,9 @@
 
 ### Added
 
+- `docs/troubleshooting-consumer-mcp-relay.md`: Symptome, Ursachen (OAuth, Streamable-HTTP/TCP, Multi-Worker, HAProxy-Timeouts), Checks (`grep mcp_relay_`, Debug-Skript); Verweis in `AGENTS.md`.
+- `.cursor/rules/mcp-relay-troubleshooting.mdc`: Kurz-Checkliste für Agent-Runs zu Consumer-MCP-Relay.
+
 - `scripts/debug-mcp-consumer-relay.py`: lokaler Ablauf Health → `mcp-connection-info` → JSON-RPC `initialize` / `notifications/initialized` / `tools/list` gegen `POST /api/v1/consumer/integration-instances/{id}/mcp` (httpx; optional `--insecure` für HTTPS-Dev-Zertifikat). Konfiguration per `--base-url` / `--access-key` oder `DEBUG_MCP_ACCESS_KEY`, `BROKER_PUBLIC_BASE_URL`, `DEBUG_MCP_INSTANCE_ID`.
 
 - **Consumer MCP relay (streamable HTTP):** `ANY /api/v1/consumer/integration-instances/{id}/mcp` und optional `…/mcp/{path}` — Access-Key (`X-Broker-Access-Key` oder `Authorization: Bearer bkr_…`), gültiger Grant, MCP-fähige Integration (`mcp_enabled`, Typ `mcp_server`), `access_mode=relay`; `access_config.consumer_mcp_relay` in der Instance (Standard: an) schaltet die Relay-Route ab. Upstream-Auth löst der Broker (`resolve_outbound_headers` + OAuth über Grant/Connection/`X-User-Token`); Antwort wird gestreamt (`text/event-stream` / JSON). Ziel-URL nur gleiche Scheme/Host/Port wie `config.endpoint`. `GET …/mcp-connection-info` liefert Transport-Hinweis. Module `mcp_relay_engine`, `services/consumer_access.py`.
@@ -29,6 +32,8 @@
 - Miro MCP Integration-OAuth: Default `oauth_token_endpoint` ist `{miro_mcp_base}/token` (MCP-Authorization-Server), nicht `https://api.miro.com/v1/oauth/token`; behebt 401 „Client not found“ bei Token-Austausch nach DCR. `reconcile_miro_default_integration_token_endpoint` setzt bei bestehender Default-Integration fehlende oder frühere REST-Token-URL auf die MCP-Token-URL; Fallback in `integration_oauth` nutzt `{miro_mcp_base}/token`.
 
 ### Changed
+
+- Consumer-MCP-Relay: INFO-Logs `mcp_relay_upstream_client_cache_hit`, `mcp_relay_upstream_client_cache_miss`, `mcp_relay_upstream_response_start` (u. a. `upstream_status`, `upstream_content_type`, `upstream_host` ohne Pfad/Query).
 
 - Workspace: Integrations are shown as cards (status, type line, Open / Add connection / Test / Graph settings); connection management moved to `/workspace/connections` (table with actions); Access keys use a table plus modal-based creation; add-integration and add-connection use step modals. Human-readable labels for auth and access modes live in `integrationLabels.ts`. Legacy path `/app/connections` redirects to `/workspace/connections`.
 

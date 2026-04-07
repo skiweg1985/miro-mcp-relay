@@ -18,7 +18,7 @@ Follow these repo-specific conventions and commands first.
 ## Rule Files (Cursor / Copilot)
 
 - Checked `.cursorrules`: not present.
-- Checked `.cursor/rules/`: not present.
+- Checked `.cursor/rules/`: u. a. `docu-no-meta.mdc`, `terminology-naming-consistency.mdc`, `mcp-relay-troubleshooting.mdc`.
 - Checked `.github/copilot-instructions.md`: not present.
 - If any of these files are added later, treat them as highest-priority local instructions.
 
@@ -60,6 +60,7 @@ Follow these repo-specific conventions and commands first.
 - Backend unit smoke (no running server): `PYTHONPATH=backend python3 -m unittest backend.test_smoke -v`
 - HTTPS dev smoke test: `curl -k -sS https://localhost/api/v1/health`
 - Consumer MCP relay (laufender Broker): `pip install httpx` falls nötig, dann z. B. `DEBUG_MCP_ACCESS_KEY=bkr_… python3 scripts/debug-mcp-consumer-relay.py --base-url http://localhost` (HTTPS: `--insecure`)
+- Consumer-MCP-Relay-Fehlersuche: [`docs/troubleshooting-consumer-mcp-relay.md`](docs/troubleshooting-consumer-mcp-relay.md)
 
 ## Testing Guidance (Especially Single Test)
 

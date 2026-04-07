@@ -1,0 +1,35 @@
+---
+description: Consumer-MCP-Relay — Symptome, Log-Präfixe, typische Ursachen
+globs:
+  - backend/app/routers/consumer_mcp_relay.py
+  - scripts/debug-mcp-consumer-relay.py
+  - docs/troubleshooting-consumer-mcp-relay.md
+alwaysApply: false
+---
+
+# Consumer-MCP-Relay
+
+Ausführliche Notizen: [`docs/troubleshooting-consumer-mcp-relay.md`](docs/troubleshooting-consumer-mcp-relay.md).
+
+## Symptom → Richtung
+
+| Beobachtung | Zuerst prüfen |
+|-------------|----------------|
+| HTTP 401 `oauth_upstream_token_missing` | OAuth-Connection / `X-User-Token` für die Instanz |
+| `tools/list` 200, Body leer; MCP-Timeout bei `list_tools` | Upstream braucht oft dieselbe TCP-Verbindung; Log `mcp_relay_upstream_client_cache_hit` vs `cache_miss`; Multi-Worker |
+| `mcp_relay_upstream_stream_closed` / `ReadError` | Upstream/Proxy bricht Stream ab; HAProxy-Timeouts |
+| HAProxy `SD--` | Verbindungsabbruch während der Antwort |
+
+## Log-Präfixe (`grep mcp_relay_`)
+
+- `mcp_relay_upstream_client_cache_hit` / `mcp_relay_upstream_client_cache_miss` — httpx-Client-Pool pro Grant
+- `mcp_relay_upstream_client_evicted` — LRU entfernt ältesten Eintrag
+- `mcp_relay_upstream_response_start` — Status, Content-Type, Hostname (ohne Pfad/Query)
+- `mcp_relay_upstream_error` — Verbindungsfehler vor Antwort
+- `mcp_relay_upstream_stream_closed` — Lesen des Response-Bodys abgebrochen
+
+Keine Secrets loggen (keine Authorization, keine vollen URLs mit Query).
+
+## Lokaler Test
+
+`scripts/debug-mcp-consumer-relay.py` mit `DEBUG_MCP_ACCESS_KEY` und `--base-url` (siehe [`AGENTS.md`](AGENTS.md)).

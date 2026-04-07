@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { useAppContext } from "./app-context";
 import { Modal, StatusBadge } from "./components";
 import {
+  accessGrantEffectiveStatusLabel,
   accessGrantStatusLabel,
   accessModeLabel,
   authModeLabel,
@@ -114,8 +115,15 @@ type Props = {
 };
 
 export function AccessGrantUsageModal({ grant, integration, instance, onClose }: Props) {
+  const eff = grant.effective_status ?? grant.status;
   const statusTone =
-    grant.status === "active" ? "success" : grant.status === "revoked" ? "danger" : "neutral";
+    eff === "active"
+      ? "success"
+      : eff === "revoked"
+        ? "danger"
+        : eff === "invalid"
+          ? "warn"
+          : "neutral";
 
   const apiBase = useMemo(() => {
     if (typeof window === "undefined") {
@@ -199,8 +207,9 @@ export CONNECTION_ID='${instanceId}'`;
         <DetailRow label="Connection" value={grant.integration_instance_name} />
         <DetailRow
           label="Status"
-          value={<StatusBadge tone={statusTone}>{accessGrantStatusLabel(grant.status)}</StatusBadge>}
+          value={<StatusBadge tone={statusTone}>{accessGrantEffectiveStatusLabel(eff)}</StatusBadge>}
         />
+        <DetailRow label="Record status" value={accessGrantStatusLabel(grant.status)} />
         <DetailRow label="Expires" value={formatDateTime(grant.expires_at)} />
         {integration ? <DetailRow label="Integration type" value={integrationTypeLabel(integration.type)} /> : null}
         {instance ? <DetailRow label="Connection auth" value={authModeLabel(instance.auth_mode)} /> : null}

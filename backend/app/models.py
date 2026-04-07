@@ -141,6 +141,7 @@ class UserConnectionStatus(StrEnum):
 class AccessGrantStatus(StrEnum):
     ACTIVE = "active"
     REVOKED = "revoked"
+    INVALID = "invalid"
 
 
 class Integration(Base):
@@ -154,6 +155,7 @@ class Integration(Base):
     # Optional: Microsoft Graph custom Entra app (when graph_oauth_use_broker_defaults is false in config_json)
     oauth_client_secret_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
     mcp_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
 
@@ -172,6 +174,7 @@ class IntegrationInstance(Base):
     access_mode: Mapped[str] = mapped_column(String(64), default=IntegrationAccessMode.RELAY.value)
     access_config_json: Mapped[str] = mapped_column(Text, default="{}")
     created_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
 
@@ -219,6 +222,7 @@ class AccessGrant(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    invalidated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 

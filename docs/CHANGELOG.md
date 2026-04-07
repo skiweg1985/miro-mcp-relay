@@ -4,6 +4,9 @@
 
 ### Added
 
+- **Lifecycle & Sicherheit (Broker):** Access-Grants `invalid` mit `invalidated_at` und `invalidation_reason` in Metadaten; `effective_status` in API-Antworten; Soft-Delete für `integrations` und `integration_instances` (`deleted_at`); `DELETE /api/v1/integration-instances/{id}` (invalidiert abhängige Keys), `PATCH /api/v1/integration-instances/{id}` (kritische Auth-/Traffic-Änderungen mit `acknowledge_critical_change`); `DELETE /api/v1/integrations/{id}` (geschützte Default-Integrationen blockiert); `DELETE /api/v1/access-grants/{id}` für entfernte/revoked Keys. Consumer-API lehnt Kontext ohne gültige Connection/Integration ab (`access_grant_context_invalid`).
+- Workspace: Bestätigungsmodals für Revoke/Remove von Access Keys, Disconnect, Connection- und Integrations-Löschen; Connection **Edit**; Integrations **Delete** (wenn erlaubt); Toasts mit Anzahl invalidierter Keys wo relevant.
+
 - Workspace Access: pro Access Key ein **Usage**-Modal mit broker-spezifischer Anleitung (Endpunkte `POST /api/v1/consumer/integration-instances/{id}/execute`, optional `…/discover-tools`, `POST /api/v1/access-grants/validate`), Auth (`X-Broker-Access-Key` / `Authorization: Bearer bkr_…`), copybare curl-/Env-/JSON-Beispiele; nach Key-Erstellung **How to use**; Detailmodal **How to use**. Inhalt des Usage-Modals abhängig vom **Integrationstyp** (`mcp_server`: MCP inkl. discover; `oauth_provider` / `api`: angepasste Texte; **Advanced** `X-User-Token` nur bei OAuth-Connection).
 
 - **`GET /api/v1/integration-instances/{id}/inspect`**: Liefert `IntegrationInstanceOut`, `IntegrationOut` und optional `user_connection` (`id`, `status`, Zeitstempel, `profile` aus `metadata_json`).

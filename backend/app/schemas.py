@@ -97,6 +97,28 @@ class IntegrationInstanceOut(BaseModel):
     oauth_connected: bool = False
 
 
+class IntegrationInstanceUpdate(BaseModel):
+    name: str | None = Field(default=None, max_length=255)
+    auth_mode: str | None = None
+    auth_config: dict[str, Any] | None = None
+    access_mode: str | None = None
+    access_config: dict[str, Any] | None = None
+    acknowledge_critical_change: bool = False
+
+
+class IntegrationInstanceDeleteResult(BaseModel):
+    ok: bool = True
+    id: str
+    grants_invalidated: int
+
+
+class IntegrationDeleteResult(BaseModel):
+    ok: bool = True
+    id: str
+    grants_invalidated: int
+    connections_removed: int
+
+
 class UserConnectionSummaryOut(BaseModel):
     id: str
     status: str
@@ -175,13 +197,21 @@ class AccessGrantOut(BaseModel):
     name: str
     key_prefix: str
     status: str
+    effective_status: str
     allowed_tools: list[str] = Field(default_factory=list)
     policy_ref: str | None = None
     notes: str | None = None
     created_at: datetime
     expires_at: datetime | None = None
     revoked_at: datetime | None = None
+    invalidated_at: datetime | None = None
+    invalidation_reason: str | None = None
     last_used_at: datetime | None = None
+
+
+class AccessGrantDeleteResult(BaseModel):
+    ok: bool = True
+    id: str
 
 
 class AccessGrantCreatedOut(BaseModel):

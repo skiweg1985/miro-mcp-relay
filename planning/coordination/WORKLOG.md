@@ -1,3 +1,17 @@
+## 2026-04-07 – Cursor Agent – Destructive actions & Access-Grant-Lifecycle
+
+- Done:
+  - Backend: `AccessGrantStatus.INVALID`, `invalidated_at`; Soft-Delete `Integration`/`IntegrationInstance`; `access_grant_lifecycle` (Invalidierung mit Codes `connection_deleted`, `integration_deleted`, `critical_settings_changed`, `integration_config_changed`); `PATCH`/`DELETE` Instance, `DELETE` Integration (geschützte Defaults); `DELETE` Access-Grant; Consumer/Session-Routen prüfen `deleted_at`; `AccessGrantOut` um `effective_status`, `invalidation_reason` erweitert; `reconcile_schema` für neue Spalten.
+  - Frontend: `ConfirmModal`-Flows; `ConnectionEditModal`; Connections Edit/Delete; Integrations Delete; Access Revoke/Remove; Labels `effective_status`, Invalidierungsgründe, `integrationDeletable`.
+  - `docs/CHANGELOG.md`, WORKLOG.
+- Next: keine
+- Blockers: keine
+- Branch/PR: branch lokal, PR none
+- Files touched: `backend/app/models.py`, `backend/app/seed.py`, `backend/app/schemas.py`, `backend/app/services/access_grant_lifecycle.py`, `backend/app/services/access_grants.py`, `backend/app/routers/access_grants.py`, `backend/app/routers/integrations_v2.py`, `backend/app/routers/consumer_execution.py`, `backend/app/routers/integration_oauth.py`, `frontend/src/*` (Connections, Integrations, Access, api, types, labels), `docs/CHANGELOG.md`, `planning/coordination/WORKLOG.md`
+- Test notes: `PYTHONPATH=backend python3 -m unittest backend.test_smoke -v`; `cd frontend && npm run build`
+- Changelog updated: yes (Unreleased Added)
+- Follow-ups: keine
+
 ## 2026-04-07 – Cursor Agent – Usage-Modal nach Integrationstyp
 
 - Done:

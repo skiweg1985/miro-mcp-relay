@@ -54,13 +54,13 @@ async def consumer_execute(
             IntegrationInstance.organization_id == grant.organization_id,
         )
     )
-    if not instance:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="instance_not_found")
+    if not instance or instance.deleted_at is not None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="access_grant_context_invalid")
     integration = db.scalar(
         select(Integration).where(Integration.id == instance.integration_id, Integration.organization_id == grant.organization_id)
     )
-    if not integration:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="integration_not_found")
+    if not integration or integration.deleted_at is not None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="access_grant_context_invalid")
 
     allowed = loads_json(grant.allowed_tools_json, [])
     grant_tools = [str(x) for x in allowed] if isinstance(allowed, list) else []
@@ -115,12 +115,14 @@ async def consumer_discover_tools(
             IntegrationInstance.organization_id == grant.organization_id,
         )
     )
-    if not instance:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="instance_not_found")
+    if not instance or instance.deleted_at is not None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="access_grant_context_invalid")
     integration = db.scalar(
         select(Integration).where(Integration.id == instance.integration_id, Integration.organization_id == grant.organization_id)
     )
-    if not integration or not integration.mcp_enabled:
+    if not integration or integration.deleted_at is not None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="access_grant_context_invalid")
+    if not integration.mcp_enabled:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="integration_not_mcp_enabled")
 
     allowed = loads_json(grant.allowed_tools_json, [])

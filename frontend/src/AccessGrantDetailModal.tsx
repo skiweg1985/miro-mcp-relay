@@ -1,6 +1,10 @@
 import { Modal, StatusBadge } from "./components";
 import type { AccessGrantOut } from "./types";
-import { accessGrantStatusLabel } from "./integrationLabels";
+import {
+  accessGrantEffectiveStatusLabel,
+  accessGrantInvalidationReasonLabel,
+  accessGrantStatusLabel,
+} from "./integrationLabels";
 import { DetailRow, DetailSection, RawJsonDisclosure } from "./object-detail-ui";
 import { formatDateTime } from "./utils";
 
@@ -9,25 +13,40 @@ type Props = {
   integrationName: string;
   onClose: () => void;
   onRevoke: () => void;
+  onRemove?: () => void;
   onOpenUsage?: () => void;
   busy: boolean;
 };
 
-export function AccessGrantDetailModal({ grant, integrationName, onClose, onRevoke, onOpenUsage, busy }: Props) {
+export function AccessGrantDetailModal({ grant, integrationName, onClose, onRevoke, onRemove, onOpenUsage, busy }: Props) {
+  const eff = grant.effective_status ?? grant.status;
   const statusTone =
-    grant.status === "active" ? "success" : grant.status === "revoked" ? "danger" : "neutral";
+    eff === "active"
+      ? "success"
+      : eff === "revoked"
+        ? "danger"
+        : eff === "invalid"
+          ? "warn"
+          : "neutral";
   const tools =
     grant.allowed_tools?.length ? grant.allowed_tools.join(", ") : "All tools exposed by the connection";
+  const invLabel = accessGrantInvalidationReasonLabel(grant.invalidation_reason);
 
   return (
     <Modal title={grant.name} description="Broker-issued access for an API client." wide onClose={onClose}>
       <DetailSection title="Summary">
         <DetailRow label="Client or app" value={grant.name} />
-        <DetailRow label="Status" value={<StatusBadge tone={statusTone}>{accessGrantStatusLabel(grant.status)}</StatusBadge>} />
+        <DetailRow
+          label="Status"
+          value={<StatusBadge tone={statusTone}>{accessGrantEffectiveStatusLabel(eff)}</StatusBadge>}
+        />
+        <DetailRow label="Record status" value={accessGrantStatusLabel(grant.status)} />
         <DetailRow label="Key prefix" value={grant.key_prefix} />
         <DetailRow label="Created" value={formatDateTime(grant.created_at)} />
         <DetailRow label="Expires" value={formatDateTime(grant.expires_at)} />
         <DetailRow label="Last used" value={formatDateTime(grant.last_used_at)} />
+        {grant.invalidated_at ? <DetailRow label="Invalidated" value={formatDateTime(grant.invalidated_at)} /> : null}
+        {invLabel ? <DetailRow label="Reason" value={invLabel} /> : null}
       </DetailSection>
 
       <DetailSection title="Routing">
@@ -57,6 +76,11 @@ export function AccessGrantDetailModal({ grant, integrationName, onClose, onRevo
         {onOpenUsage ? (
           <button type="button" className="ghost-button" onClick={() => onOpenUsage()}>
             How to use
+          </button>
+        ) : null}
+        {onRemove ? (
+          <button type="button" className="ghost-button" disabled={busy} onClick={() => onRemove()}>
+            Remove from list
           </button>
         ) : null}
         <button

@@ -337,6 +337,7 @@ def start_integration_oauth(
         select(IntegrationInstance).where(
             IntegrationInstance.id == instance_id,
             IntegrationInstance.organization_id == current_user.organization_id,
+            IntegrationInstance.deleted_at.is_(None),
         )
     )
     if not instance or instance.auth_mode != AuthMode.OAUTH.value:
@@ -345,6 +346,7 @@ def start_integration_oauth(
         select(Integration).where(
             Integration.id == instance.integration_id,
             Integration.organization_id == current_user.organization_id,
+            Integration.deleted_at.is_(None),
         )
     )
     if not integration:
@@ -455,7 +457,12 @@ async def _integration_oauth_callback_impl(
     instance_id = str(raw.get("instance_id") or "")
     user = db.get(User, user_id)
     instance = db.get(IntegrationInstance, instance_id)
-    if not user or not instance or instance.organization_id != user.organization_id:
+    if (
+        not user
+        or not instance
+        or instance.organization_id != user.organization_id
+        or instance.deleted_at is not None
+    ):
         db.commit()
         return _redirect_workspace(ok=False, message="invalid_connection_target")
 
@@ -463,6 +470,7 @@ async def _integration_oauth_callback_impl(
         select(Integration).where(
             Integration.id == instance.integration_id,
             Integration.organization_id == user.organization_id,
+            Integration.deleted_at.is_(None),
         )
     )
     if not integration:
@@ -595,6 +603,7 @@ def disconnect_integration_oauth(
         select(IntegrationInstance).where(
             IntegrationInstance.id == instance_id,
             IntegrationInstance.organization_id == current_user.organization_id,
+            IntegrationInstance.deleted_at.is_(None),
         )
     )
     if not instance or instance.auth_mode != AuthMode.OAUTH.value:

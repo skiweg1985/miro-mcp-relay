@@ -7,7 +7,7 @@ import { ConnectionCreateModal } from "./ConnectionCreateModal";
 import { GraphOAuthSettingsModal } from "./GraphOAuthSettingsModal";
 import { IntegrationCreateModal } from "./IntegrationCreateModal";
 import { IntegrationInspectModal } from "./IntegrationInspectModal";
-import { PageIntro, StatusBadge } from "./components";
+import { ConfirmModal, PageIntro, StatusBadge } from "./components";
 import type { IntegrationInstanceV2Out, IntegrationV2Out } from "./types";
 import { isApiError } from "./errors";
 import {
@@ -30,6 +30,7 @@ export function IntegrationsV2Page() {
   const [connectionDefaultId, setConnectionDefaultId] = useState<string | undefined>(undefined);
   const [graphModalOpen, setGraphModalOpen] = useState(false);
   const [detailIntegration, setDetailIntegration] = useState<IntegrationV2Out | null>(null);
+  const [deleteIntegrationTarget, setDeleteIntegrationTarget] = useState<IntegrationV2Out | null>(null);
 
   const graphIntegration = useMemo(
     () => integrations.find((i) => isMicrosoftGraphIntegration(i)),
@@ -173,6 +174,46 @@ export function IntegrationsV2Page() {
         </>
       ) : null}
 
+      {deleteIntegrationTarget ? (
+        <ConfirmModal
+          title="Delete integration?"
+          confirmLabel="Delete integration"
+          confirmBusy={busy}
+          onCancel={() => setDeleteIntegrationTarget(null)}
+          onConfirm={() => {
+            const target = deleteIntegrationTarget;
+            setDeleteIntegrationTarget(null);
+            void (async () => {
+              if (session.status !== "authenticated" || !target) return;
+              setBusy(true);
+              try {
+                const r = await api.deleteIntegrationV2(session.csrfToken, target.id);
+                await load();
+                notify({
+                  tone: "success",
+                  title: "Integration deleted",
+                  description: `${r.connections_removed} connection(s) removed. ${r.grants_invalidated} access key(s) marked invalid.`,
+                });
+                setDetailIntegration((cur) => (cur?.id === target.id ? null : cur));
+              } catch (error) {
+                notify({
+                  tone: "error",
+                  title: "Could not delete integration",
+                  description: isApiError(error) ? error.message : "Unexpected error.",
+                });
+              } finally {
+                setBusy(false);
+              }
+            })();
+          }}
+        >
+          <p>
+            You are about to delete <strong>{deleteIntegrationTarget.name}</strong> and all connections that use it. Dependent
+            access keys will be marked invalid.
+          </p>
+        </ConfirmModal>
+      ) : null}
+
       {detailIntegration ? (
         <IntegrationInspectModal
           integration={detailIntegration}
@@ -192,6 +233,7 @@ export function IntegrationsV2Page() {
                 }
               : undefined
           }
+          onDeleteRequest={isAdmin ? () => setDeleteIntegrationTarget(detailIntegration) : undefined}
         />
       ) : null}
 

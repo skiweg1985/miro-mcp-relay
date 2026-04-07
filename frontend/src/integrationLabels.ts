@@ -1,4 +1,4 @@
-import type { IntegrationInstanceV2Out, IntegrationV2Out } from "./types";
+import type { AccessGrantOut, IntegrationInstanceV2Out, IntegrationV2Out } from "./types";
 
 const INTEGRATION_TYPE: Record<IntegrationV2Out["type"], string> = {
   mcp_server: "MCP",
@@ -22,6 +22,7 @@ const GRANT_STATUS: Record<string, string> = {
   active: "Active",
   revoked: "Revoked",
   expired: "Expired",
+  invalid: "Invalid",
 };
 
 export function integrationTypeLabel(type: IntegrationV2Out["type"]): string {
@@ -38,6 +39,47 @@ export function accessModeLabel(mode: IntegrationInstanceV2Out["access_mode"]): 
 
 export function accessGrantStatusLabel(status: string): string {
   return GRANT_STATUS[status] ?? status;
+}
+
+const GRANT_EFFECTIVE: Record<string, string> = {
+  active: "Active",
+  revoked: "Revoked",
+  invalid: "Invalid",
+  expired: "Expired",
+};
+
+export function accessGrantEffectiveStatusLabel(effective: string): string {
+  return GRANT_EFFECTIVE[effective] ?? effective;
+}
+
+export function accessGrantInvalidationReasonLabel(code: string | null | undefined): string | null {
+  if (!code) return null;
+  const map: Record<string, string> = {
+    connection_deleted: "Connection removed",
+    integration_deleted: "Integration removed",
+    critical_settings_changed: "Connection settings changed",
+    integration_config_changed: "Integration configuration changed",
+  };
+  return map[code] ?? code;
+}
+
+const PROTECTED_INTEGRATION_IDS = new Set([
+  "00000000-0000-4000-8000-000000000101",
+  "00000000-0000-4000-8000-000000000102",
+]);
+
+export function canRemoveAccessGrant(grant: AccessGrantOut): boolean {
+  if (grant.status === "revoked" || grant.status === "invalid") return true;
+  if (grant.status === "active" && grant.effective_status === "expired") return true;
+  return false;
+}
+
+export function integrationDeletable(integration: IntegrationV2Out): boolean {
+  if (PROTECTED_INTEGRATION_IDS.has(integration.id)) return false;
+  const c = integration.config as Record<string, unknown> | undefined;
+  const tk = typeof c?.template_key === "string" ? c.template_key.trim() : "";
+  if (tk === "miro_default" || tk === "microsoft_graph_default") return false;
+  return true;
 }
 
 export function isMicrosoftGraphIntegration(integration: IntegrationV2Out): boolean {

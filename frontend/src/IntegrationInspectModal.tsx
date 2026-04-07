@@ -8,6 +8,7 @@ import {
   accessModeLabel,
   authModeLabel,
   integrationCardDescription,
+  integrationDeletable,
   integrationLifecycleBadge,
   integrationTypeLabel,
   isMicrosoftGraphIntegration,
@@ -54,6 +55,7 @@ type Props = {
   onClose: () => void;
   onGoToConnections: () => void;
   onAddConnection?: () => void;
+  onDeleteRequest?: () => void;
 };
 
 export function IntegrationInspectModal({
@@ -63,6 +65,7 @@ export function IntegrationInspectModal({
   onClose,
   onGoToConnections,
   onAddConnection,
+  onDeleteRequest,
 }: Props) {
   const [callbacks, setCallbacks] = useState<BrokerCallbackUrls | null>(null);
   const badge = integrationLifecycleBadge(integration, relatedInstances.length);
@@ -218,6 +221,11 @@ export function IntegrationInspectModal({
       ) : null}
 
       <div className="modal-form-actions">
+        {isAdmin && onDeleteRequest && integrationDeletable(integration) ? (
+          <button type="button" className="ghost-button" onClick={() => onDeleteRequest()}>
+            Delete integration
+          </button>
+        ) : null}
         <button type="button" className="primary-button" onClick={onClose}>
           Close
         </button>

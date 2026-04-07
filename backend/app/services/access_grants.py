@@ -92,6 +92,17 @@ def is_grant_usable(row: AccessGrant, *, now: datetime | None = None) -> bool:
     return True
 
 
+def effective_grant_display_status(row: AccessGrant, *, now: datetime | None = None) -> str:
+    t = now or utcnow()
+    if row.status == AccessGrantStatus.REVOKED.value:
+        return "revoked"
+    if row.status == AccessGrantStatus.INVALID.value:
+        return "invalid"
+    if row.expires_at is not None and row.expires_at <= t:
+        return "expired"
+    return "active"
+
+
 def touch_grant_used(db: Session, grant: AccessGrant) -> None:
     grant.last_used_at = utcnow()
     db.add(grant)

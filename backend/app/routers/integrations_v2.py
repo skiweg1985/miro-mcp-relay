@@ -1,14 +1,19 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 from fastapi import APIRouter, Body, Depends, Header, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.database import get_db
 from app.deps import get_current_user, require_admin, require_csrf
+from app.default_integrations import INTEGRATION_GRAPH_DEFAULT_ID, INTEGRATION_MIRO_DEFAULT_ID, TEMPLATE_KEY_MIRO_DEFAULT
 from app.execution_engine_v2 import execute_instance_action
 from app.models import (
+    AccessGrant,
+    AccessGrantStatus,
     AuthMode,
     Integration,
     IntegrationAccessMode,
@@ -20,18 +25,33 @@ from app.models import (
 )
 from app.schemas import (
     IntegrationCreate,
+    IntegrationDeleteResult,
     IntegrationExecuteRequest,
     IntegrationExecuteResponse,
     IntegrationInstanceCreate,
+    IntegrationInstanceDeleteResult,
     IntegrationInstanceInspectOut,
     IntegrationInstanceOut,
+    IntegrationInstanceUpdate,
     IntegrationOut,
     IntegrationToolOut,
     IntegrationUpdate,
     UserConnectionSummaryOut,
 )
-from app.security import dumps_json, encrypt_text, loads_json
+from app.security import dumps_json, encrypt_text, loads_json, utcnow
 from app.microsoft_oauth_resolver import microsoft_graph_oauth_redirect_uri
+from app.services.access_grant_lifecycle import (
+    INVALIDATION_CONNECTION_DELETED,
+    INVALIDATION_CRITICAL_SETTINGS,
+    INVALIDATION_INTEGRATION_CONFIG,
+    INVALIDATION_INTEGRATION_DELETED,
+    critical_integration_config_changed,
+    critical_instance_settings_snapshot,
+    instance_critical_settings_changed,
+    invalidate_grants_for_instance,
+    invalidate_grants_for_integration_instances,
+    soft_delete_integration_instance,
+)
 from app.upstream_oauth import get_upstream_oauth_token_for_session, user_has_oauth_connection
 
 router = APIRouter(tags=["integrations-v2"])
@@ -87,6 +107,29 @@ def _validate_integration(payload: IntegrationCreate) -> None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="mcp_server_requires_mcp_enabled")
 
 
+def _integration_protected(integration: Integration) -> bool:
+    if integration.id in (INTEGRATION_MIRO_DEFAULT_ID, INTEGRATION_GRAPH_DEFAULT_ID):
+        return True
+    cfg = loads_json(integration.config_json, {})
+    tk = str(cfg.get("template_key") or "").strip()
+    if tk in (TEMPLATE_KEY_MIRO_DEFAULT, "microsoft_graph_default"):
+        return True
+    return False
+
+
+def _count_active_grants_for_instance(db: Session, organization_id: str, instance_id: str) -> int:
+    n = db.scalar(
+        select(func.count())
+        .select_from(AccessGrant)
+        .where(
+            AccessGrant.organization_id == organization_id,
+            AccessGrant.integration_instance_id == instance_id,
+            AccessGrant.status == AccessGrantStatus.ACTIVE.value,
+        )
+    )
+    return int(n or 0)
+
+
 def _validate_instance(payload: IntegrationInstanceCreate, integration: Integration) -> None:
     if payload.auth_mode not in {value.value for value in AuthMode}:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="invalid_auth_mode")
@@ -103,7 +146,9 @@ def _validate_instance(payload: IntegrationInstanceCreate, integration: Integrat
 @router.get("/integrations", response_model=list[IntegrationOut])
 def list_integrations(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     rows = db.scalars(
-        select(Integration).where(Integration.organization_id == current_user.organization_id).order_by(Integration.name.asc())
+        select(Integration)
+        .where(Integration.organization_id == current_user.organization_id, Integration.deleted_at.is_(None))
+        .order_by(Integration.name.asc())
     ).all()
     return [_integration_out(row) for row in rows]
 
@@ -122,11 +167,18 @@ def patch_integration(
             Integration.organization_id == current_user.organization_id,
         )
     )
-    if not row:
+    if not row or row.deleted_at is not None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="integration_not_found")
     if payload.config is not None:
         base_cfg = loads_json(row.config_json, {})
         merged = {**base_cfg, **payload.config}
+        if critical_integration_config_changed(base_cfg, merged):
+            invalidate_grants_for_integration_instances(
+                db,
+                organization_id=current_user.organization_id,
+                integration_id=row.id,
+                reason=INVALIDATION_INTEGRATION_CONFIG,
+            )
         row.config_json = dumps_json(merged)
     if payload.clear_graph_oauth_client_secret:
         row.oauth_client_secret_encrypted = None
@@ -166,10 +218,18 @@ def create_integration(
 def list_instances(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     rows = db.scalars(
         select(IntegrationInstance)
-        .where(IntegrationInstance.organization_id == current_user.organization_id)
+        .where(
+            IntegrationInstance.organization_id == current_user.organization_id,
+            IntegrationInstance.deleted_at.is_(None),
+        )
         .order_by(IntegrationInstance.created_at.desc())
     ).all()
-    return [_instance_out(db, row, current_user) for row in rows]
+    visible: list[IntegrationInstance] = []
+    for row in rows:
+        integ = db.get(Integration, row.integration_id)
+        if integ and integ.deleted_at is None:
+            visible.append(row)
+    return [_instance_out(db, row, current_user) for row in visible]
 
 
 @router.get("/integration-instances/{instance_id}/inspect", response_model=IntegrationInstanceInspectOut)
@@ -182,6 +242,7 @@ def inspect_integration_instance(
         select(IntegrationInstance).where(
             IntegrationInstance.id == instance_id,
             IntegrationInstance.organization_id == current_user.organization_id,
+            IntegrationInstance.deleted_at.is_(None),
         )
     )
     if not instance:
@@ -190,6 +251,7 @@ def inspect_integration_instance(
         select(Integration).where(
             Integration.id == instance.integration_id,
             Integration.organization_id == current_user.organization_id,
+            Integration.deleted_at.is_(None),
         )
     )
     if not integration:
@@ -232,6 +294,7 @@ def create_instance(
         select(Integration).where(
             Integration.id == payload.integration_id,
             Integration.organization_id == current_user.organization_id,
+            Integration.deleted_at.is_(None),
         )
     )
     if not integration:
@@ -253,6 +316,139 @@ def create_instance(
     return _instance_out(db, row, current_user)
 
 
+@router.patch("/integration-instances/{instance_id}", response_model=IntegrationInstanceOut)
+def patch_instance(
+    instance_id: str,
+    payload: IntegrationInstanceUpdate = Body(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+    _csrf: str = Depends(require_csrf),
+):
+    instance = db.scalar(
+        select(IntegrationInstance).where(
+            IntegrationInstance.id == instance_id,
+            IntegrationInstance.organization_id == current_user.organization_id,
+            IntegrationInstance.deleted_at.is_(None),
+        )
+    )
+    if not instance:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="instance_not_found")
+    integration = db.scalar(
+        select(Integration).where(
+            Integration.id == instance.integration_id,
+            Integration.organization_id == current_user.organization_id,
+            Integration.deleted_at.is_(None),
+        )
+    )
+    if not integration:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="integration_not_found")
+
+    old_snap = critical_instance_settings_snapshot(instance)
+    proposed_name = payload.name.strip() if payload.name is not None else instance.name
+    proposed_auth_mode = payload.auth_mode if payload.auth_mode is not None else instance.auth_mode
+    proposed_auth_json = dumps_json(payload.auth_config) if payload.auth_config is not None else instance.auth_config_json
+    proposed_access_mode = payload.access_mode if payload.access_mode is not None else instance.access_mode
+    proposed_access_json = dumps_json(payload.access_config) if payload.access_config is not None else instance.access_config_json
+
+    if old_snap != (proposed_auth_mode, proposed_auth_json, proposed_access_mode, proposed_access_json):
+        n = _count_active_grants_for_instance(db, current_user.organization_id, instance.id)
+        if n > 0 and not payload.acknowledge_critical_change:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="critical_change_requires_confirmation")
+
+    instance.name = proposed_name
+    instance.auth_mode = proposed_auth_mode
+    instance.auth_config_json = proposed_auth_json
+    instance.access_mode = proposed_access_mode
+    instance.access_config_json = proposed_access_json
+
+    _validate_instance(
+        IntegrationInstanceCreate(
+            name=instance.name,
+            integration_id=instance.integration_id,
+            auth_mode=instance.auth_mode,
+            auth_config=loads_json(instance.auth_config_json, {}),
+            access_mode=instance.access_mode,
+            access_config=loads_json(instance.access_config_json, {}),
+        ),
+        integration,
+    )
+
+    before = SimpleNamespace(
+        auth_mode=old_snap[0],
+        auth_config_json=old_snap[1],
+        access_mode=old_snap[2],
+        access_config_json=old_snap[3],
+    )
+    if instance_critical_settings_changed(before, instance):
+        invalidate_grants_for_instance(
+            db,
+            organization_id=current_user.organization_id,
+            instance_id=instance.id,
+            reason=INVALIDATION_CRITICAL_SETTINGS,
+        )
+
+    db.add(instance)
+    db.commit()
+    db.refresh(instance)
+    return _instance_out(db, instance, current_user)
+
+
+@router.delete("/integration-instances/{instance_id}", response_model=IntegrationInstanceDeleteResult)
+def delete_instance(
+    instance_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+    _csrf: str = Depends(require_csrf),
+):
+    instance = db.scalar(
+        select(IntegrationInstance).where(
+            IntegrationInstance.id == instance_id,
+            IntegrationInstance.organization_id == current_user.organization_id,
+            IntegrationInstance.deleted_at.is_(None),
+        )
+    )
+    if not instance:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="instance_not_found")
+    n = soft_delete_integration_instance(db, instance, INVALIDATION_CONNECTION_DELETED)
+    db.commit()
+    return IntegrationInstanceDeleteResult(id=instance_id, grants_invalidated=n)
+
+
+@router.delete("/integrations/{integration_id}", response_model=IntegrationDeleteResult)
+def delete_integration(
+    integration_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+    _csrf: str = Depends(require_csrf),
+):
+    row = db.scalar(
+        select(Integration).where(
+            Integration.id == integration_id,
+            Integration.organization_id == current_user.organization_id,
+            Integration.deleted_at.is_(None),
+        )
+    )
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="integration_not_found")
+    if _integration_protected(row):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="integration_protected")
+    total = 0
+    n_inst = 0
+    for inst in db.scalars(
+        select(IntegrationInstance).where(
+            IntegrationInstance.integration_id == row.id,
+            IntegrationInstance.organization_id == current_user.organization_id,
+            IntegrationInstance.deleted_at.is_(None),
+        )
+    ).all():
+        total += soft_delete_integration_instance(db, inst, INVALIDATION_INTEGRATION_DELETED)
+        n_inst += 1
+    row.deleted_at = utcnow()
+    db.add(row)
+    db.commit()
+    return IntegrationDeleteResult(id=integration_id, grants_invalidated=total, connections_removed=n_inst)
+
+
 @router.post("/integration-instances/{instance_id}/execute", response_model=IntegrationExecuteResponse)
 async def execute_instance(
     instance_id: str,
@@ -265,6 +461,7 @@ async def execute_instance(
         select(IntegrationInstance).where(
             IntegrationInstance.id == instance_id,
             IntegrationInstance.organization_id == current_user.organization_id,
+            IntegrationInstance.deleted_at.is_(None),
         )
     )
     if not instance:
@@ -273,6 +470,7 @@ async def execute_instance(
         select(Integration).where(
             Integration.id == instance.integration_id,
             Integration.organization_id == current_user.organization_id,
+            Integration.deleted_at.is_(None),
         )
     )
     if not integration:
@@ -302,6 +500,7 @@ async def discover_tools(
         select(IntegrationInstance).where(
             IntegrationInstance.id == instance_id,
             IntegrationInstance.organization_id == current_user.organization_id,
+            IntegrationInstance.deleted_at.is_(None),
         )
     )
     if not instance:
@@ -310,6 +509,7 @@ async def discover_tools(
         select(Integration).where(
             Integration.id == instance.integration_id,
             Integration.organization_id == current_user.organization_id,
+            Integration.deleted_at.is_(None),
         )
     )
     if not integration or not integration.mcp_enabled:

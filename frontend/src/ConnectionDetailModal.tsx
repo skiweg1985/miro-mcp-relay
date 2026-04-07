@@ -22,9 +22,12 @@ type Props = {
   instanceVersion?: string | null;
   onClose: () => void;
   busy: boolean;
+  isAdmin?: boolean;
   onConnect: (id: string) => void;
   onDisconnect: (id: string) => void;
   onTest: (id: string) => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
 };
 
 export function ConnectionDetailModal({
@@ -33,9 +36,12 @@ export function ConnectionDetailModal({
   instanceVersion,
   onClose,
   busy,
+  isAdmin,
   onConnect,
   onDisconnect,
   onTest,
+  onEdit,
+  onDelete,
 }: Props) {
   const [data, setData] = useState<IntegrationInstanceInspectOut | null>(null);
   const [loading, setLoading] = useState(false);
@@ -162,6 +168,16 @@ export function ConnectionDetailModal({
           />
 
           <div className="modal-form-actions">
+            {isAdmin && onEdit ? (
+              <button type="button" className="ghost-button" onClick={() => onEdit()} disabled={busy}>
+                Edit
+              </button>
+            ) : null}
+            {isAdmin && onDelete ? (
+              <button type="button" className="ghost-button" onClick={() => onDelete()} disabled={busy}>
+                Delete
+              </button>
+            ) : null}
             <button type="button" className="ghost-button" onClick={() => onTest(instanceId)} disabled={busy}>
               Run check
             </button>

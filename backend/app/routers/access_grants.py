@@ -6,18 +6,32 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_user, require_csrf
-from app.models import AccessGrant, AccessGrantStatus, IntegrationInstance, User
+from app.models import AccessGrant, AccessGrantStatus, Integration, IntegrationInstance, User, UserConnection
 from app.schemas import (
     AccessGrantCreate,
     AccessGrantCreatedOut,
+    AccessGrantDeleteResult,
     AccessGrantOut,
     AccessGrantValidateRequest,
     AccessGrantValidateResponse,
 )
 from app.security import ensure_utc, loads_json, utcnow
-from app.services.access_grants import create_access_grant, get_grant_by_presented_key, is_grant_usable
+from app.services.access_grants import (
+    create_access_grant,
+    effective_grant_display_status,
+    get_grant_by_presented_key,
+    is_grant_usable,
+)
 
 router = APIRouter(tags=["access-grants"])
+
+
+def _invalidation_reason_from_row(row: AccessGrant) -> str | None:
+    meta = loads_json(row.metadata_json, {})
+    if isinstance(meta, dict):
+        r = meta.get("invalidation_reason")
+        return str(r) if r else None
+    return None
 
 
 def _grant_out(row: AccessGrant, instance_name: str) -> AccessGrantOut:
@@ -32,12 +46,15 @@ def _grant_out(row: AccessGrant, instance_name: str) -> AccessGrantOut:
         name=row.name,
         key_prefix=row.key_prefix,
         status=row.status,
+        effective_status=effective_grant_display_status(row),
         allowed_tools=tools,
         policy_ref=row.policy_ref,
         notes=row.notes,
         created_at=row.created_at,
         expires_at=row.expires_at,
         revoked_at=row.revoked_at,
+        invalidated_at=row.invalidated_at,
+        invalidation_reason=_invalidation_reason_from_row(row),
         last_used_at=row.last_used_at,
     )
 
@@ -70,11 +87,12 @@ def create_grant(
             IntegrationInstance.organization_id == current_user.organization_id,
         )
     )
-    if not instance:
+    if not instance or instance.deleted_at is not None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="instance_not_found")
+    integration = db.get(Integration, instance.integration_id)
+    if not integration or integration.deleted_at is not None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="integration_not_found")
     if payload.user_connection_id:
-        from app.models import UserConnection
-
         conn = db.scalar(
             select(UserConnection).where(
                 UserConnection.id == payload.user_connection_id,
@@ -149,6 +167,12 @@ def revoke_grant(
     )
     if not row:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="grant_not_found")
+    if row.status == AccessGrantStatus.INVALID.value:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="grant_not_revokable_invalid")
+    if row.status == AccessGrantStatus.REVOKED.value:
+        inst = db.get(IntegrationInstance, row.integration_instance_id)
+        name = inst.name if inst else row.integration_instance_id
+        return _grant_out(row, name)
     row.status = AccessGrantStatus.REVOKED.value
     row.revoked_at = utcnow()
     db.add(row)
@@ -157,3 +181,28 @@ def revoke_grant(
     inst = db.get(IntegrationInstance, row.integration_instance_id)
     name = inst.name if inst else row.integration_instance_id
     return _grant_out(row, name)
+
+
+@router.delete("/access-grants/{grant_id}", response_model=AccessGrantDeleteResult)
+def delete_grant(
+    grant_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _csrf: str = Depends(require_csrf),
+):
+    row = db.scalar(
+        select(AccessGrant).where(
+            AccessGrant.id == grant_id,
+            AccessGrant.organization_id == current_user.organization_id,
+            AccessGrant.user_id == current_user.id,
+        )
+    )
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="grant_not_found")
+    if row.status == AccessGrantStatus.ACTIVE.value:
+        t = utcnow()
+        if row.expires_at is None or row.expires_at > t:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="grant_delete_requires_terminal_state")
+    db.delete(row)
+    db.commit()
+    return AccessGrantDeleteResult(id=grant_id)

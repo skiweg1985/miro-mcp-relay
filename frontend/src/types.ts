@@ -120,13 +120,29 @@ export type AccessGrantOut = {
   name: string;
   key_prefix: string;
   status: string;
+  effective_status: string;
   allowed_tools: string[];
   policy_ref: string | null;
   notes: string | null;
   created_at: string;
   expires_at: string | null;
   revoked_at: string | null;
+  invalidated_at: string | null;
+  invalidation_reason: string | null;
   last_used_at: string | null;
+};
+
+export type IntegrationInstanceDeleteResult = {
+  ok: boolean;
+  id: string;
+  grants_invalidated: number;
+};
+
+export type IntegrationDeleteResult = {
+  ok: boolean;
+  id: string;
+  grants_invalidated: number;
+  connections_removed: number;
 };
 
 export type AccessGrantCreatedResponse = {

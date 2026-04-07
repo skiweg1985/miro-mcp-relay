@@ -4,11 +4,11 @@ import { useAppContext } from "./app-context";
 import { api } from "./api";
 import { AccessGrantDetailModal } from "./AccessGrantDetailModal";
 import { AccessGrantUsageModal } from "./AccessGrantUsageModal";
-import { Card, DataTable, Field, Modal, PageIntro, StatusBadge } from "./components";
+import { Card, ConfirmModal, DataTable, Field, Modal, PageIntro, StatusBadge } from "./components";
 import type { AccessGrantCreatedResponse, AccessGrantOut, IntegrationInstanceV2Out, IntegrationV2Out } from "./types";
 import { copyToClipboard, formatDateTime } from "./utils";
 import { isApiError } from "./errors";
-import { accessGrantStatusLabel } from "./integrationLabels";
+import { accessGrantEffectiveStatusLabel, canRemoveAccessGrant } from "./integrationLabels";
 
 function AccessKeyCreateModal({
   open,
@@ -125,6 +125,8 @@ export function BrokerAccessPage() {
   const [lastCreatedGrantId, setLastCreatedGrantId] = useState<string | null>(null);
   const [detailGrant, setDetailGrant] = useState<AccessGrantOut | null>(null);
   const [usageGrant, setUsageGrant] = useState<AccessGrantOut | null>(null);
+  const [revokeTarget, setRevokeTarget] = useState<AccessGrantOut | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<AccessGrantOut | null>(null);
 
   const load = useCallback(async () => {
     const [ins, i, g] = await Promise.all([
@@ -169,15 +171,15 @@ export function BrokerAccessPage() {
     [integrations],
   );
 
-  const revoke = useCallback(
+  const performRevoke = useCallback(
     async (grantId: string) => {
       if (session.status !== "authenticated") return;
       setBusy(true);
       try {
         const updated = await api.revokeAccessGrant(session.csrfToken, grantId);
         setGrants((prev) => prev.map((row) => (row.id === grantId ? updated : row)));
-        notify({ tone: "success", title: "Access revoked" });
-        setDetailGrant((g) => (g?.id === grantId ? null : g));
+        notify({ tone: "success", title: "Access key revoked", description: "Clients using this key can no longer authenticate." });
+        setDetailGrant((g) => (g?.id === grantId ? updated : g));
       } catch (error) {
         notify({
           tone: "error",
@@ -191,17 +193,46 @@ export function BrokerAccessPage() {
     [session, notify],
   );
 
+  const performRemove = useCallback(
+    async (grantId: string) => {
+      if (session.status !== "authenticated") return;
+      setBusy(true);
+      try {
+        await api.deleteAccessGrant(session.csrfToken, grantId);
+        setGrants((prev) => prev.filter((row) => row.id !== grantId));
+        notify({ tone: "success", title: "Access key removed from list" });
+        setDetailGrant((g) => (g?.id === grantId ? null : g));
+      } catch (error) {
+        notify({
+          tone: "error",
+          title: "Could not remove",
+          description: isApiError(error) ? error.message : "Unexpected error.",
+        });
+      } finally {
+        setBusy(false);
+      }
+    },
+    [session, notify],
+  );
+
   const rows = useMemo(() => {
     return grants.map((grant) => {
       const intName = integrationNameForInstance(grant.integration_instance_id);
+      const eff = grant.effective_status ?? grant.status;
       const statusTone =
-        grant.status === "active" ? "success" : grant.status === "revoked" ? "danger" : "neutral";
+        eff === "active"
+          ? "success"
+          : eff === "revoked"
+            ? "danger"
+            : eff === "invalid"
+              ? "warn"
+              : "neutral";
       return [
         <span key="n">{grant.name}</span>,
         <span key="i">{intName}</span>,
         <span key="c">{grant.integration_instance_name}</span>,
         <StatusBadge key="s" tone={statusTone}>
-          {accessGrantStatusLabel(grant.status)}
+          {accessGrantEffectiveStatusLabel(eff)}
         </StatusBadge>,
         <span key="e">{formatDateTime(grant.expires_at)}</span>,
         <div key="a" className="inline-actions" onClick={(event) => event.stopPropagation()}>
@@ -215,19 +246,62 @@ export function BrokerAccessPage() {
             type="button"
             className="ghost-button"
             disabled={busy || grant.status !== "active"}
-            onClick={() => void revoke(grant.id)}
+            onClick={() => setRevokeTarget(grant)}
           >
             Revoke
           </button>
+          {canRemoveAccessGrant(grant) ? (
+            <button type="button" className="ghost-button" disabled={busy} onClick={() => setRemoveTarget(grant)}>
+              Remove
+            </button>
+          ) : null}
         </div>,
       ];
     });
-  }, [grants, integrationNameForInstance, busy, revoke]);
+  }, [grants, integrationNameForInstance, busy]);
 
   const csrf = session.status === "authenticated" ? session.csrfToken : "";
 
   return (
     <>
+      {revokeTarget ? (
+        <ConfirmModal
+          title="Revoke access key?"
+          confirmLabel="Revoke key"
+          confirmBusy={busy}
+          onCancel={() => setRevokeTarget(null)}
+          onConfirm={() => {
+            const id = revokeTarget.id;
+            setRevokeTarget(null);
+            void performRevoke(id);
+          }}
+        >
+          <p>
+            You are about to revoke <strong>{revokeTarget.name}</strong>. Clients using this key will no longer be able to
+            authenticate to the broker. This does not remove upstream OAuth tokens from provider systems.
+          </p>
+        </ConfirmModal>
+      ) : null}
+
+      {removeTarget ? (
+        <ConfirmModal
+          title="Remove access key from list?"
+          confirmLabel="Remove"
+          confirmBusy={busy}
+          onCancel={() => setRemoveTarget(null)}
+          onConfirm={() => {
+            const id = removeTarget.id;
+            setRemoveTarget(null);
+            void performRemove(id);
+          }}
+        >
+          <p>
+            This removes the record for <strong>{removeTarget.name}</strong> from your workspace. Revoked or invalid keys can be
+            removed safely when you no longer need the history.
+          </p>
+        </ConfirmModal>
+      ) : null}
+
       <PageIntro
         title="Access"
         description="Access keys authorize API clients to this broker. They are not the same as user sign-in to an upstream system."
@@ -252,7 +326,8 @@ export function BrokerAccessPage() {
           grant={detailGrant}
           integrationName={integrationNameForInstance(detailGrant.integration_instance_id)}
           onClose={() => setDetailGrant(null)}
-          onRevoke={() => void revoke(detailGrant.id)}
+          onRevoke={() => setRevokeTarget(detailGrant)}
+          onRemove={canRemoveAccessGrant(detailGrant) ? () => setRemoveTarget(detailGrant) : undefined}
           onOpenUsage={() => {
             setUsageGrant(detailGrant);
             setDetailGrant(null);

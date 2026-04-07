@@ -5,6 +5,8 @@ import type {
   AuthFlowStartResponse,
   BrokerCallbackUrls,
   Health,
+  IntegrationDeleteResult,
+  IntegrationInstanceDeleteResult,
   IntegrationInstanceInspectOut,
   IntegrationInstanceV2Out,
   IntegrationToolV2Out,
@@ -139,6 +141,25 @@ export const api = {
       body,
     });
   },
+  patchIntegrationInstanceV2(csrfToken: string, instanceId: string, body: Record<string, unknown>) {
+    return request<IntegrationInstanceV2Out>(`/api/v1/integration-instances/${encodeURIComponent(instanceId)}`, {
+      method: "PATCH",
+      csrfToken,
+      body,
+    });
+  },
+  deleteIntegrationInstanceV2(csrfToken: string, instanceId: string) {
+    return request<IntegrationInstanceDeleteResult>(`/api/v1/integration-instances/${encodeURIComponent(instanceId)}`, {
+      method: "DELETE",
+      csrfToken,
+    });
+  },
+  deleteIntegrationV2(csrfToken: string, integrationId: string) {
+    return request<IntegrationDeleteResult>(`/api/v1/integrations/${encodeURIComponent(integrationId)}`, {
+      method: "DELETE",
+      csrfToken,
+    });
+  },
   discoverIntegrationToolsV2(instanceId: string) {
     return request<IntegrationToolV2Out[]>(`/api/v1/integration-instances/${encodeURIComponent(instanceId)}/discover-tools`, {
       method: "POST",
@@ -177,6 +198,12 @@ export const api = {
   revokeAccessGrant(csrfToken: string, grantId: string) {
     return request<AccessGrantOut>(`/api/v1/access-grants/${encodeURIComponent(grantId)}/revoke`, {
       method: "POST",
+      csrfToken,
+    });
+  },
+  deleteAccessGrant(csrfToken: string, grantId: string) {
+    return request<{ ok: boolean; id: string }>(`/api/v1/access-grants/${encodeURIComponent(grantId)}`, {
+      method: "DELETE",
       csrfToken,
     });
   },

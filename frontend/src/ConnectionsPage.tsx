@@ -4,7 +4,8 @@ import { useAppContext } from "./app-context";
 import { api } from "./api";
 import { ConnectionCreateModal } from "./ConnectionCreateModal";
 import { ConnectionDetailModal } from "./ConnectionDetailModal";
-import { Card, DataTable, PageIntro, StatusBadge } from "./components";
+import { ConnectionEditModal } from "./ConnectionEditModal";
+import { Card, ConfirmModal, DataTable, PageIntro, StatusBadge } from "./components";
 import type { IntegrationInstanceV2Out, IntegrationV2Out } from "./types";
 import { isApiError } from "./errors";
 import {
@@ -24,6 +25,9 @@ export function ConnectionsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [defaultIntegrationId, setDefaultIntegrationId] = useState<string | undefined>(undefined);
   const [detailInstanceId, setDetailInstanceId] = useState<string | null>(null);
+  const [editInstanceId, setEditInstanceId] = useState<string | null>(null);
+  const [disconnectConfirmId, setDisconnectConfirmId] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const integrationNameById = useMemo(() => {
     const m = new Map<string, string>();
@@ -95,23 +99,54 @@ export function ConnectionsPage() {
     }
   }, [session, notify]);
 
-  const disconnectOAuth = useCallback(
+  const runDisconnect = useCallback(
     async (instanceId: string) => {
-    if (session.status !== "authenticated") return;
-    setBusy(true);
-    try {
-      await api.disconnectIntegrationOAuth(session.csrfToken, instanceId);
-      await load();
-      notify({ tone: "success", title: "Disconnected" });
-    } catch (error) {
-      notify({
-        tone: "error",
-        title: "Could not disconnect",
-        description: isApiError(error) ? error.message : "Unexpected error.",
-      });
-    } finally {
-      setBusy(false);
-    }
+      if (session.status !== "authenticated") return;
+      setBusy(true);
+      try {
+        await api.disconnectIntegrationOAuth(session.csrfToken, instanceId);
+        await load();
+        notify({ tone: "success", title: "Disconnected" });
+        setDetailInstanceId((cur) => (cur === instanceId ? null : cur));
+      } catch (error) {
+        notify({
+          tone: "error",
+          title: "Could not disconnect",
+          description: isApiError(error) ? error.message : "Unexpected error.",
+        });
+      } finally {
+        setBusy(false);
+      }
+    },
+    [session, notify, load],
+  );
+
+  const runDeleteConnection = useCallback(
+    async (instanceId: string) => {
+      if (session.status !== "authenticated") return;
+      setBusy(true);
+      try {
+        const r = await api.deleteIntegrationInstanceV2(session.csrfToken, instanceId);
+        await load();
+        notify({
+          tone: "success",
+          title: "Connection deleted",
+          description:
+            r.grants_invalidated > 0
+              ? `${r.grants_invalidated} dependent access keys were marked invalid and can no longer authenticate.`
+              : undefined,
+        });
+        setDetailInstanceId((cur) => (cur === instanceId ? null : cur));
+        setDeleteConfirmId(null);
+      } catch (error) {
+        notify({
+          tone: "error",
+          title: "Could not delete connection",
+          description: isApiError(error) ? error.message : "Unexpected error.",
+        });
+      } finally {
+        setBusy(false);
+      }
     },
     [session, notify, load],
   );
@@ -154,7 +189,7 @@ export function ConnectionsPage() {
               type="button"
               className="ghost-button"
               disabled={busy}
-              onClick={() => void disconnectOAuth(instance.id)}
+              onClick={() => setDisconnectConfirmId(instance.id)}
             >
               Disconnect
             </button>
@@ -187,6 +222,7 @@ export function ConnectionsPage() {
   });
 
   const csrf = session.status === "authenticated" ? session.csrfToken : "";
+  const deleteName = deleteConfirmId ? instances.find((i) => i.id === deleteConfirmId)?.name ?? "" : "";
 
   return (
     <>
@@ -202,6 +238,42 @@ export function ConnectionsPage() {
         }
       />
 
+      {disconnectConfirmId ? (
+        <ConfirmModal
+          title="Disconnect linked account?"
+          confirmLabel="Disconnect"
+          confirmBusy={busy}
+          onCancel={() => setDisconnectConfirmId(null)}
+          onConfirm={() => {
+            const id = disconnectConfirmId;
+            setDisconnectConfirmId(null);
+            void runDisconnect(id);
+          }}
+        >
+          <p>
+            The broker will clear stored tokens for this connection. API clients that rely on a linked account may fail until
+            someone signs in again.
+          </p>
+        </ConfirmModal>
+      ) : null}
+
+      {deleteConfirmId ? (
+        <ConfirmModal
+          title="Delete connection?"
+          confirmLabel="Delete connection"
+          confirmBusy={busy}
+          onCancel={() => setDeleteConfirmId(null)}
+          onConfirm={() => {
+            if (deleteConfirmId) void runDeleteConnection(deleteConfirmId);
+          }}
+        >
+          <p>
+            You are about to delete <strong>{deleteName}</strong>. This removes the connection from the workspace. Access keys
+            that target it will be marked invalid and clients can no longer authenticate with them.
+          </p>
+        </ConfirmModal>
+      ) : null}
+
       {session.status === "authenticated" ? (
         <ConnectionDetailModal
           open={detailInstanceId !== null}
@@ -209,9 +281,41 @@ export function ConnectionsPage() {
           instanceVersion={instances.find((i) => i.id === detailInstanceId)?.updated_at ?? null}
           onClose={() => setDetailInstanceId(null)}
           busy={busy}
+          isAdmin={isAdmin}
           onConnect={(id) => void connectOAuth(id)}
-          onDisconnect={(id) => void disconnectOAuth(id)}
+          onDisconnect={(id) => setDisconnectConfirmId(id)}
           onTest={(id) => void testConnection(id)}
+          onEdit={
+            isAdmin && detailInstanceId
+              ? () => {
+                  setEditInstanceId(detailInstanceId);
+                  setDetailInstanceId(null);
+                }
+              : undefined
+          }
+          onDelete={isAdmin && detailInstanceId ? () => setDeleteConfirmId(detailInstanceId) : undefined}
+        />
+      ) : null}
+
+      {session.status === "authenticated" ? (
+        <ConnectionEditModal
+          open={editInstanceId !== null}
+          instanceId={editInstanceId}
+          reloadVersion={instances.find((i) => i.id === editInstanceId)?.updated_at ?? null}
+          integrations={integrations}
+          csrfToken={csrf}
+          onClose={() => setEditInstanceId(null)}
+          onSaved={(row) => {
+            setInstances((prev) => prev.map((x) => (x.id === row.id ? row : x)));
+            notify({
+              tone: "success",
+              title: "Connection updated",
+              description: "If security or routing changed, dependent access keys may have been marked invalid.",
+            });
+          }}
+          onError={(message) => {
+            if (message) notify({ tone: "error", title: "Could not update connection", description: message });
+          }}
         />
       ) : null}
 

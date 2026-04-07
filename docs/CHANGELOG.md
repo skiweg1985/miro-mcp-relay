@@ -4,6 +4,8 @@
 
 ### Changed
 
+- Workspace: Integrations are shown as cards (status, type line, Open / Add connection / Test / Graph settings); connection management moved to `/workspace/connections` (table with actions); Access keys use a table plus modal-based creation; add-integration and add-connection use step modals. Human-readable labels for auth and access modes live in `integrationLabels.ts`. Legacy path `/app/connections` redirects to `/workspace/connections`.
+
 - Frontend: `formatDateTime` uses locale `en` (consistent English dates/times); OAuth redirect `message` query codes mapped to English copy for connection error toasts.
 
 - Frontend: Clarity UI Mono v2 — consolidated spacing and type tokens (`--ink-primary`, `.muted`); landing, buttons, tables, and modals aligned to the 4–32 px scale; sidebar branding with `brand-kicker`; workspace nav label “Access”; integrations and access pages with calmer primary-button interaction, English UI copy, connection lists using `stack-cell--row`, and card form-action spacing.

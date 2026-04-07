@@ -5,6 +5,7 @@ import { ThemeToggle } from "./theme-toggle";
 import { api } from "./api";
 import { Card, Field, LoadingScreen, PageIntro, ToastViewport } from "./components";
 import { BrokerAccessPage } from "./BrokerAccessPage";
+import { ConnectionsPage } from "./ConnectionsPage";
 import { IntegrationsV2Page } from "./IntegrationsV2Page";
 import { MicrosoftOAuthAdminPage } from "./MicrosoftOAuthAdminPage";
 import { isApiError } from "./errors";
@@ -270,6 +271,7 @@ function AuthenticatedApp() {
   const workspaceNav = useMemo(() => {
     const base = [
       { href: "/workspace/integrations-v2", label: "Integrations" },
+      { href: "/workspace/connections", label: "Connections" },
       { href: "/workspace/broker-access", label: "Access" },
     ];
     if (isAdmin) {
@@ -282,6 +284,7 @@ function AuthenticatedApp() {
     if (session.status !== "authenticated") return;
     const allowed =
       route.name === "workspaceIntegrationsV2" ||
+      route.name === "workspaceConnections" ||
       route.name === "workspaceBrokerAccess" ||
       (route.name === "workspaceAdminMicrosoftOAuth" && session.user.is_admin);
     if (!allowed) {
@@ -303,6 +306,7 @@ function AuthenticatedApp() {
 
   if (
     route.name !== "workspaceIntegrationsV2" &&
+    route.name !== "workspaceConnections" &&
     route.name !== "workspaceBrokerAccess" &&
     !(route.name === "workspaceAdminMicrosoftOAuth" && isAdmin)
   ) {
@@ -319,6 +323,8 @@ function AuthenticatedApp() {
     >
       {route.name === "workspaceBrokerAccess" ? (
         <BrokerAccessPage />
+      ) : route.name === "workspaceConnections" ? (
+        <ConnectionsPage />
       ) : route.name === "workspaceAdminMicrosoftOAuth" && isAdmin ? (
         <MicrosoftOAuthAdminPage />
       ) : (

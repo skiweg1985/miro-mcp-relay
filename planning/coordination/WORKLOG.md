@@ -2091,3 +2091,32 @@
   - yes ([Unreleased] Changed)
 - Follow-ups:
   - none
+
+## 2026-04-07 – Cursor Agent – Workspace object UI (integrations / connections / access)
+
+- Done:
+  - `integrationLabels.ts`: domain-to-UI labels for integration type, auth mode, access mode, grant status, card copy, lifecycle badges.
+  - `IntegrationsV2Page.tsx`: card grid; modals for add integration, add connection, Graph OAuth settings, detail; `View connections` navigates to `/workspace/connections?for=…`.
+  - `ConnectionsPage.tsx` (new): connection table; `ConnectionCreateModal`; OAuth return query handling; `Add connection` for admins.
+  - `ConnectionCreateModal.tsx`, `IntegrationCreateModal.tsx`, `GraphOAuthSettingsModal.tsx` (new).
+  - `BrokerAccessPage.tsx`: access key table; `AccessKeyCreateModal`; loads integrations for integration column.
+  - `App.tsx`, `types.ts`, `utils.ts`: route `/workspace/connections`, nav order Integrations → Connections → Access; legacy `/app/connections` → connections.
+  - `docs/CHANGELOG.md` [Unreleased] Changed.
+- Next:
+  - none
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: codex/hard-refactor-integration-model
+  - PR: none
+- Files touched:
+  - frontend/src/integrationLabels.ts, IntegrationCreateModal.tsx, ConnectionCreateModal.tsx, GraphOAuthSettingsModal.tsx, ConnectionsPage.tsx, IntegrationsV2Page.tsx, BrokerAccessPage.tsx, App.tsx, types.ts, utils.ts
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands: `cd frontend && npm run build`
+  - UI path: `/workspace/integrations-v2`, `/workspace/connections`, `/workspace/broker-access`
+- Changelog updated:
+  - yes ([Unreleased] Changed)
+- Follow-ups:
+  - none

@@ -2,7 +2,7 @@ import type { RouteMatch } from "./types";
 
 const LEGACY_PATHS: Record<string, string> = {
   "/app/providers": "/workspace/integrations-v2",
-  "/app/connections": "/workspace/integrations-v2",
+  "/app/connections": "/workspace/connections",
   "/app/service-clients": "/workspace/integrations-v2",
   "/app/services": "/workspace/integrations-v2",
   "/app/delegation": "/workspace/integrations-v2",
@@ -107,6 +107,9 @@ export function matchesRoute(pathname: string): RouteMatch {
   }
   if (path === "/workspace/broker-access") {
     return { name: "workspaceBrokerAccess", path: "/workspace/broker-access" };
+  }
+  if (path === "/workspace/connections") {
+    return { name: "workspaceConnections", path: "/workspace/connections" };
   }
   if (path === "/workspace/admin/microsoft-oauth") {
     return { name: "workspaceAdminMicrosoftOAuth", path: "/workspace/admin/microsoft-oauth" };

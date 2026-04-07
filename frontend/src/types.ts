@@ -136,6 +136,7 @@ export type MicrosoftOAuthAdminOut = {
 export type RouteMatch =
   | { name: "login"; path: "/login" }
   | { name: "workspaceIntegrationsV2"; path: "/workspace/integrations-v2" }
+  | { name: "workspaceConnections"; path: "/workspace/connections" }
   | { name: "workspaceBrokerAccess"; path: "/workspace/broker-access" }
   | { name: "workspaceAdminMicrosoftOAuth"; path: "/workspace/admin/microsoft-oauth" }
   | { name: "notFound"; path: string };

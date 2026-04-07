@@ -1,86 +1,95 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useAppContext } from "./app-context";
 import { classNames } from "./utils";
 import { api } from "./api";
-import { Card, Field, PageIntro } from "./components";
+import { ConnectionCreateModal } from "./ConnectionCreateModal";
+import { GraphOAuthSettingsModal } from "./GraphOAuthSettingsModal";
+import { IntegrationCreateModal } from "./IntegrationCreateModal";
+import { Modal, PageIntro, StatusBadge } from "./components";
 import type { IntegrationInstanceV2Out, IntegrationV2Out } from "./types";
 import { isApiError } from "./errors";
+import {
+  integrationCardDescription,
+  integrationLifecycleBadge,
+  integrationTypeLabel,
+  isMicrosoftGraphIntegration,
+} from "./integrationLabels";
 import { formatOAuthCallbackMessage } from "./utils";
 
-const INTEGRATION_TYPES = [
-  { value: "mcp_server", label: "MCP server" },
-  { value: "oauth_provider", label: "OAuth provider" },
-  { value: "api", label: "API" },
-] as const;
+function IntegrationDetailModal({
+  integration,
+  connectionCount,
+  onClose,
+  onGoToConnections,
+}: {
+  integration: IntegrationV2Out;
+  connectionCount: number;
+  onClose: () => void;
+  onGoToConnections: () => void;
+}) {
+  return (
+    <Modal
+      title={integration.name}
+      description={integrationCardDescription(integration)}
+      onClose={onClose}
+    >
+      <div className="stack-list">
+        <div className="stack-cell">
+          <span className="muted-copy">Kind</span>
+          <strong>{integrationTypeLabel(integration.type)}</strong>
+        </div>
+        <div className="stack-cell">
+          <span className="muted-copy">Connections</span>
+          {connectionCount === 0 ? (
+            <span>None yet</span>
+          ) : (
+            <button type="button" className="ghost-button" onClick={onGoToConnections}>
+              View connections ({connectionCount})
+            </button>
+          )}
+        </div>
+      </div>
+      <div className="modal-form-actions">
+        <button type="button" className="primary-button" onClick={onClose}>
+          Close
+        </button>
+      </div>
+    </Modal>
+  );
+}
 
 export function IntegrationsV2Page() {
   const { session, notify } = useAppContext();
   const isAdmin = session.status === "authenticated" && session.user.is_admin;
   const [integrations, setIntegrations] = useState<IntegrationV2Out[]>([]);
   const [instances, setInstances] = useState<IntegrationInstanceV2Out[]>([]);
-  const [step1Type, setStep1Type] = useState<(typeof INTEGRATION_TYPES)[number]["value"]>("mcp_server");
-  const [step2AuthMode, setStep2AuthMode] = useState("none");
-  const [integrationName, setIntegrationName] = useState("");
-  const [endpoint, setEndpoint] = useState("");
-  const [instanceName, setInstanceName] = useState("");
-  const [accessMode, setAccessMode] = useState("relay");
-  const [apiKeyHeader, setApiKeyHeader] = useState("Authorization");
-  const [apiKeyValue, setApiKeyValue] = useState("");
-  const [sharedHeaders, setSharedHeaders] = useState("");
-  const [selectedIntegrationId, setSelectedIntegrationId] = useState("");
   const [busy, setBusy] = useState(false);
 
+  const [addIntegrationOpen, setAddIntegrationOpen] = useState(false);
+  const [connectionModalOpen, setConnectionModalOpen] = useState(false);
+  const [connectionDefaultId, setConnectionDefaultId] = useState<string | undefined>(undefined);
+  const [graphModalOpen, setGraphModalOpen] = useState(false);
+  const [detailIntegration, setDetailIntegration] = useState<IntegrationV2Out | null>(null);
+
   const graphIntegration = useMemo(
-    () => integrations.find((i) => i.config?.template_key === "microsoft_graph_default"),
+    () => integrations.find((i) => isMicrosoftGraphIntegration(i)),
     [integrations],
   );
-  const [graphBrokerDefaults, setGraphBrokerDefaults] = useState(true);
-  const [graphAuthority, setGraphAuthority] = useState("");
-  const [graphTenant, setGraphTenant] = useState("");
-  const [graphClientId, setGraphClientId] = useState("");
-  const [graphScope, setGraphScope] = useState("");
-  const [graphSecret, setGraphSecret] = useState("");
-  const [graphClearSecret, setGraphClearSecret] = useState(false);
-  const [graphRedirectUri, setGraphRedirectUri] = useState("");
 
-  const authModeOptions = useMemo(() => {
-    if (step1Type === "oauth_provider") {
-      return [{ value: "oauth", label: "OAuth" }];
+  const countByIntegration = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const ins of instances) {
+      m.set(ins.integration_id, (m.get(ins.integration_id) ?? 0) + 1);
     }
-    return [
-      { value: "none", label: "None" },
-      { value: "oauth", label: "OAuth" },
-      { value: "api_key", label: "API key" },
-      { value: "shared_credentials", label: "Shared credentials" },
-    ];
-  }, [step1Type]);
+    return m;
+  }, [instances]);
 
-  useEffect(() => {
-    setStep2AuthMode(authModeOptions[0]?.value ?? "none");
-  }, [authModeOptions]);
-
-  const load = async () => {
+  const load = useCallback(async () => {
     const [i, ins] = await Promise.all([api.integrationsV2(), api.integrationInstancesV2()]);
     setIntegrations(i);
     setInstances(ins);
-    if (!selectedIntegrationId && i[0]) {
-      setSelectedIntegrationId(i[0].id);
-    }
-  };
-
-  useEffect(() => {
-    if (!graphIntegration) return;
-    const c = graphIntegration.config;
-    setGraphBrokerDefaults(c.graph_oauth_use_broker_defaults !== false);
-    setGraphAuthority(typeof c.graph_oauth_authority_base === "string" ? c.graph_oauth_authority_base : "");
-    setGraphTenant(typeof c.graph_oauth_tenant_id === "string" ? c.graph_oauth_tenant_id : "");
-    setGraphClientId(typeof c.graph_oauth_client_id === "string" ? c.graph_oauth_client_id : "");
-    setGraphScope(typeof c.graph_oauth_scope === "string" ? c.graph_oauth_scope : "");
-    setGraphRedirectUri(typeof c.graph_oauth_redirect_uri === "string" ? c.graph_oauth_redirect_uri : "");
-    setGraphSecret("");
-    setGraphClearSecret(false);
-  }, [graphIntegration]);
+  }, []);
 
   useEffect(() => {
     if (session.status !== "authenticated") return;
@@ -91,7 +100,7 @@ export function IntegrationsV2Page() {
         description: isApiError(error) ? error.message : "Unexpected error.",
       });
     });
-  }, [session.status]);
+  }, [session.status, load, notify]);
 
   useEffect(() => {
     if (session.status !== "authenticated") return;
@@ -100,6 +109,7 @@ export function IntegrationsV2Page() {
     if (connectionStatus === "connected") {
       notify({ tone: "success", title: "Connection saved" });
       window.history.replaceState({}, "", window.location.pathname);
+      void load().catch(() => {});
     } else if (connectionStatus === "error") {
       notify({
         tone: "error",
@@ -108,28 +118,30 @@ export function IntegrationsV2Page() {
       });
       window.history.replaceState({}, "", window.location.pathname);
     }
-  }, [session.status, notify]);
+  }, [session.status, notify, load]);
 
-  const createIntegration = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (session.status !== "authenticated" || !isAdmin) return;
+  const testIntegration = async (integrationId: string) => {
+    const first = instances.find((i) => i.integration_id === integrationId);
+    if (!first) {
+      notify({
+        tone: "info",
+        title: "Add a connection first",
+        description: "Create a connection for this integration, then run a check from the Connections page.",
+      });
+      return;
+    }
     setBusy(true);
     try {
-      const created = await api.createIntegrationV2(session.csrfToken, {
-        name: integrationName.trim(),
-        type: step1Type,
-        config: { endpoint: endpoint.trim() },
-        mcp_enabled: step1Type === "mcp_server",
+      const tools = await api.discoverIntegrationToolsV2(first.id);
+      notify({
+        tone: "success",
+        title: "Connection check succeeded",
+        description: tools.length ? `${tools.length} tools available.` : "No tools reported.",
       });
-      setIntegrations((prev) => [created, ...prev]);
-      setSelectedIntegrationId(created.id);
-      setIntegrationName("");
-      setEndpoint("");
-      notify({ tone: "success", title: "Integration created" });
     } catch (error) {
       notify({
         tone: "error",
-        title: "Could not create integration",
+        title: "Connection check failed",
         description: isApiError(error) ? error.message : "Unexpected error.",
       });
     } finally {
@@ -137,113 +149,12 @@ export function IntegrationsV2Page() {
     }
   };
 
-  const createInstance = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (session.status !== "authenticated" || !isAdmin || !selectedIntegrationId) return;
-    setBusy(true);
-    try {
-      const authConfig: Record<string, unknown> = {};
-      if (step2AuthMode === "api_key") {
-        authConfig.header_name = apiKeyHeader.trim() || "Authorization";
-        authConfig.api_key = apiKeyValue.trim();
-      } else if (step2AuthMode === "shared_credentials") {
-        const headers: Record<string, string> = {};
-        for (const line of sharedHeaders.split("\n")) {
-          const [k, ...rest] = line.split(":");
-          if (!k || !rest.length) continue;
-          headers[k.trim()] = rest.join(":").trim();
-        }
-        authConfig.headers = headers;
-      }
-      const created = await api.createIntegrationInstanceV2(session.csrfToken, {
-        name: instanceName.trim(),
-        integration_id: selectedIntegrationId,
-        auth_mode: step2AuthMode,
-        auth_config: authConfig,
-        access_mode: accessMode,
-        access_config: {},
-      });
-      setInstances((prev) => [created, ...prev]);
-      setInstanceName("");
-      setApiKeyValue("");
-      setSharedHeaders("");
-      notify({ tone: "success", title: "Connection created" });
-    } catch (error) {
-      notify({
-        tone: "error",
-        title: "Could not create connection",
-        description: isApiError(error) ? error.message : "Unexpected error.",
-      });
-    } finally {
-      setBusy(false);
-    }
+  const openConnectionsFor = (integrationId: string) => {
+    window.history.pushState({}, "", `/workspace/connections?for=${encodeURIComponent(integrationId)}`);
+    window.dispatchEvent(new PopStateEvent("popstate"));
   };
 
-  const connectOAuth = async (instanceId: string) => {
-    if (session.status !== "authenticated") return;
-    setBusy(true);
-    try {
-      const out = await api.startIntegrationOAuth(instanceId);
-      window.location.assign(out.auth_url);
-    } catch (error) {
-      setBusy(false);
-      notify({
-        tone: "error",
-        title: "Could not start sign-in",
-        description: isApiError(error) ? error.message : "Unexpected error.",
-      });
-    }
-  };
-
-  const saveGraphOAuth = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (session.status !== "authenticated" || !isAdmin || !graphIntegration) return;
-    setBusy(true);
-    try {
-      await api.patchIntegrationV2(session.csrfToken, graphIntegration.id, {
-        config: {
-          graph_oauth_use_broker_defaults: graphBrokerDefaults,
-          graph_oauth_authority_base: graphAuthority.trim(),
-          graph_oauth_tenant_id: graphTenant.trim(),
-          graph_oauth_client_id: graphClientId.trim(),
-          graph_oauth_scope: graphScope.trim(),
-          graph_oauth_redirect_uri: graphRedirectUri.trim(),
-        },
-        clear_graph_oauth_client_secret: graphClearSecret,
-        ...(graphSecret.trim() ? { graph_oauth_client_secret: graphSecret.trim() } : {}),
-      });
-      await load();
-      setGraphSecret("");
-      setGraphClearSecret(false);
-      notify({ tone: "success", title: "Microsoft Graph settings saved" });
-    } catch (error) {
-      notify({
-        tone: "error",
-        title: "Could not save",
-        description: isApiError(error) ? error.message : "Unexpected error.",
-      });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const disconnectOAuth = async (instanceId: string) => {
-    if (session.status !== "authenticated") return;
-    setBusy(true);
-    try {
-      await api.disconnectIntegrationOAuth(session.csrfToken, instanceId);
-      await load();
-      notify({ tone: "success", title: "Disconnected" });
-    } catch (error) {
-      notify({
-        tone: "error",
-        title: "Could not disconnect",
-        description: isApiError(error) ? error.message : "Unexpected error.",
-      });
-    } finally {
-      setBusy(false);
-    }
-  };
+  const csrf = session.status === "authenticated" ? session.csrfToken : "";
 
   return (
     <>
@@ -251,222 +162,125 @@ export function IntegrationsV2Page() {
         title="Integrations"
         description={
           isAdmin
-            ? "Create integrations and connections for your organization."
-            : "Connections available to your organization."
+            ? "Definitions describe what you can connect to. Use Connections to put them to work."
+            : "Integrations available in your organization."
+        }
+        actions={
+          isAdmin ? (
+            <button type="button" className="primary-button" onClick={() => setAddIntegrationOpen(true)}>
+              Add integration
+            </button>
+          ) : null
         }
       />
 
-      {isAdmin ? (
-      <Card title="New integration">
-        <form className="stack-form" onSubmit={createIntegration}>
-          <div className="form-grid">
-            <Field label="Type">
-              <select value={step1Type} onChange={(event) => setStep1Type(event.target.value as "mcp_server" | "oauth_provider" | "api")}>
-                {INTEGRATION_TYPES.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Name">
-              <input value={integrationName} onChange={(event) => setIntegrationName(event.target.value)} required />
-            </Field>
-            <Field label="Endpoint URL">
-              <input value={endpoint} onChange={(event) => setEndpoint(event.target.value)} placeholder="https://example.local/mcp" required />
-            </Field>
-          </div>
-          <div className="modal-form-actions">
-            <button type="submit" className="primary-button" disabled={busy}>
-              Create
-            </button>
-          </div>
-        </form>
-      </Card>
+      {session.status === "authenticated" ? (
+        <>
+          <IntegrationCreateModal
+            open={addIntegrationOpen}
+            onClose={() => setAddIntegrationOpen(false)}
+            csrfToken={csrf}
+            onCreated={(created) => {
+              setIntegrations((prev) => [created, ...prev]);
+              notify({ tone: "success", title: "Integration created" });
+            }}
+            onError={(message) => notify({ tone: "error", title: "Could not create integration", description: message })}
+          />
+          <ConnectionCreateModal
+            open={connectionModalOpen}
+            onClose={() => {
+              setConnectionModalOpen(false);
+              setConnectionDefaultId(undefined);
+            }}
+            integrations={integrations}
+            defaultIntegrationId={connectionDefaultId}
+            csrfToken={csrf}
+            onCreated={(created) => {
+              setInstances((prev) => [created, ...prev]);
+              notify({ tone: "success", title: "Connection created" });
+            }}
+            onError={(message) => notify({ tone: "error", title: "Could not create connection", description: message })}
+          />
+          {graphIntegration && isAdmin ? (
+            <GraphOAuthSettingsModal
+              open={graphModalOpen}
+              onClose={() => setGraphModalOpen(false)}
+              graphIntegration={graphIntegration}
+              csrfToken={csrf}
+              onSaved={load}
+              onNotify={(payload) => notify(payload)}
+            />
+          ) : null}
+        </>
       ) : null}
 
-      {isAdmin ? (
-      <Card title="New connection">
-        <form className="stack-form" onSubmit={createInstance}>
-          <div className="form-grid">
-            <Field label="Integration">
-              <select value={selectedIntegrationId} onChange={(event) => setSelectedIntegrationId(event.target.value)} required>
-                <option value="">Select…</option>
-                {integrations.map((integration) => (
-                  <option key={integration.id} value={integration.id}>
-                    {integration.name} ({integration.type})
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Name">
-              <input value={instanceName} onChange={(event) => setInstanceName(event.target.value)} required />
-            </Field>
-            <Field label="Authentication">
-              <select value={step2AuthMode} onChange={(event) => setStep2AuthMode(event.target.value)}>
-                {authModeOptions.map((mode) => (
-                  <option key={mode.value} value={mode.value}>
-                    {mode.label}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Access mode">
-              <select value={accessMode} onChange={(event) => setAccessMode(event.target.value)}>
-                <option value="relay">Relay</option>
-                <option value="direct">Direct</option>
-              </select>
-            </Field>
-            {step2AuthMode === "api_key" ? (
-              <>
-                <Field label="API key header">
-                  <input value={apiKeyHeader} onChange={(event) => setApiKeyHeader(event.target.value)} />
-                </Field>
-                <Field label="API key">
-                  <input value={apiKeyValue} onChange={(event) => setApiKeyValue(event.target.value)} required />
-                </Field>
-              </>
-            ) : null}
-            {step2AuthMode === "shared_credentials" ? (
-              <Field label="Headers (Name: value per line)">
-                <textarea value={sharedHeaders} onChange={(event) => setSharedHeaders(event.target.value)} />
-              </Field>
-            ) : null}
-          </div>
-          <div className="modal-form-actions">
-            <button type="submit" className="primary-button" disabled={busy}>
-              Create connection
-            </button>
-          </div>
-        </form>
-      </Card>
+      {detailIntegration ? (
+        <IntegrationDetailModal
+          integration={detailIntegration}
+          connectionCount={countByIntegration.get(detailIntegration.id) ?? 0}
+          onClose={() => setDetailIntegration(null)}
+          onGoToConnections={() => {
+            setDetailIntegration(null);
+            openConnectionsFor(detailIntegration.id);
+          }}
+        />
       ) : null}
 
-      {isAdmin && graphIntegration ? (
-        <Card title="Microsoft Graph">
-          <form className="stack-form" onSubmit={saveGraphOAuth}>
-            <p className="muted-copy">
-              Redirect URI (Entra): {graphIntegration.integration_oauth_callback_url || "—"}
-            </p>
-            <div className="form-grid">
-              <Field label="Redirect URI override">
-                <input
-                  value={graphRedirectUri}
-                  onChange={(event) => setGraphRedirectUri(event.target.value)}
-                  placeholder="https://broker.example/api/v1/connections/microsoft-graph/callback"
-                  autoComplete="off"
-                />
-              </Field>
-              <div className="field">
-                <span className="field-label">Microsoft app</span>
-                <label className="lede">
-                  <input
-                    type="checkbox"
-                    checked={graphBrokerDefaults}
-                    onChange={(event) => setGraphBrokerDefaults(event.target.checked)}
-                  />{" "}
-                  Same app as workspace sign-in
-                </label>
+      <div className="integration-advanced-cols user-integration-grid">
+        {integrations.map((integration) => {
+          const n = countByIntegration.get(integration.id) ?? 0;
+          const badge = integrationLifecycleBadge(integration, n);
+          const isGraph = isMicrosoftGraphIntegration(integration);
+          return (
+            <article key={integration.id} className={classNames("integration-card", "user-integration-card")}>
+              <div className="integration-card-head">
+                <h2 className="integration-card-title">{integration.name}</h2>
+                <StatusBadge tone={badge.tone}>{badge.label}</StatusBadge>
               </div>
-              {!graphBrokerDefaults ? (
-                <>
-                  <Field label="Authority URL">
-                    <input
-                      value={graphAuthority}
-                      onChange={(event) => setGraphAuthority(event.target.value)}
-                      placeholder="https://login.microsoftonline.com"
-                    />
-                  </Field>
-                  <Field label="Directory (tenant) ID">
-                    <input value={graphTenant} onChange={(event) => setGraphTenant(event.target.value)} placeholder="common" />
-                  </Field>
-                  <Field label="Application (client) ID">
-                    <input value={graphClientId} onChange={(event) => setGraphClientId(event.target.value)} />
-                  </Field>
-                  <Field label="Scopes">
-                    <input value={graphScope} onChange={(event) => setGraphScope(event.target.value)} />
-                  </Field>
-                  <Field label="Client secret">
-                    <input
-                      type="password"
-                      autoComplete="new-password"
-                      value={graphSecret}
-                      onChange={(event) => {
-                        setGraphSecret(event.target.value);
-                        setGraphClearSecret(false);
-                      }}
-                      placeholder={graphIntegration.oauth_client_secret_configured ? "••••••••" : ""}
-                    />
-                  </Field>
-                  <div className="lede">
-                    <label>
-                      <input
-                        type="checkbox"
-                        checked={graphClearSecret}
-                        onChange={(event) => {
-                          setGraphClearSecret(event.target.checked);
-                          if (event.target.checked) setGraphSecret("");
-                        }}
-                      />{" "}
-                      Remove stored client secret
-                    </label>
-                  </div>
-                </>
-              ) : null}
-            </div>
-            <div className="modal-form-actions">
-              <button type="submit" className="primary-button" disabled={busy}>
-                Save
-              </button>
-            </div>
-          </form>
-        </Card>
-      ) : null}
-
-      <Card title="Connections">
-        <div className="stack-list">
-          {instances.map((instance) => (
-            <div
-              className={classNames("stack-cell", instance.auth_mode === "oauth" && "stack-cell--row")}
-              key={instance.id}
-            >
-              <div>
-                <strong>{instance.name}</strong>
-                <span className="muted-copy">
-                  {instance.auth_mode} · {instance.access_mode}
-                  {instance.auth_mode === "oauth" ? (
-                    <> · {instance.oauth_connected ? "Connected" : "Not connected"}</>
-                  ) : null}
-                </span>
+              <div className="integration-card-body">
+                <p className="integration-card-desc">{integrationCardDescription(integration)}</p>
+                <p className="integration-card-meta">{integrationTypeLabel(integration.type)}</p>
               </div>
-              {instance.auth_mode === "oauth" ? (
-                <div className="modal-form-actions">
-                  {instance.oauth_connected ? (
-                    <button
-                      type="button"
-                      className="ghost-button"
-                      disabled={busy}
-                      onClick={() => void disconnectOAuth(instance.id)}
-                    >
-                      Disconnect
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="primary-button"
-                      disabled={busy}
-                      onClick={() => void connectOAuth(instance.id)}
-                    >
-                      Connect
-                    </button>
-                  )}
-                </div>
-              ) : null}
-            </div>
-          ))}
-          {!instances.length ? <p className="muted-copy">No connections yet.</p> : null}
-        </div>
-      </Card>
+              <div className="integration-card-actions">
+                <button type="button" className="ghost-button" onClick={() => setDetailIntegration(integration)}>
+                  Open
+                </button>
+                {isAdmin ? (
+                  <button
+                    type="button"
+                    className="ghost-button"
+                    onClick={() => {
+                      setConnectionDefaultId(integration.id);
+                      setConnectionModalOpen(true);
+                    }}
+                  >
+                    Add connection
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="ghost-button"
+                  disabled={busy}
+                  onClick={() => void testIntegration(integration.id)}
+                >
+                  Test
+                </button>
+                {isGraph && isAdmin ? (
+                  <button type="button" className="ghost-button" onClick={() => setGraphModalOpen(true)}>
+                    Graph settings
+                  </button>
+                ) : null}
+              </div>
+            </article>
+          );
+        })}
+      </div>
+
+      {!integrations.length ? (
+        <p className="muted-copy">
+          {isAdmin ? "Add an integration to define your first external system." : "No integrations are available yet."}
+        </p>
+      ) : null}
     </>
   );
 }

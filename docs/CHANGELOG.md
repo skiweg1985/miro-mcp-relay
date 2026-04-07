@@ -15,6 +15,9 @@
 
 ### Changed
 
+- `POST /api/v1/integrations`, `POST /api/v1/integration-instances` und `POST .../discover-tools` erfordern Admin-Session (`require_admin`). Listen und `execute` bleiben für alle aktiven Nutzer der Organisation.
+- Integrations-UI: Anlegeformulare nur für `is_admin`; andere Nutzer sehen die Übersicht der Instanzen.
+
 - `GET /api/v1/auth/login-options` nutzt den OAuth-Resolver (DB mit vollständiger Registrierung oder ENV-Fallback).
 - Runtime-Hard-Cut im Backend: `main.py` bindet `public`, `auth`, `integrations_v2`, `access_grants`, `consumer_execution` und `admin_microsoft_oauth`; frühere Connection-/Token-Issuance-/Legacy-Admin-/User-Router sind nicht mehr aktiv.
 - Frontend-Routing priorisiert den neuen V2-Pfad; Legacy-Workspace-Pfade leiten auf `/workspace/integrations-v2`.

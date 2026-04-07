@@ -1,3 +1,17 @@
+## 2026-04-07 – Cursor Agent – Integrations-Anlage nur Admin
+
+- Done:
+  - `integrations_v2`: `require_admin` für `POST /integrations`, `POST /integration-instances`, `POST .../discover-tools` (persistiert Tool-Katalog).
+  - `IntegrationsV2Page`: Anlegeformulare nur bei `is_admin`; `PageIntro`-Text angepasst.
+  - `docs/CHANGELOG.md`, `docs/technische-referenz.md`.
+- Next: keine
+- Blockers: keine
+- Branch/PR: branch `codex/hard-refactor-integration-model`, PR none
+- Files touched: `backend/app/routers/integrations_v2.py`, `frontend/src/IntegrationsV2Page.tsx`, `docs/CHANGELOG.md`, `docs/technische-referenz.md`, `planning/coordination/WORKLOG.md`
+- Test notes: `PYTHONPATH=backend python3 -m unittest backend.test_smoke -v`, `cd frontend && npm run build`
+- Changelog updated: yes (Unreleased Changed)
+- Follow-ups: bei Bedarf `execute` nur für bestimmte Rollen
+
 ## 2026-04-07 – Cursor Agent – Default-Integrationen Miro + Graph (V2-Seed)
 
 - Done:

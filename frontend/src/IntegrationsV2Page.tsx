@@ -14,6 +14,7 @@ const INTEGRATION_TYPES = [
 
 export function IntegrationsV2Page() {
   const { session, notify } = useAppContext();
+  const isAdmin = session.status === "authenticated" && session.user.is_admin;
   const [integrations, setIntegrations] = useState<IntegrationV2Out[]>([]);
   const [instances, setInstances] = useState<IntegrationInstanceV2Out[]>([]);
   const [step1Type, setStep1Type] = useState<(typeof INTEGRATION_TYPES)[number]["value"]>("mcp_server");
@@ -66,7 +67,7 @@ export function IntegrationsV2Page() {
 
   const createIntegration = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (session.status !== "authenticated") return;
+    if (session.status !== "authenticated" || !isAdmin) return;
     setBusy(true);
     try {
       const created = await api.createIntegrationV2(session.csrfToken, {
@@ -93,7 +94,7 @@ export function IntegrationsV2Page() {
 
   const createInstance = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (session.status !== "authenticated" || !selectedIntegrationId) return;
+    if (session.status !== "authenticated" || !isAdmin || !selectedIntegrationId) return;
     setBusy(true);
     try {
       const authConfig: Record<string, unknown> = {};
@@ -137,9 +138,14 @@ export function IntegrationsV2Page() {
     <>
       <PageIntro
         title="Integrations V2"
-        description="Schritt 1 Typ, Schritt 2 Auth, Schritt 3 Konfiguration."
+        description={
+          isAdmin
+            ? "Neue Integrationen und Instanzen anlegen (Admin)."
+            : "Verfügbare Integrationen und Instanzen der Organisation."
+        }
       />
 
+      {isAdmin ? (
       <Card title="Neue Integration">
         <form className="stack-form" onSubmit={createIntegration}>
           <div className="form-grid">
@@ -166,7 +172,9 @@ export function IntegrationsV2Page() {
           </div>
         </form>
       </Card>
+      ) : null}
 
+      {isAdmin ? (
       <Card title="Neue Integration Instance">
         <form className="stack-form" onSubmit={createInstance}>
           <div className="form-grid">
@@ -221,6 +229,7 @@ export function IntegrationsV2Page() {
           </div>
         </form>
       </Card>
+      ) : null}
 
       <Card title="Bestehende Instanzen">
         <div className="stack-list">

@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_current_user, require_csrf
+from app.deps import get_current_user, require_admin, require_csrf
 from app.execution_engine_v2 import execute_instance_action
 from app.models import (
     AuthMode,
@@ -88,7 +88,7 @@ def list_integrations(db: Session = Depends(get_db), current_user: User = Depend
 def create_integration(
     payload: IntegrationCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
     _csrf: str = Depends(require_csrf),
 ):
     _validate_integration(payload)
@@ -119,7 +119,7 @@ def list_instances(db: Session = Depends(get_db), current_user: User = Depends(g
 def create_instance(
     payload: IntegrationInstanceCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
     _csrf: str = Depends(require_csrf),
 ):
     integration = db.scalar(
@@ -187,7 +187,7 @@ async def discover_tools(
     instance_id: str,
     x_user_token: str | None = Header(default=None, alias="X-User-Token"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     instance = db.scalar(
         select(IntegrationInstance).where(

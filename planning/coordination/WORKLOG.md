@@ -2274,3 +2274,18 @@
   - yes ([Unreleased] Added)
 - Follow-ups:
   - none
+
+## 2026-04-07 – Cursor Agent – Consumer MCP relay stream ReadError
+
+- Done:
+  - `backend/app/routers/consumer_mcp_relay.py`: `passthrough` fängt `httpx.ReadError` beim Streamen der Upstream-Antwort ab, loggt `mcp_relay_upstream_stream_closed` (instance_id + Exception-Typ), `finally` schließt weiterhin `upstream`; vermeidet ASGI-Traceback bei vorzeitigem Verbindungsabbruch.
+  - `docs/CHANGELOG.md` [Unreleased] Fixed.
+- Next: keine
+- Blockers: keine
+- Branch/PR: branch lokal, PR none
+- Files touched: `backend/app/routers/consumer_mcp_relay.py`, `docs/CHANGELOG.md`, `planning/coordination/WORKLOG.md`
+- Test notes:
+  - commands: `python3 -m py_compile backend/app/routers/consumer_mcp_relay.py`
+  - endpoints: `POST /api/v1/consumer/integration-instances/{id}/mcp` (Streaming)
+- Changelog updated: yes ([Unreleased] Fixed)
+- Follow-ups: keine

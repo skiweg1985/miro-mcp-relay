@@ -161,6 +161,12 @@ async def _mcp_relay_handler(
         try:
             async for chunk in upstream.aiter_bytes():
                 yield chunk
+        except httpx.ReadError as exc:
+            logger.warning(
+                "mcp_relay_upstream_stream_closed instance_id=%s detail=%s",
+                instance_id,
+                type(exc).__name__,
+            )
         finally:
             await upstream.aclose()
 

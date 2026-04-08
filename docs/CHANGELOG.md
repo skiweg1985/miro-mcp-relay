@@ -4,6 +4,7 @@
 
 ### Added
 
+- Optionaler Integrationstest `backend/test_keycloak_broker_login_integration.py`: bei `KEYCLOAK_LOGIN_INTEGRATION=1` und laufendem Keycloak (`docker-compose.test.yml`) echter Authorization-Code-Flow inkl. Formular-Login am IdP und Broker-Callback (ohne Browser); Realm-Client **broker-login-confidential** um Redirects `http://localhost:8000/*` / `http://127.0.0.1:8000/*` ergänzt.
 - Admin-UI **Sign-in providers** (`/workspace/admin/login-providers`): CRUD für generische OIDC-Login-Provider; Hinweis Broker-Login vs. Integration OAuth.
 - Keycloak-Teststack: `docker-compose.test.yml` mit `--import-realm`, Realm-JSON unter `testing/keycloak/import/`, Vorlage `.env.test.example`.
 - Backend-Tests `backend/test_broker_login_flow.py` (Happy Path, invalid state, Provider-Mismatch, Token-Fehler, fehlende Claims, deaktivierter Provider, Admin-Validierung 422); verschärfte Schema-Validierung für OIDC-URLs und Claim-Mapping (`subject`/`email` Pflicht).

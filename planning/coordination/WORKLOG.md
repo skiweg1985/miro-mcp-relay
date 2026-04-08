@@ -2541,6 +2541,42 @@
 - Follow-ups:
   - none
 
+## 2026-04-08 – Cursor Agent – Keycloak-Integrationstest Broker-Login
+
+- Done:
+  - `backend/test_keycloak_broker_login_integration.py`: bei `KEYCLOAK_LOGIN_INTEGRATION=1` browserloser Authorization-Code-Flow gegen Keycloak (Formular), anschließend Broker-Callback ohne HTTP-Mocks.
+  - `testing/keycloak/import/broker-test-realm.json`: Redirect-URIs für **broker-login-confidential** um `http://localhost:8000/*` und `http://127.0.0.1:8000/*` ergänzt.
+  - `docker-compose.test.yml` (Keycloak-Teststack), `.env.test.example` (Testpasswort-Hinweis), `docs/runbook-broker-login-testing.md`, `docs/CHANGELOG.md`, `AGENTS.md`.
+- Next:
+  - none
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: feature/dev
+  - PR: none
+- Files touched:
+  - backend/test_keycloak_broker_login_integration.py
+  - testing/keycloak/import/broker-test-realm.json
+  - docker-compose.test.yml
+  - .env.test.example
+  - docs/runbook-broker-login-testing.md
+  - docs/CHANGELOG.md
+  - AGENTS.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands:
+    - `python3 -m py_compile backend/test_keycloak_broker_login_integration.py`
+    - `PYTHONPATH=backend python3 -m unittest backend.test_keycloak_broker_login_integration -v` (skip ohne Flag)
+    - mit Keycloak: `KEYCLOAK_LOGIN_INTEGRATION=1 PYTHONPATH=backend python3 -m unittest backend.test_keycloak_broker_login_integration -v`
+  - endpoints:
+    - `POST /api/v1/auth/keycloak-it/start`, `GET /api/v1/auth/keycloak-it/callback` (nur im Integrationstest)
+  - UI path:
+    - none
+- Changelog updated:
+  - yes ([Unreleased] Added)
+- Follow-ups:
+  - none
+
 ## 2026-04-08 – Cursor Agent – Login-Refactor Abschluss (UI, Keycloak-Tests, Flow-Tests)
 
 - Done:

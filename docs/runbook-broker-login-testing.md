@@ -29,7 +29,7 @@ Unverändert unter **Microsoft sign-in** (`/workspace/admin/microsoft-oauth`). R
    ```
 2. Warten bis Keycloak bereit ist, dann Konsole: `http://localhost:8180/` (Admin: `KEYCLOAK_ADMIN` / `KEYCLOAK_ADMIN_PASSWORD` aus `docker-compose.test.yml`).
 3. Realm **broker-test** wird beim Start per Import aus `testing/keycloak/import/broker-test-realm.json` angelegt (sofern Import ohne Fehler durchläuft).
-4. Testnutzer: `testuser` / `testpass-change-me`, E-Mail `testuser@example.com`; Attribute `locale=de-DE`, `zoneinfo=Europe/Berlin`.
+4. Testnutzer: `testuser` / `change-me`, E-Mail `testuser@example.com`; Attribute `locale=de-DE`, `zoneinfo=Europe/Berlin`.
 5. Vertraulicher Client: **broker-login-confidential**, Secret: `broker-test-client-secret-change-me` (nur für lokale Tests).
 6. Broker lokal starten (siehe `.env.test.example`): `BROKER_PUBLIC_BASE_URL` muss zu den im Realm eingetragenen Redirect-URIs passen (z. B. `http://localhost:8000`).
 7. OIDC-Provider im Broker wie oben anlegen; Endpoints z. B.:
@@ -49,6 +49,17 @@ PYTHONPATH=backend python3 -m unittest backend.test_broker_login_flow backend.te
 ```
 
 `test_broker_login_flow` nutzt Mocks für HTTP (Token/Userinfo) und deckt Happy Path sowie zentrale Fehlerpfade ab; Microsoft-Regression über gemockte `resolve_microsoft_oauth` + Callback.
+
+## Integrationstest mit laufendem Keycloak
+
+Voraussetzungen: Keycloak wie oben erreichbar; Unittest vom Projektroot mit `PYTHONPATH=backend` (gleiche SQLite-Datei wie die übrigen Backend-Tests, übliches Arbeitsverzeichnis beachten). Standard `BROKER_PUBLIC_BASE_URL` ist `http://localhost:8000`; die Callback-URL muss bei **broker-login-confidential** als Redirect-URI erlaubt sein.
+
+```bash
+docker compose -f docker-compose.test.yml up -d
+KEYCLOAK_LOGIN_INTEGRATION=1 PYTHONPATH=backend python3 -m unittest backend.test_keycloak_broker_login_integration -v
+```
+
+Der Test nutzt `TestClient` (Broker im selben Prozess): OIDC-Endpunkte aus dem Discovery-Dokument, Login-Formular gegen Keycloak, anschließend `GET /api/v1/auth/.../callback` mit echtem `code`. Erwartet werden Redirect mit `login_status=success` und Session-Cookie. Läuft nur bei `KEYCLOAK_LOGIN_INTEGRATION=1` und erreichbarem IdP.
 
 ## Abgrenzung
 

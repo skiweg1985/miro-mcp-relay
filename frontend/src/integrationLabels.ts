@@ -2,7 +2,7 @@ import type { AccessGrantOut, IntegrationInstanceV2Out, IntegrationV2Out } from 
 
 const INTEGRATION_TYPE: Record<IntegrationV2Out["type"], string> = {
   mcp_server: "MCP",
-  oauth_provider: "OAuth",
+  oauth_provider: "External OAuth",
   api: "API",
 };
 
@@ -87,8 +87,20 @@ export function isMicrosoftGraphIntegration(integration: IntegrationV2Out): bool
   return c?.template_key === "microsoft_graph_default";
 }
 
+export function isGenericOAuthIntegration(integration: IntegrationV2Out): boolean {
+  const c = integration.config as Record<string, unknown> | undefined;
+  return c?.template_key === "generic_oauth";
+}
+
 export function hasIntegrationEndpointConfigured(integration: IntegrationV2Out): boolean {
   if (isMicrosoftGraphIntegration(integration)) return true;
+  if (isGenericOAuthIntegration(integration)) {
+    const c = integration.config as Record<string, unknown>;
+    const authz = typeof c.oauth_authorization_endpoint === "string" && !!c.oauth_authorization_endpoint.trim();
+    const tok = typeof c.oauth_token_endpoint === "string" && !!c.oauth_token_endpoint.trim();
+    const cid = typeof c.oauth_client_id === "string" && !!c.oauth_client_id.trim();
+    return Boolean(authz && tok && cid && integration.oauth_client_secret_configured);
+  }
   const c = integration.config as Record<string, unknown> | undefined;
   return typeof c?.endpoint === "string" && !!c.endpoint.trim();
 }
@@ -96,6 +108,9 @@ export function hasIntegrationEndpointConfigured(integration: IntegrationV2Out):
 export function integrationCardDescription(integration: IntegrationV2Out): string {
   if (isMicrosoftGraphIntegration(integration)) {
     return "Microsoft 365 and Graph API access through this workspace.";
+  }
+  if (isGenericOAuthIntegration(integration)) {
+    return "User connections authorize against your OAuth or OIDC provider; tokens stay on the broker for this workspace.";
   }
   const c = integration.config as Record<string, unknown> | undefined;
   const ep = typeof c?.endpoint === "string" ? c.endpoint.trim() : "";
@@ -142,5 +157,6 @@ export function userConnectionStatusLabel(status: string): string {
 export function oauthProviderProductLabel(provider: unknown): string | null {
   if (provider === "microsoft_graph") return "Microsoft 365";
   if (provider === "miro") return "Miro";
+  if (provider === "generic_oauth") return "External provider";
   return null;
 }

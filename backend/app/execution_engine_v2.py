@@ -54,7 +54,9 @@ async def execute_instance_action(
     arguments: dict[str, Any],
     x_user_token: str | None = None,
 ) -> dict[str, Any]:
-    endpoint = str(integration_config.get("endpoint") or "").strip()
+    endpoint = str(
+        integration_config.get("endpoint") or integration_config.get("resource_api_base_url") or ""
+    ).strip()
     if not endpoint:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="integration_endpoint_missing")
     headers = resolve_outbound_headers(instance, x_user_token=x_user_token)

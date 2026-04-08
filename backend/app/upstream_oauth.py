@@ -9,6 +9,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.generic_integration_oauth import (
+    TEMPLATE_KEY_GENERIC_OAUTH,
+    resolve_generic_client_credentials,
+    token_endpoint_auth_method,
+)
 from app.microsoft_oauth_resolver import microsoft_token_url, resolve_microsoft_oauth_for_graph_integration
 from app.models import AuthMode, Integration, IntegrationInstance, User, UserConnection, UserConnectionStatus
 from app.security import decrypt_text, dumps_json, encrypt_text, loads_json, utcnow
@@ -132,8 +137,13 @@ def _refresh_token_for_connection(
             return False
         client_id = cid
         client_secret = csec
+    elif template == TEMPLATE_KEY_GENERIC_OAUTH:
+        token_endpoint = str(integration_cfg.get("oauth_token_endpoint") or "").strip()
+        client_id, client_secret = resolve_generic_client_credentials(integration, integration_cfg)
+        if not token_endpoint or not client_id or not client_secret:
+            return False
     else:
-        # Fallback for custom OAuth integrations that store endpoint/client credentials in config_json.
+        # Legacy: loose config_json credentials without explicit generic template.
         client_id = str(integration_cfg.get("oauth_client_id") or "").strip()
         client_secret = str(integration_cfg.get("oauth_client_secret") or "").strip()
         if not token_endpoint or not client_id or not client_secret:
@@ -141,16 +151,29 @@ def _refresh_token_for_connection(
 
     try:
         with httpx.Client(timeout=30.0) as client:
-            response = client.post(
-                token_endpoint,
-                data={
-                    "grant_type": "refresh_token",
-                    "client_id": client_id,
-                    "client_secret": client_secret,
-                    "refresh_token": refresh_token.strip(),
-                },
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
-            )
+            post_headers = {"Content-Type": "application/x-www-form-urlencoded"}
+            if template == TEMPLATE_KEY_GENERIC_OAUTH and token_endpoint_auth_method(integration_cfg) == "client_secret_basic":
+                response = client.post(
+                    token_endpoint,
+                    data={
+                        "grant_type": "refresh_token",
+                        "client_id": client_id,
+                        "refresh_token": refresh_token.strip(),
+                    },
+                    auth=(client_id, client_secret),
+                    headers=post_headers,
+                )
+            else:
+                response = client.post(
+                    token_endpoint,
+                    data={
+                        "grant_type": "refresh_token",
+                        "client_id": client_id,
+                        "client_secret": client_secret,
+                        "refresh_token": refresh_token.strip(),
+                    },
+                    headers=post_headers,
+                )
     except httpx.HTTPError:
         return False
     if response.status_code >= 400:

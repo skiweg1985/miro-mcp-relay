@@ -89,10 +89,17 @@ def critical_integration_config_changed(before: dict, after: dict) -> bool:
         if k
         in (
             "endpoint",
+            "resource_api_base_url",
             "oauth_token_endpoint",
             "oauth_authorization_endpoint",
             "oauth_registration_endpoint",
+            "oauth_userinfo_endpoint",
+            "oauth_issuer",
+            "oauth_discovery_url",
+            "oauth_jwks_uri",
+            "oauth_claim_mapping",
             "graph_base_url",
+            "template_key",
         )
         or k.startswith("oauth_")
         or k.startswith("graph_oauth_")

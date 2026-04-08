@@ -9,6 +9,7 @@ import {
   authModeLabel,
   connectionRowStatus,
   integrationTypeLabel,
+  isGenericOAuthIntegration,
   oauthProviderProductLabel,
   userConnectionStatusLabel,
 } from "./integrationLabels";
@@ -78,6 +79,7 @@ export function ConnectionDetailModal({
 
   const inst = data?.instance;
   const intg = data?.integration;
+  const genericOauthDef = intg ? isGenericOAuthIntegration(intg) : false;
   const uc = data?.user_connection;
   const profile = uc?.profile ?? {};
   const status = inst ? connectionRowStatus(inst) : { label: "…", tone: "neutral" as const };
@@ -145,6 +147,9 @@ export function ConnectionDetailModal({
               {typeof profile.email === "string" && profile.email.trim() ? (
                 <DetailRow label="Email" value={profile.email} />
               ) : null}
+              {typeof profile.preferred_username === "string" && profile.preferred_username.trim() ? (
+                <DetailRow label="Preferred username" value={profile.preferred_username} />
+              ) : null}
               {typeof profile.username === "string" && profile.username.trim() ? (
                 <DetailRow label="Username" value={profile.username} />
               ) : null}
@@ -168,7 +173,11 @@ export function ConnectionDetailModal({
             </DetailSection>
           ) : inst.auth_mode === "oauth" ? (
             <DetailSection title="Connected account">
-              <p className="muted-copy">Sign in to link an account. Profile details appear here after a successful sign-in.</p>
+              <p className="muted-copy">
+                {genericOauthDef
+                  ? "Sign in with the external provider. The broker stores tokens for this connection so access keys and API calls can use them."
+                  : "Sign in to link an account. Profile details appear here after a successful sign-in."}
+              </p>
             </DetailSection>
           ) : null}
 

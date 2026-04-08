@@ -28,6 +28,12 @@ const CONFIG_LABELS: Record<string, string> = {
   graph_oauth_use_broker_defaults: "Use broker Microsoft defaults",
   oauth_dynamic_client_registration_enabled: "Dynamic client registration",
   oauth_client_id: "OAuth client ID",
+  oauth_userinfo_endpoint: "Userinfo URL",
+  oauth_issuer: "Issuer",
+  resource_api_base_url: "API base URL",
+  oauth_pkce_enabled: "PKCE enabled",
+  oauth_token_endpoint_auth_method: "Token endpoint auth",
+  oauth_scopes: "OAuth scopes",
 };
 
 function formatConfigPrimitive(val: unknown): string {
@@ -173,7 +179,7 @@ export function IntegrationInspectModal({
               <DetailRow label="Microsoft Graph redirect" value={callbacks.microsoft_graph} />
             ) : null}
             {!isGraph && callbacks.integration_oauth ? (
-              <DetailRow label="Broker OAuth callback (Miro path)" value={callbacks.integration_oauth} />
+              <DetailRow label="Broker integration OAuth callback" value={callbacks.integration_oauth} />
             ) : null}
           </>
         ) : null}

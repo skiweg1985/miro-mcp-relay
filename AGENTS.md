@@ -58,6 +58,7 @@ Follow these repo-specific conventions and commands first.
   - `curl -sS http://localhost/api/v1/health`
 - Root endpoint check: `curl -sS http://localhost/`
 - Backend unit smoke (no running server): `PYTHONPATH=backend python3 -m unittest backend.test_smoke -v`
+- Generische Integration-OAuth: `PYTHONPATH=backend python3 -m unittest backend.test_generic_integration_oauth -v`
 - Broker login (mocks, no IdP): `PYTHONPATH=backend python3 -m unittest backend.test_broker_login_flow backend.test_broker_login -v`
 - Broker login (Keycloak, optional): `docker compose -f docker-compose.test.yml up -d`, dann `KEYCLOAK_LOGIN_INTEGRATION=1 PYTHONPATH=backend python3 -m unittest backend.test_keycloak_broker_login_integration -v` (siehe `docs/runbook-broker-login-testing.md`)
 - HTTPS dev smoke test: `curl -k -sS https://localhost/api/v1/health`

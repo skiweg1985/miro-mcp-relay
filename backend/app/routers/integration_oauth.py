@@ -19,6 +19,18 @@ from starlette.responses import RedirectResponse
 from app.core.config import get_settings
 from app.database import get_db
 from app.deps import get_current_user, require_csrf
+from app.generic_integration_oauth import (
+    KIND_GENERIC_OAUTH,
+    TEMPLATE_KEY_GENERIC_OAUTH,
+    first_generic_oauth_config_error,
+    merge_id_token_and_userinfo,
+    normalized_claim_mapping,
+    oauth_pkce_enabled,
+    oauth_scope_string,
+    profile_from_claims,
+    resolve_generic_client_credentials,
+    token_endpoint_auth_method,
+)
 from app.models import AuthMode, Integration, IntegrationInstance, User, UserConnection, UserConnectionStatus
 from app.microsoft_oauth_resolver import (
     ResolvedMicrosoftOAuth,
@@ -249,6 +261,21 @@ def _oauth_expiry_metadata(token_data: dict[str, Any]) -> dict[str, Any]:
     return {"oauth_expires_at": (utcnow() + timedelta(seconds=expires_in)).isoformat()}
 
 
+async def _fetch_generic_userinfo(userinfo_url: str, access_token: str) -> dict[str, Any] | None:
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.get(
+                userinfo_url,
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+        if response.status_code != 200:
+            return None
+        body = response.json()
+        return body if isinstance(body, dict) else None
+    except Exception:
+        return None
+
+
 async def _profile_metadata_for_oauth(
     *,
     kind: str,
@@ -259,6 +286,7 @@ async def _profile_metadata_for_oauth(
     scope_raw = token_data.get("scope")
     if isinstance(scope_raw, str) and scope_raw.strip():
         meta["scopes_granted"] = scope_raw.strip()
+
     if kind == KIND_MICROSOFT_GRAPH:
         meta["provider"] = "microsoft_graph"
         # Primary: Graph user profile (works with User.Read; id_token is often absent or sparse in token responses).
@@ -444,6 +472,44 @@ def start_integration_oauth(
         db.commit()
         return AuthFlowStartResponse(auth_url=f"{auth_ep}?{httpx.QueryParams(params)}", state=state)
 
+    if str(cfg.get("template_key") or "").strip() == TEMPLATE_KEY_GENERIC_OAUTH:
+        err = first_generic_oauth_config_error(cfg, integration)
+        if err:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=err)
+        client_id = str(cfg.get("oauth_client_id") or "").strip()
+        redirect_cb = integration_oauth_redirect_uri()
+        use_pkce = oauth_pkce_enabled(cfg)
+        verifier = ""
+        challenge = ""
+        if use_pkce:
+            verifier, challenge = _make_pkce()
+        state = _make_state()
+        put_oauth_pending(
+            db,
+            state,
+            FLOW_KEY,
+            {
+                "kind": KIND_GENERIC_OAUTH,
+                "user_id": current_user.id,
+                "instance_id": instance.id,
+                "verifier": verifier,
+                "use_pkce": use_pkce,
+            },
+        )
+        params: dict[str, str] = {
+            "client_id": client_id,
+            "response_type": "code",
+            "redirect_uri": redirect_cb,
+            "state": state,
+            "scope": oauth_scope_string(cfg),
+        }
+        if use_pkce and challenge:
+            params["code_challenge"] = challenge
+            params["code_challenge_method"] = "S256"
+        auth_ep = str(cfg.get("oauth_authorization_endpoint") or "").strip()
+        db.commit()
+        return AuthFlowStartResponse(auth_url=f"{auth_ep}?{httpx.QueryParams(params)}", state=state)
+
     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="integration_oauth_template_unsupported")
 
 
@@ -461,8 +527,8 @@ async def _integration_oauth_callback_impl(
         return _redirect_workspace(ok=False, message="missing_callback_parameters")
 
     raw = pop_oauth_pending_payload(db, state)
-    if not raw or str(raw.get("kind") or "") not in (KIND_MICROSOFT_GRAPH, KIND_MIRO):
-        return _redirect_workspace(ok=False, message="invalid_oauth_state")
+    if not raw or str(raw.get("kind") or "") not in (KIND_MICROSOFT_GRAPH, KIND_MIRO, KIND_GENERIC_OAUTH):
+        return _redirect_workspace(ok=False, message="oauth_callback_state_invalid")
 
     kind = str(raw.get("kind"))
     user_id = str(raw.get("user_id") or "")
@@ -531,6 +597,57 @@ async def _integration_oauth_callback_impl(
                 **_oauth_expiry_metadata(token_data),
             }
 
+        elif kind == KIND_GENERIC_OAUTH:
+            err = first_generic_oauth_config_error(cfg, integration)
+            if err:
+                db.commit()
+                return _redirect_workspace(ok=False, message=err)
+            client_id, client_secret = resolve_generic_client_credentials(integration, cfg)
+            token_ep = str(cfg.get("oauth_token_endpoint") or "").strip()
+            use_pkce = raw.get("use_pkce", True) is not False
+            verifier = str(raw.get("verifier") or "") if use_pkce else ""
+            token_body: dict[str, str] = {
+                "grant_type": "authorization_code",
+                "client_id": client_id,
+                "code": code,
+                "redirect_uri": miro_redirect_uri,
+            }
+            if verifier:
+                token_body["code_verifier"] = verifier
+            auth_meth = token_endpoint_auth_method(cfg)
+            post_headers = {"Content-Type": "application/x-www-form-urlencoded"}
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                if auth_meth == "client_secret_basic":
+                    response = await client.post(
+                        token_ep,
+                        data=token_body,
+                        auth=(client_id, client_secret),
+                        headers=post_headers,
+                    )
+                else:
+                    token_body["client_secret"] = client_secret
+                    response = await client.post(
+                        token_ep,
+                        data=token_body,
+                        headers=post_headers,
+                    )
+            if response.status_code >= 400:
+                _log_upstream_token_error(provider=KIND_GENERIC_OAUTH, endpoint=token_ep, response=response)
+                db.commit()
+                return _redirect_workspace(ok=False, message="token_exchange_failed")
+            raw_td = response.json()
+            token_data = raw_td if isinstance(raw_td, dict) else {}
+            access_token = str(token_data.get("access_token") or "").strip()
+            refresh_token = str(token_data.get("refresh_token") or "").strip() or None
+            if not access_token:
+                db.commit()
+                return _redirect_workspace(ok=False, message="missing_access_token")
+            token_meta = {
+                "oauth_provider_kind": KIND_GENERIC_OAUTH,
+                "oauth_token_endpoint": token_ep,
+                **_oauth_expiry_metadata(token_data),
+            }
+
         else:
             client_id, client_secret = _miro_resolve_client_for_token_exchange(
                 db,
@@ -545,7 +662,7 @@ async def _integration_oauth_callback_impl(
                 db.commit()
                 return _redirect_workspace(ok=False, message="miro_oauth_not_configured")
             verifier = str(raw.get("verifier") or "") if raw.get("miro_use_pkce") else ""
-            token_body: dict[str, str] = {
+            miro_token_body: dict[str, str] = {
                 "grant_type": "authorization_code",
                 "client_id": client_id,
                 "client_secret": client_secret,
@@ -553,11 +670,11 @@ async def _integration_oauth_callback_impl(
                 "redirect_uri": miro_redirect_uri,
             }
             if verifier:
-                token_body["code_verifier"] = verifier
+                miro_token_body["code_verifier"] = verifier
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(
                     token_ep,
-                    data=token_body,
+                    data=miro_token_body,
                     headers={"Content-Type": "application/x-www-form-urlencoded"},
                 )
             if response.status_code >= 400:
@@ -577,7 +694,28 @@ async def _integration_oauth_callback_impl(
                 **_oauth_expiry_metadata(token_data),
             }
 
-        profile_meta = await _profile_metadata_for_oauth(kind=kind, token_data=token_data, access_token=access_token)
+        if kind == KIND_GENERIC_OAUTH:
+            id_claims = decode_jwt_payload_unverified(token_data.get("id_token"))
+            if not isinstance(id_claims, dict):
+                id_claims = {}
+            userinfo_body: dict[str, Any] | None = None
+            userinfo_url = str(cfg.get("oauth_userinfo_endpoint") or "").strip()
+            if userinfo_url:
+                userinfo_body = await _fetch_generic_userinfo(userinfo_url, access_token)
+            merged = merge_id_token_and_userinfo(id_claims, userinfo_body)
+            mapping = normalized_claim_mapping(cfg)
+            profile_meta = profile_from_claims(merged, mapping)
+            scope_raw = token_data.get("scope")
+            if isinstance(scope_raw, str) and scope_raw.strip():
+                profile_meta["scopes_granted"] = scope_raw.strip()
+            issuer = str(cfg.get("oauth_issuer") or "").strip()
+            if issuer:
+                profile_meta["oauth_issuer"] = issuer
+            if not profile_meta.get("external_subject"):
+                db.commit()
+                return _redirect_workspace(ok=False, message="claim_mapping_missing_subject")
+        else:
+            profile_meta = await _profile_metadata_for_oauth(kind=kind, token_data=token_data, access_token=access_token)
         _upsert_user_connection(
             db,
             organization_id=user.organization_id,

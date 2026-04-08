@@ -62,6 +62,7 @@ class IntegrationCreate(BaseModel):
     type: str
     config: dict[str, Any] = Field(default_factory=dict)
     mcp_enabled: bool = False
+    oauth_integration_client_secret: str | None = None
 
 
 class IntegrationOut(BaseModel):
@@ -80,6 +81,8 @@ class IntegrationUpdate(BaseModel):
     config: dict[str, Any] | None = None
     graph_oauth_client_secret: str | None = None
     clear_graph_oauth_client_secret: bool = False
+    oauth_integration_client_secret: str | None = None
+    clear_oauth_integration_client_secret: bool = False
 
 
 class IntegrationInstanceCreate(BaseModel):

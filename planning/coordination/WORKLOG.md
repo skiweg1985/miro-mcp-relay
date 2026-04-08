@@ -2740,3 +2740,18 @@
 - Files: `UserManagementAdminPage.tsx`, `index.css`, `docs/CHANGELOG.md`, WORKLOG
 - Test: `cd frontend && npm run build`
 - Changelog: yes (Unreleased Fixed)
+
+## 2026-04-08 – Cursor Agent – Generic integration OAuth (user connections)
+
+- Done:
+  - Backend: `app/generic_integration_oauth.py` (Template `generic_oauth`, Validierung, Claim-Mapping mit `broker_login.claim_paths`, Client-Secret-Auflösung); `integration_oauth` Start/Callback für generischen Flow (PKCE optional, Token-Auth post/basic); `upstream_oauth` Refresh für `generic_oauth`; `execution_engine_v2` Endpoint-Fallback `resource_api_base_url`; `access_grant_lifecycle` Wire-Keys erweitert; `schemas`/`integrations_v2` Create/Patch inkl. `oauth_integration_client_secret`; Callback-State-Code `oauth_callback_state_invalid`.
+  - Frontend: Integration-Assistent für External OAuth/OIDC, `GenericOAuthSettingsModal`, Integrationskarten-Button, `integrationLabels`/`ConnectionCreateModal`/`ConnectionDetailModal`/`IntegrationInspectModal`/`utils` OAuth-Toasts.
+  - Tests `backend/test_generic_integration_oauth.py`; `docs/CHANGELOG.md` [Unreleased] Added; `AGENTS.md` Testzeile.
+- Next: Discovery/JWKS automatisch nutzen (nur Platzhalter-Felder im Modell sinnvoll erweiterbar).
+- Blockers: keine
+- Branch/PR: branch lokal, PR none
+- Files touched: `backend/app/generic_integration_oauth.py`, `backend/app/routers/integration_oauth.py`, `backend/app/upstream_oauth.py`, `backend/app/execution_engine_v2.py`, `backend/app/services/access_grant_lifecycle.py`, `backend/app/schemas.py`, `backend/app/routers/integrations_v2.py`, `backend/test_generic_integration_oauth.py`, `frontend/src/*` (Modal, Pages, Labels, utils), `frontend/dist/*`, `docs/CHANGELOG.md`, `AGENTS.md`, `planning/coordination/WORKLOG.md`
+- Test notes: `PYTHONPATH=backend python3 -m unittest backend.test_smoke backend.test_generic_integration_oauth -v`, `cd frontend && npm run build`
+- UI path: `/workspace/integrations-v2`, `/workspace/connections`
+- Changelog updated: yes (Unreleased Added)
+- Follow-ups: automatische OIDC-Discovery anbinden

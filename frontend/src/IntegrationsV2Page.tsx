@@ -4,6 +4,7 @@ import { useAppContext } from "./app-context";
 import { classNames } from "./utils";
 import { api } from "./api";
 import { ConnectionCreateModal } from "./ConnectionCreateModal";
+import { GenericOAuthSettingsModal } from "./GenericOAuthSettingsModal";
 import { GraphOAuthSettingsModal } from "./GraphOAuthSettingsModal";
 import { IntegrationCreateModal } from "./IntegrationCreateModal";
 import { IntegrationInspectModal } from "./IntegrationInspectModal";
@@ -14,6 +15,7 @@ import {
   integrationCardDescription,
   integrationLifecycleBadge,
   integrationTypeLabel,
+  isGenericOAuthIntegration,
   isMicrosoftGraphIntegration,
 } from "./integrationLabels";
 import { formatOAuthCallbackMessage } from "./utils";
@@ -29,11 +31,17 @@ export function IntegrationsV2Page() {
   const [connectionModalOpen, setConnectionModalOpen] = useState(false);
   const [connectionDefaultId, setConnectionDefaultId] = useState<string | undefined>(undefined);
   const [graphModalOpen, setGraphModalOpen] = useState(false);
+  const [genericOauthModalOpen, setGenericOauthModalOpen] = useState(false);
   const [detailIntegration, setDetailIntegration] = useState<IntegrationV2Out | null>(null);
   const [deleteIntegrationTarget, setDeleteIntegrationTarget] = useState<IntegrationV2Out | null>(null);
 
   const graphIntegration = useMemo(
     () => integrations.find((i) => isMicrosoftGraphIntegration(i)),
+    [integrations],
+  );
+
+  const genericOauthIntegration = useMemo(
+    () => integrations.find((i) => isGenericOAuthIntegration(i)),
     [integrations],
   );
 
@@ -171,6 +179,16 @@ export function IntegrationsV2Page() {
               onNotify={(payload) => notify(payload)}
             />
           ) : null}
+          {genericOauthIntegration && isAdmin ? (
+            <GenericOAuthSettingsModal
+              open={genericOauthModalOpen}
+              onClose={() => setGenericOauthModalOpen(false)}
+              integration={genericOauthIntegration}
+              csrfToken={csrf}
+              onSaved={load}
+              onNotify={(payload) => notify(payload)}
+            />
+          ) : null}
         </>
       ) : null}
 
@@ -242,6 +260,7 @@ export function IntegrationsV2Page() {
           const n = countByIntegration.get(integration.id) ?? 0;
           const badge = integrationLifecycleBadge(integration, n);
           const isGraph = isMicrosoftGraphIntegration(integration);
+          const isGenericOauth = isGenericOAuthIntegration(integration);
           return (
             <article key={integration.id} className={classNames("integration-card", "user-integration-card")}>
               <div className="integration-card-head">
@@ -279,6 +298,11 @@ export function IntegrationsV2Page() {
                 {isGraph && isAdmin ? (
                   <button type="button" className="ghost-button" onClick={() => setGraphModalOpen(true)}>
                     Graph settings
+                  </button>
+                ) : null}
+                {isGenericOauth && isAdmin ? (
+                  <button type="button" className="ghost-button" onClick={() => setGenericOauthModalOpen(true)}>
+                    OAuth / OIDC settings
                   </button>
                 ) : null}
               </div>

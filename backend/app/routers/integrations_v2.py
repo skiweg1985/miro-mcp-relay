@@ -10,6 +10,7 @@ from app.core.config import get_settings
 from app.database import get_db
 from app.deps import get_current_user, require_admin, require_csrf
 from app.default_integrations import INTEGRATION_GRAPH_DEFAULT_ID, INTEGRATION_MIRO_DEFAULT_ID, TEMPLATE_KEY_MIRO_DEFAULT
+from app.generic_integration_oauth import first_generic_oauth_config_error, is_generic_oauth_template
 from app.execution_engine_v2 import execute_instance_action
 from app.models import (
     AccessGrant,
@@ -105,6 +106,14 @@ def _validate_integration(payload: IntegrationCreate) -> None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="invalid_integration_type")
     if payload.type == IntegrationType.MCP_SERVER.value and not payload.mcp_enabled:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="mcp_server_requires_mcp_enabled")
+    if payload.type == IntegrationType.OAUTH_PROVIDER.value and is_generic_oauth_template(payload.config or {}):
+        secret_plain = str(payload.oauth_integration_client_secret or "").strip()
+        probe = SimpleNamespace(
+            oauth_client_secret_encrypted=encrypt_text(secret_plain) if secret_plain else None,
+        )
+        err = first_generic_oauth_config_error(payload.config or {}, probe)
+        if err:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=err)
 
 
 def _integration_protected(integration: Integration) -> bool:
@@ -180,10 +189,16 @@ def patch_integration(
                 reason=INVALIDATION_INTEGRATION_CONFIG,
             )
         row.config_json = dumps_json(merged)
-    if payload.clear_graph_oauth_client_secret:
+    if payload.clear_graph_oauth_client_secret or payload.clear_oauth_integration_client_secret:
         row.oauth_client_secret_encrypted = None
     elif payload.graph_oauth_client_secret is not None:
         secret_raw = str(payload.graph_oauth_client_secret).strip()
+        if secret_raw:
+            row.oauth_client_secret_encrypted = encrypt_text(secret_raw)
+        else:
+            row.oauth_client_secret_encrypted = None
+    elif payload.oauth_integration_client_secret is not None:
+        secret_raw = str(payload.oauth_integration_client_secret).strip()
         if secret_raw:
             row.oauth_client_secret_encrypted = encrypt_text(secret_raw)
         else:
@@ -208,6 +223,9 @@ def create_integration(
         config_json=dumps_json(payload.config),
         mcp_enabled=bool(payload.mcp_enabled),
     )
+    secret_in = str(payload.oauth_integration_client_secret or "").strip()
+    if secret_in:
+        row.oauth_client_secret_encrypted = encrypt_text(secret_in)
     db.add(row)
     db.commit()
     db.refresh(row)

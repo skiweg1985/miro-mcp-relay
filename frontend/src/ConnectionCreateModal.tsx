@@ -4,7 +4,7 @@ import { api } from "./api";
 import { Field, Modal } from "./components";
 import type { IntegrationInstanceV2Out, IntegrationV2Out } from "./types";
 import { isApiError } from "./errors";
-import { integrationTypeLabel } from "./integrationLabels";
+import { integrationTypeLabel, isGenericOAuthIntegration } from "./integrationLabels";
 
 type Step = 1 | 2;
 
@@ -185,6 +185,12 @@ export function ConnectionCreateModal({
                 <option value="direct">Direct</option>
               </select>
             </Field>
+            {selectedIntegration && isGenericOAuthIntegration(selectedIntegration) && step2AuthMode === "oauth" ? (
+              <p className="muted-copy">
+                Users sign in with the external provider configured on the integration. The broker stores tokens only for this
+                connection.
+              </p>
+            ) : null}
             {step2AuthMode === "api_key" ? (
               <>
                 <Field label="API key header">

@@ -82,6 +82,7 @@ def _issue_session(db: Session, user: User) -> tuple[str, str]:
 
 
 def _session_response(db: Session, user: User, response: Response) -> SessionResponse:
+    user.last_login_at = utcnow()
     session_token, csrf_token = _issue_session(db, user)
     _set_session_cookie(response, session_token)
     return SessionResponse(user=UserOut.model_validate(user), csrf_token=csrf_token)
@@ -102,7 +103,9 @@ def _failure_redirect(exc: AuthFlowFailure) -> RedirectResponse:
 @router.post("/auth/login", response_model=SessionResponse)
 def login(payload: LoginRequest, response: Response, db: Session = Depends(get_db)):
     email_norm = str(payload.email or "").strip().lower()
-    user = db.scalar(select(User).where(User.email == email_norm, User.is_active.is_(True)))
+    user = db.scalar(
+        select(User).where(User.email == email_norm, User.is_active.is_(True), User.deleted_at.is_(None))
+    )
     if not user or not user.password_hash or not verify_secret(payload.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
@@ -253,6 +256,7 @@ async def _run_broker_login_callback(
         canonical=canonical,
         raw_claims=raw_storage if isinstance(raw_storage, dict) else {},
     )
+    user.last_login_at = utcnow()
 
     redirect = RedirectResponse(
         url=f"{settings.frontend_base_url.rstrip('/')}/workspace/integrations-v2?login_status=success",

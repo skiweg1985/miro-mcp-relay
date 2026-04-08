@@ -341,3 +341,116 @@ class AccessGrantValidateResponse(BaseModel):
     user_id: str
     integration_instance_id: str
     status: str
+
+
+class AdminUserLifecycleCountsOut(BaseModel):
+    active_sessions: int
+    access_keys_active: int
+    access_keys_revoked: int
+    access_keys_invalid: int
+    access_keys_total: int
+    connections_total: int
+    connections_with_stored_oauth: int
+    oauth_identities: int
+
+
+class AdminUserListRowOut(BaseModel):
+    id: str
+    organization_id: str
+    email: str
+    display_name: str
+    is_admin: bool
+    account_status: str
+    auth_summary: str
+    created_at: datetime
+    last_login_at: datetime | None = None
+    last_activity_at: datetime | None = None
+    access_keys_active: int
+    access_keys_total: int
+    connections_total: int
+
+
+class AdminUserListOut(BaseModel):
+    ok: bool = True
+    users: list[AdminUserListRowOut]
+    total: int
+    limit: int
+    offset: int
+
+
+class AdminOAuthIdentityOut(BaseModel):
+    id: str
+    provider_key: str
+    subject: str
+    issuer: str | None = None
+    email: str | None = None
+    display_name: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class AdminUserSessionOut(BaseModel):
+    id: str
+    created_at: datetime
+    expires_at: datetime
+    is_active: bool
+
+
+class AdminUserConnectionOut(BaseModel):
+    id: str
+    integration_instance_id: str
+    integration_instance_name: str
+    status: str
+    has_stored_oauth: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class AdminUserAccessGrantSummaryOut(BaseModel):
+    id: str
+    integration_instance_id: str
+    integration_instance_name: str
+    name: str
+    key_prefix: str
+    status: str
+    effective_status: str
+    created_at: datetime
+    last_used_at: datetime | None = None
+    revoked_at: datetime | None = None
+
+
+class AdminUserDetailOut(BaseModel):
+    ok: bool = True
+    id: str
+    organization_id: str
+    email: str
+    display_name: str
+    is_admin: bool
+    account_status: str
+    auth_summary: str
+    created_at: datetime
+    updated_at: datetime
+    last_login_at: datetime | None = None
+    last_activity_at: datetime | None = None
+    counts: AdminUserLifecycleCountsOut
+    oauth_identities: list[AdminOAuthIdentityOut]
+    sessions: list[AdminUserSessionOut]
+    connections: list[AdminUserConnectionOut]
+    access_grants: list[AdminUserAccessGrantSummaryOut]
+
+
+class AdminUserActionResultOut(BaseModel):
+    ok: bool = True
+    account_status: str
+    sessions_revoked: int = 0
+    access_grants_revoked: int = 0
+    connections_cleared: int = 0
+
+
+class AdminUserHardDeleteBody(BaseModel):
+    confirm_email: str = Field(min_length=3, max_length=255)
+
+
+class AdminUserHardDeleteResultOut(BaseModel):
+    ok: bool = True
+    id: str

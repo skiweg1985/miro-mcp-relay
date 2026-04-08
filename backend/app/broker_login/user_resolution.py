@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.broker_login.canonical import CanonicalUserClaims
+from app.broker_login.errors import AuthFlowFailure, AuthFlowFailureCode
 from app.models import OAuthIdentity, Organization, User
 from app.security import dumps_json
 
@@ -49,7 +50,10 @@ def upsert_user_and_oauth_identity(
         db.add(user)
         db.flush()
     else:
-        user.is_active = True
+        if user.deleted_at is not None:
+            raise AuthFlowFailure(AuthFlowFailureCode.ACCOUNT_DISABLED, "This account is no longer available.")
+        if not user.is_active:
+            raise AuthFlowFailure(AuthFlowFailureCode.ACCOUNT_DISABLED, "This account has been deactivated.")
         user.display_name = display_name or user.display_name
 
     issuer = canonical.issuer

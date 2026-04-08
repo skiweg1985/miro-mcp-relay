@@ -47,6 +47,14 @@ def reconcile_schema() -> None:
     if "oauth_dcr_client_secret_encrypted" not in cols:
         with engine.begin() as conn:
             conn.execute(text("ALTER TABLE user_connections ADD COLUMN oauth_dcr_client_secret_encrypted TEXT"))
+    if insp.has_table("users"):
+        ucols = {c["name"] for c in insp.get_columns("users")}
+        if "deleted_at" not in ucols:
+            with engine.begin() as conn:
+                conn.execute(text(f"ALTER TABLE users ADD COLUMN deleted_at {dt_sql}"))
+        if "last_login_at" not in ucols:
+            with engine.begin() as conn:
+                conn.execute(text(f"ALTER TABLE users ADD COLUMN last_login_at {dt_sql}"))
 
 
 def init_db() -> None:

@@ -14,6 +14,7 @@ class AuthFlowFailureCode(StrEnum):
     INVALID_STATE = "invalid_state"
     NONCE_MISMATCH = "nonce_mismatch"
     MISSING_IDENTITY = "missing_identity"
+    ACCOUNT_DISABLED = "account_disabled"
     INTERNAL = "internal"
 
 

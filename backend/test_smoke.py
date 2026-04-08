@@ -44,6 +44,11 @@ class TestSmoke(unittest.TestCase):
             response = client.get("/api/v1/admin/broker-login-providers")
             self.assertEqual(response.status_code, 401)
 
+    def test_admin_users_requires_session(self) -> None:
+        with TestClient(app) as client:
+            response = client.get("/api/v1/admin/users")
+            self.assertEqual(response.status_code, 401)
+
     def test_access_grants_list_requires_session(self) -> None:
         with TestClient(app) as client:
             response = client.get("/api/v1/access-grants")

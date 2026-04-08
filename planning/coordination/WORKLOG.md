@@ -2483,3 +2483,29 @@
   - no (reiner Git-Flow)
 - Follow-ups:
   - Im Repo gibt es keinen Branch `main`; Standard-Remote-Branch ist `master`.
+
+## 2026-04-08 – Cursor Agent – Branch feature/dev angelegt
+
+- Done:
+  - Branch `feature/dev` von `master` erstellt, `origin/feature/dev` mit Upstream (`git push -u`).
+  - Hinweis: Ein Branch mit exaktem Namen `feature` ist wegen bestehendem `feature/multi-user-profiles` in Git nicht möglich.
+- Next:
+  - none
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: feature/dev
+  - PR: none
+- Files touched:
+  - planning/coordination/WORKLOG.md (dieser Eintrag)
+- Test notes:
+  - commands:
+    - `git checkout -b feature/dev`, `git push -u origin feature/dev`
+  - endpoints:
+    - none
+  - UI path:
+    - none
+- Changelog updated:
+  - no
+- Follow-ups:
+  - none

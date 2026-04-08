@@ -295,6 +295,7 @@ class AccessGrantCreate(BaseModel):
     user_connection_id: str | None = Field(default=None, max_length=36)
     notes: str | None = Field(default=None, max_length=2000)
     policy_ref: str | None = Field(default=None, max_length=255)
+    direct_token_access: bool = False
 
     @field_validator("allowed_tools")
     @classmethod
@@ -313,6 +314,7 @@ class AccessGrantOut(BaseModel):
     status: str
     effective_status: str
     allowed_tools: list[str] = Field(default_factory=list)
+    direct_token_access: bool = False
     policy_ref: str | None = None
     notes: str | None = None
     created_at: datetime
@@ -344,6 +346,15 @@ class AccessGrantValidateResponse(BaseModel):
     user_id: str
     integration_instance_id: str
     status: str
+
+
+class ConsumerUpstreamOAuthTokenOut(BaseModel):
+    ok: bool = True
+    access_token: str
+    token_type: str = "Bearer"
+    expires_at: datetime | None = None
+    expires_in: int | None = None
+    connection_id: str | None = None
 
 
 class AdminUserLifecycleCountsOut(BaseModel):

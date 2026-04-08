@@ -150,6 +150,8 @@ export function AccessGrantUsageModal({ grant, integration, instance, onClose }:
   const mcpRelayUrl = `${apiBase}/consumer/integration-instances/${instanceId}/mcp`;
   const mcpConnectionInfoUrl = `${apiBase}/consumer/integration-instances/${instanceId}/mcp-connection-info`;
   const validateUrl = `${apiBase}/access-grants/validate`;
+  const upstreamTokenUrl = `${apiBase}/consumer/integration-instances/${instanceId}/token`;
+  const showDirectTokenAccess = Boolean(grant.direct_token_access) && instance?.auth_mode === "oauth";
 
   const curlExecute = `curl -sS -X POST '${executeUrl}' \\
   -H 'Content-Type: application/json' \\
@@ -167,6 +169,9 @@ export function AccessGrantUsageModal({ grant, integration, instance, onClose }:
   const curlValidate = `curl -sS -X POST '${validateUrl}' \\
   -H 'Content-Type: application/json' \\
   -d '{"token":"${PLACEHOLDER_KEY}"}'`;
+
+  const curlUpstreamToken = `curl -sS -X POST '${upstreamTokenUrl}' \\
+  -H 'X-Broker-Access-Key: ${PLACEHOLDER_KEY}'`;
 
   const envSnippet = `export BROKER_API='${apiBase}'
 export BROKER_ACCESS_KEY='${PLACEHOLDER_KEY}'
@@ -350,6 +355,33 @@ export CONNECTION_ID='${instanceId}'`;
         />
       </DetailSection>
 
+      {showDirectTokenAccess ? (
+        <section className="usage-primary-card usage-direct-token-card" aria-labelledby="usage-direct-token-label">
+          <p id="usage-direct-token-label" className="usage-primary-kicker">
+            Direct token access
+          </p>
+          <div className="usage-primary-lede">
+            <h3 className="usage-primary-heading">Retrieve upstream OAuth access token</h3>
+            <p className="usage-prose usage-prose--compact">
+              Authenticate with your broker access key. The response includes the current provider access token (refreshed if
+              needed). Refresh tokens are not returned.
+            </p>
+          </div>
+          <UsageExampleBlock title="Endpoint" code={upstreamTokenUrl} />
+          <div className="usage-modal-section usage-modal-section--tight">
+            <p className="usage-field-label">Header</p>
+            <pre className="usage-example-pre usage-example-pre--inline" tabIndex={0}>
+              {`X-Broker-Access-Key: ${PLACEHOLDER_KEY}`}
+            </pre>
+          </div>
+          <UsageExampleBlock
+            title="Example (curl)"
+            code={curlUpstreamToken}
+            caption="JSON body: access_token, token_type, expires_at, expires_in (if known), connection_id."
+          />
+        </section>
+      ) : null}
+
       <section className="usage-primary-card" aria-labelledby="usage-primary-label">
         <p id="usage-primary-label" className="usage-primary-kicker">
           Primary usage
@@ -378,6 +410,12 @@ export CONNECTION_ID='${instanceId}'`;
           {integration ? <DetailRow label="Integration type" value={integrationTypeLabel(integration.type)} /> : null}
           {instance ? <DetailRow label="Connection auth" value={authModeLabel(instance.auth_mode)} /> : null}
           {instance ? <DetailRow label="Access mode" value={accessModeLabel(instance.access_mode)} /> : null}
+          {instance?.auth_mode === "oauth" ? (
+            <DetailRow
+              label="Upstream token API"
+              value={grant.direct_token_access ? "Allowed for this key" : "Off"}
+            />
+          ) : null}
           <DetailRow label="Tool policy" value={toolsSummary} />
         </div>
       </details>

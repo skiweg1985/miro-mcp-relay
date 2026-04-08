@@ -2802,6 +2802,22 @@
 - Changelog updated: yes (Unreleased Added)
 - Follow-ups: automatische OIDC-Discovery anbinden
 
+## 2026-04-08 – Cursor Agent – Direct Token Access Consumer-API
+
+- Done:
+  - Backend: `access_grants.direct_token_access_enabled`, `POST …/consumer/integration-instances/{id}/token`, Policy bei Grant-Erstellung, `ConsumerUpstreamOAuthTokenOut`, Router `consumer_token`; `upstream_oauth` Expiry-Helfer + `get_user_connection_for_grant_oauth`; `test_smoke` 401 ohne Key.
+  - Frontend: `direct_token_access` auf `AccessGrantOut`, Checkbox „New access key“ für OAuth-Connections, Usage-Modal + Detailmodal.
+  - `docs/CHANGELOG.md` [Unreleased] Added; `AGENTS.md` Ergänzung.
+- Next: keine
+- Blockers: keine
+- Branch/PR: branch lokal, PR none
+- Files touched: `backend/app/models.py`, `backend/app/seed.py`, `backend/app/schemas.py`, `backend/app/main.py`, `backend/app/upstream_oauth.py`, `backend/app/services/access_grants.py`, `backend/app/routers/access_grants.py`, `backend/app/routers/consumer_token.py`, `backend/test_smoke.py`, `frontend/src/types.ts`, `frontend/src/BrokerAccessPage.tsx`, `frontend/src/AccessGrantUsageModal.tsx`, `frontend/src/AccessGrantDetailModal.tsx`, `frontend/src/index.css`, `docs/CHANGELOG.md`, `AGENTS.md`, `planning/coordination/WORKLOG.md`
+- Test notes: `PYTHONPATH=backend python3 -m unittest backend.test_smoke -v`, `cd frontend && npm run build`
+- endpoints: `POST /api/v1/consumer/integration-instances/{id}/token`
+- UI path: `/workspace/access`
+- Changelog updated: yes (Unreleased Added)
+- Follow-ups: keine
+
 ## 2026-04-08 – Cursor Agent – Access „How to use“ Modal Fokus
 
 - Done:

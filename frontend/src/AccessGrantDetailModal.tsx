@@ -66,6 +66,10 @@ export function AccessGrantDetailModal({ grant, integrationName, onClose, onRevo
 
       <DetailSection title="Policy">
         <DetailRow label="Allowed tools" value={tools} />
+        <DetailRow
+          label="Upstream token API"
+          value={grant.direct_token_access ? "Allowed" : "Off"}
+        />
         <DetailRow label="Policy reference" value={grant.policy_ref ?? "—"} />
         <DetailRow label="Notes" value={grant.notes ?? "—"} />
       </DetailSection>

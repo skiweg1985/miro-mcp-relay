@@ -12,6 +12,7 @@ from app.routers import (
     auth,
     consumer_execution,
     consumer_mcp_relay,
+    consumer_token,
     integration_oauth,
     public,
 )
@@ -55,6 +56,7 @@ def create_app() -> FastAPI:
     app.include_router(integration_oauth.router, prefix=settings.api_v1_prefix)
     app.include_router(access_grants.router, prefix=settings.api_v1_prefix)
     app.include_router(consumer_execution.router, prefix=settings.api_v1_prefix)
+    app.include_router(consumer_token.router, prefix=settings.api_v1_prefix)
     app.include_router(consumer_mcp_relay.router, prefix=settings.api_v1_prefix)
     app.include_router(admin_microsoft_oauth.router, prefix=settings.api_v1_prefix)
     app.include_router(admin_login_providers.router, prefix=settings.api_v1_prefix)

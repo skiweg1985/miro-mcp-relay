@@ -37,6 +37,7 @@ def create_access_grant(
     user_connection_id: str | None,
     notes: str | None,
     policy_ref: str | None,
+    direct_token_access_enabled: bool = False,
 ) -> tuple[AccessGrant, str]:
     raw = issue_raw_access_key()
     key_hash = lookup_secret_hash(raw)
@@ -58,6 +59,7 @@ def create_access_grant(
         notes=notes.strip() if notes else None,
         policy_ref=policy_ref.strip() if policy_ref else None,
         created_by_user_id=created_by_user_id,
+        direct_token_access_enabled=bool(direct_token_access_enabled),
     )
     if expires_at is not None:
         row.expires_at = expires_at

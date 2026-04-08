@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_user, require_csrf
-from app.models import AccessGrant, AccessGrantStatus, Integration, IntegrationInstance, User, UserConnection
+from app.models import AccessGrant, AccessGrantStatus, AuthMode, Integration, IntegrationInstance, User, UserConnection
 from app.schemas import (
     AccessGrantCreate,
     AccessGrantCreatedOut,
@@ -48,6 +48,7 @@ def _grant_out(row: AccessGrant, instance_name: str) -> AccessGrantOut:
         status=row.status,
         effective_status=effective_grant_display_status(row),
         allowed_tools=tools,
+        direct_token_access=bool(row.direct_token_access_enabled),
         policy_ref=row.policy_ref,
         notes=row.notes,
         created_at=row.created_at,
@@ -104,6 +105,11 @@ def create_grant(
         if not conn:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="user_connection_not_found")
     expires = ensure_utc(payload.expires_at) if payload.expires_at else None
+    if payload.direct_token_access and instance.auth_mode != AuthMode.OAUTH.value:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="direct_token_access_requires_oauth_connection",
+        )
     row, raw = create_access_grant(
         db,
         organization_id=current_user.organization_id,
@@ -116,6 +122,7 @@ def create_grant(
         user_connection_id=payload.user_connection_id,
         notes=payload.notes,
         policy_ref=payload.policy_ref,
+        direct_token_access_enabled=payload.direct_token_access,
     )
     db.commit()
     db.refresh(row)

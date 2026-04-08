@@ -31,6 +31,7 @@ function AccessKeyCreateModal({
   const [label, setLabel] = useState("");
   const [allowedTools, setAllowedTools] = useState("");
   const [expiryDays, setExpiryDays] = useState("");
+  const [directTokenAccess, setDirectTokenAccess] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const maxExpiryDays = 3650;
@@ -41,7 +42,12 @@ function AccessKeyCreateModal({
     setLabel("");
     setAllowedTools("");
     setExpiryDays("");
+    setDirectTokenAccess(false);
   }, [open, instances]);
+
+  useEffect(() => {
+    setDirectTokenAccess(false);
+  }, [instanceId]);
 
   if (!open) {
     return null;
@@ -51,6 +57,11 @@ function AccessKeyCreateModal({
     const int = integrations.find((i) => i.id === ins.integration_id);
     return int ? `${ins.name} · ${int.name}` : ins.name;
   };
+
+  const selectedInstance = useMemo(
+    () => instances.find((row) => row.id === instanceId) ?? null,
+    [instances, instanceId],
+  );
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -80,6 +91,7 @@ function AccessKeyCreateModal({
         name: label.trim(),
         allowed_tools: tools,
         ...(expiresAt ? { expires_at: expiresAt } : {}),
+        ...(directTokenAccess ? { direct_token_access: true } : {}),
       });
       onCreated(created);
       onClose();
@@ -131,6 +143,21 @@ function AccessKeyCreateModal({
               onChange={(event) => setExpiryDays(event.target.value.replace(/\s/g, ""))}
             />
           </Field>
+          {selectedInstance?.auth_mode === "oauth" ? (
+            <Field
+              label="Upstream OAuth token"
+              hint="Allows POST …/consumer/integration-instances/{id}/token with this key. Returns access_token only; no refresh token."
+            >
+              <label className="access-grant-checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={directTokenAccess}
+                  onChange={(event) => setDirectTokenAccess(event.target.checked)}
+                />
+                <span>Allow retrieving the upstream access token via the broker API</span>
+              </label>
+            </Field>
+          ) : null}
         </div>
         <div className="modal-form-actions">
           <button type="button" className="ghost-button" disabled={busy} onClick={onClose}>

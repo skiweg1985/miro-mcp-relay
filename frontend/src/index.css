@@ -1935,6 +1935,13 @@ select option {
   background: var(--bg-subtle);
 }
 
+.access-grant-checkbox-label {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
 .stack-cell--row {
   display: flex;
   flex-direction: row;
@@ -3250,6 +3257,10 @@ html.dark .integration-card:hover {
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-subtle);
   background: var(--surface-muted);
+}
+
+.usage-direct-token-card {
+  border-left: 3px solid var(--ink-secondary);
 }
 
 .usage-primary-kicker {

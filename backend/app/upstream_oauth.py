@@ -287,3 +287,48 @@ def user_has_oauth_connection(db: Session, *, user_id: str, organization_id: str
         )
     )
     return oauth_token_from_connection_row(conn) is not None
+
+
+def get_user_connection_for_grant_oauth(
+    db: Session,
+    *,
+    grant_user_id: str,
+    organization_id: str,
+    instance: IntegrationInstance,
+    user_connection_id: str | None,
+) -> UserConnection | None:
+    """Same connection selection as get_or_refresh_upstream_oauth_token_for_grant (no header override)."""
+    if user_connection_id:
+        row = db.get(UserConnection, user_connection_id)
+        if (
+            row
+            and row.user_id == grant_user_id
+            and row.integration_instance_id == instance.id
+            and row.organization_id == organization_id
+            and row.status == UserConnectionStatus.ACTIVE.value
+        ):
+            return row
+        return None
+    return db.scalar(
+        select(UserConnection).where(
+            UserConnection.user_id == grant_user_id,
+            UserConnection.integration_instance_id == instance.id,
+            UserConnection.organization_id == organization_id,
+            UserConnection.status == UserConnectionStatus.ACTIVE.value,
+        )
+    )
+
+
+def oauth_expires_at_from_connection(conn: UserConnection | None) -> datetime | None:
+    """UTC expiry from connection metadata oauth_expires_at, if present."""
+    if not conn:
+        return None
+    return _expiry_from_metadata(conn)
+
+
+def oauth_expires_in_seconds(conn: UserConnection | None, *, now: datetime | None = None) -> int | None:
+    exp = oauth_expires_at_from_connection(conn)
+    if not exp:
+        return None
+    t = now or utcnow()
+    return max(0, int((exp - t).total_seconds()))

@@ -35,6 +35,14 @@ def reconcile_schema() -> None:
         if "invalidated_at" not in cols_g:
             with engine.begin() as conn:
                 conn.execute(text(f"ALTER TABLE access_grants ADD COLUMN invalidated_at {dt_sql}"))
+        if "direct_token_access_enabled" not in cols_g:
+            with engine.begin() as conn:
+                if engine.dialect.name == "postgresql":
+                    conn.execute(
+                        text("ALTER TABLE access_grants ADD COLUMN direct_token_access_enabled BOOLEAN NOT NULL DEFAULT FALSE")
+                    )
+                else:
+                    conn.execute(text("ALTER TABLE access_grants ADD COLUMN direct_token_access_enabled BOOLEAN DEFAULT 0"))
     if not insp.has_table("user_connections"):
         return
     cols = {c["name"] for c in insp.get_columns("user_connections")}

@@ -128,6 +128,7 @@ export type AccessGrantOut = {
   status: string;
   effective_status: string;
   allowed_tools: string[];
+  direct_token_access: boolean;
   policy_ref: string | null;
   notes: string | null;
   created_at: string;

@@ -237,6 +237,8 @@ class AccessGrant(Base):
     policy_ref: Mapped[str | None] = mapped_column(String(255), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    # When true, consumer may call POST …/consumer/integration-instances/{id}/token to read upstream OAuth access token.
+    direct_token_access_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     metadata_json: Mapped[str] = mapped_column(Text, default="{}")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)

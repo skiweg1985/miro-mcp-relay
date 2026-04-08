@@ -1,5 +1,6 @@
 .env
 .DS_Store
+node_modules/
 data/
 broker.db
 broker.db-*

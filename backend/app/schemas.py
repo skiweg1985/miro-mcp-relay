@@ -35,8 +35,14 @@ class AuthFlowStartResponse(BaseModel):
     state: str
 
 
+class LoginProviderOption(BaseModel):
+    id: str
+    display_name: str
+
+
 class LoginOptionsResponse(BaseModel):
     ok: bool = True
+    login_providers: list[LoginProviderOption] = Field(default_factory=list)
     microsoft_enabled: bool
     microsoft_display_name: str | None = None
 
@@ -171,6 +177,53 @@ class MicrosoftOAuthAdminUpdate(BaseModel):
     client_id: str = Field(default="", max_length=512)
     scope: str = Field(default="", max_length=2000)
     client_secret: str | None = None
+
+
+class BrokerLoginOIDCConfigIn(BaseModel):
+    issuer: str = Field(default="", max_length=512)
+    authorization_endpoint: str = Field(min_length=1, max_length=2000)
+    token_endpoint: str = Field(min_length=1, max_length=2000)
+    userinfo_endpoint: str | None = Field(default=None, max_length=2000)
+    jwks_uri: str | None = Field(default=None, max_length=2000)
+    scopes: list[str] = Field(default_factory=lambda: ["openid", "profile", "email"])
+    claim_mapping: dict[str, str] = Field(
+        default_factory=lambda: {
+            "subject": "sub",
+            "email": "email",
+            "display_name": "name",
+            "preferred_username": "preferred_username",
+            "locale": "locale",
+            "zoneinfo": "zoneinfo",
+        }
+    )
+
+
+class BrokerLoginProviderOut(BaseModel):
+    ok: bool = True
+    provider_key: str
+    display_name: str
+    enabled: bool
+    client_id: str
+    has_client_secret: bool
+    oidc: BrokerLoginOIDCConfigIn
+    callback_redirect_uri: str
+
+
+class BrokerLoginProviderCreate(BaseModel):
+    provider_key: str = Field(min_length=1, max_length=64, pattern=r"^[a-z0-9][a-z0-9_-]*$")
+    display_name: str = Field(min_length=1, max_length=200)
+    enabled: bool = True
+    client_id: str = Field(min_length=1, max_length=512)
+    client_secret: str | None = None
+    oidc: BrokerLoginOIDCConfigIn
+
+
+class BrokerLoginProviderUpdate(BaseModel):
+    display_name: str | None = Field(default=None, min_length=1, max_length=200)
+    enabled: bool | None = None
+    client_id: str | None = Field(default=None, max_length=512)
+    client_secret: str | None = None
+    oidc: BrokerLoginOIDCConfigIn | None = None
 
 
 class AccessGrantCreate(BaseModel):

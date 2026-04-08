@@ -89,6 +89,11 @@ export const api = {
   loginOptions() {
     return request<LoginOptionsResponse>("/api/v1/auth/login-options");
   },
+  startBrokerLogin(providerId: string) {
+    return request<AuthFlowStartResponse>(`/api/v1/auth/${encodeURIComponent(providerId)}/start`, {
+      method: "POST",
+    });
+  },
   startMicrosoftLogin() {
     return request<AuthFlowStartResponse>("/api/v1/auth/microsoft/start", {
       method: "POST",

@@ -115,6 +115,23 @@ class MicrosoftOAuthSettings(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
 
 
+class BrokerLoginProvider(Base):
+    """Declarative OIDC/OAuth2 broker login (end-user session), not integration MCP OAuth."""
+
+    __tablename__ = "broker_login_providers"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    provider_key: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    display_name: Mapped[str] = mapped_column(String(200))
+    client_id: Mapped[str] = mapped_column(String(512))
+    encrypted_client_secret: Mapped[str | None] = mapped_column(Text, nullable=True)
+    oidc_config_json: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, onupdate=utc_now)
+
+
 class IntegrationType(StrEnum):
     MCP_SERVER = "mcp_server"
     OAUTH_PROVIDER = "oauth_provider"

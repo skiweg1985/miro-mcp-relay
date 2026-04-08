@@ -4,6 +4,7 @@
 
 ### Added
 
+- Broker sign-in refactor: `app/broker_login` (canonical user claims, `MicrosoftEntraLoginProvider`, `GenericOidcLoginProvider`), `POST/GET /api/v1/auth/{provider_id}/start|callback`, pending flow `broker_login` mit Provider-Binding und Correlation-ID; Admin-API `/api/v1/admin/broker-login-providers` für deklarative OIDC-Provider; Tabelle `broker_login_providers`; `GET /api/v1/auth/login-options` liefert `login_providers`; `docs/troubleshooting-broker-login.md`; optional `docker-compose.test.yml` (Keycloak-Dev).
 - Connections-Detailmodal zeigt OAuth-Token-Zeitpunkte aus der Connection-Metadaten: `Access token expires` (`oauth_expires_at`) und `Last token refresh` (`oauth_last_refresh_at`).
 - `docs/troubleshooting-consumer-mcp-relay.md`: Symptome, Ursachen (OAuth, Streamable-HTTP/TCP, Multi-Worker, HAProxy-Timeouts), Checks (`grep mcp_relay_`, Debug-Skript); Verweis in `AGENTS.md`.
 - `.cursor/rules/mcp-relay-troubleshooting.mdc`: Kurz-Checkliste für Agent-Runs zu Consumer-MCP-Relay.

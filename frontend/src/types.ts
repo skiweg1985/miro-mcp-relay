@@ -10,8 +10,14 @@ export type AuthFlowStartResponse = {
   state: string;
 };
 
+export type LoginProviderOption = {
+  id: string;
+  display_name: string;
+};
+
 export type LoginOptionsResponse = {
   ok: boolean;
+  login_providers: LoginProviderOption[];
   microsoft_enabled: boolean;
   microsoft_display_name: string | null;
 };

@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
-from app.routers import access_grants, admin_microsoft_oauth, auth, consumer_execution, consumer_mcp_relay, integration_oauth, public
+from app.routers import access_grants, admin_login_providers, admin_microsoft_oauth, auth, consumer_execution, consumer_mcp_relay, integration_oauth, public
 from app.routers import integrations_v2
 from app.seed import init_db
 
@@ -47,6 +47,7 @@ def create_app() -> FastAPI:
     app.include_router(consumer_execution.router, prefix=settings.api_v1_prefix)
     app.include_router(consumer_mcp_relay.router, prefix=settings.api_v1_prefix)
     app.include_router(admin_microsoft_oauth.router, prefix=settings.api_v1_prefix)
+    app.include_router(admin_login_providers.router, prefix=settings.api_v1_prefix)
     return app
 
 

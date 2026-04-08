@@ -1,0 +1,19 @@
+# Optional stack for OIDC integration / manual E2E (Keycloak).
+# Not wired into CI by default — start with: docker compose -f docker-compose.test.yml up -d
+#
+# Suggested local clients (separate Keycloak clients / redirect URIs):
+# - broker-login-client: broker UI sign-in → BROKER_PUBLIC_BASE_URL + /api/v1/auth/{provider}/callback
+# - broker-integration-client: integration OAuth (existing integration-instances/oauth routes)
+# - broker-mcp-client: MCP OAuth (upstream / consumer flows)
+#
+# Realm export and client secrets belong in your secrets store; this file only starts Keycloak in dev mode.
+
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0
+    command: start-dev --http-port=8180
+    ports:
+      - "8180:8180"
+    environment:
+      KEYCLOAK_ADMIN: broker-test-admin
+      KEYCLOAK_ADMIN_PASSWORD: broker-test-admin-change-me

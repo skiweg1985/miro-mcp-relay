@@ -2509,3 +2509,34 @@
   - no
 - Follow-ups:
   - none
+
+## 2026-04-08 – Cursor Agent – Broker Login Refactor (generisches OAuth/OIDC)
+
+- Done:
+  - `app/broker_login`: `CanonicalUserClaims`, `AuthFlowFailure`, `BrokerLoginAuthProvider`, `MicrosoftEntraLoginProvider`, `GenericOidcLoginProvider`, Registry, `upsert_user_and_oauth_identity`.
+  - Routen `POST/GET /api/v1/auth/{provider_id}/start|callback`, Pending-Flow `broker_login` (Provider-Binding, Correlation-ID), Audit `auth.broker_login.success`.
+  - DB `broker_login_providers`, Admin-API `/api/v1/admin/broker-login-providers`; `login-options` liefert `login_providers`.
+  - Frontend: Landing-Buttons pro Provider; `docs/troubleshooting-broker-login.md`, `docker-compose.test.yml` (Keycloak dev), `docs/technische-referenz.md` SSO-Abschnitt, `docs/CHANGELOG.md`, Tests `backend/test_broker_login.py`.
+- Next:
+  - Keycloak-Realm + feste E2E gegen laufenden IdP optional nachziehen; JWKS-validiertes `id_token` falls nötig.
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: (lokal)
+  - PR: none
+- Files touched:
+  - backend/app/broker_login/*, backend/app/routers/auth.py, public.py, admin_login_providers.py, main.py, models.py, schemas.py, test_smoke.py, test_broker_login.py
+  - frontend/src/App.tsx, api.ts, types.ts, index.css
+  - docs/*, docker-compose.test.yml
+- Test notes:
+  - commands:
+    - `PYTHONPATH=backend python3 -m unittest backend.test_smoke backend.test_broker_login -v`
+    - `cd frontend && npm run build`
+  - endpoints:
+    - `GET /api/v1/auth/login-options`, `POST /api/v1/auth/microsoft/start`, `GET /api/v1/admin/broker-login-providers` (401 ohne Session)
+  - UI path:
+    - `/` Landing SSO-Buttons
+- Changelog updated:
+  - yes ([Unreleased] Added)
+- Follow-ups:
+  - none

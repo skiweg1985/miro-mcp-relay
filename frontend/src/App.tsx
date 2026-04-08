@@ -9,7 +9,7 @@ import { ConnectionsPage } from "./ConnectionsPage";
 import { IntegrationsV2Page } from "./IntegrationsV2Page";
 import { MicrosoftOAuthAdminPage } from "./MicrosoftOAuthAdminPage";
 import { isApiError } from "./errors";
-import type { RouteMatch } from "./types";
+import type { LoginProviderOption, RouteMatch } from "./types";
 import { matchesRoute, replaceLegacyAdminPath } from "./utils";
 
 function usePathname() {
@@ -71,18 +71,18 @@ function LoginPage({ onSuccess }: { onSuccess: (path: string) => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [pending, setPending] = useState(false);
-  const [microsoftPending, setMicrosoftPending] = useState(false);
-  const [microsoftEnabled, setMicrosoftEnabled] = useState(false);
+  const [ssoPendingId, setSsoPendingId] = useState<string | null>(null);
+  const [loginProviders, setLoginProviders] = useState<LoginProviderOption[]>([]);
   const [adminModalOpen, setAdminModalOpen] = useState(false);
 
   useEffect(() => {
     void api
       .loginOptions()
       .then((result) => {
-        setMicrosoftEnabled(result.microsoft_enabled);
+        setLoginProviders(Array.isArray(result.login_providers) ? result.login_providers : []);
       })
       .catch(() => {
-        setMicrosoftEnabled(false);
+        setLoginProviders([]);
       });
   }, []);
 
@@ -128,17 +128,17 @@ function LoginPage({ onSuccess }: { onSuccess: (path: string) => void }) {
     }
   };
 
-  const handleMicrosoftLogin = async () => {
-    setMicrosoftPending(true);
+  const handleBrokerLogin = async (providerId: string) => {
+    setSsoPendingId(providerId);
     try {
-      const result = await api.startMicrosoftLogin();
+      const result = await api.startBrokerLogin(providerId);
       window.location.assign(result.auth_url);
     } catch (error) {
-      setMicrosoftPending(false);
+      setSsoPendingId(null);
       notify({
         tone: "error",
-        title: "Microsoft sign-in unavailable",
-        description: isApiError(error) ? error.message : "Unexpected Microsoft login error.",
+        title: "Sign-in unavailable",
+        description: isApiError(error) ? error.message : "Unexpected sign-in error.",
       });
     }
   };
@@ -149,18 +149,21 @@ function LoginPage({ onSuccess }: { onSuccess: (path: string) => void }) {
         <div className="landing-inner">
           <h1 className="landing-title">Sign in</h1>
           <p className="landing-sub">Use your work account to continue.</p>
-          <div className="landing-cta-wrap">
-            <button
-              type="button"
-              className="primary-button landing-cta"
-              disabled={microsoftPending || !microsoftEnabled}
-              aria-busy={microsoftPending}
-              onClick={() => void handleMicrosoftLogin()}
-            >
-              {microsoftPending ? "Redirecting…" : "Log in"}
-            </button>
+          <div className="landing-cta-wrap landing-cta-stack">
+            {loginProviders.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                className="primary-button landing-cta"
+                disabled={ssoPendingId !== null}
+                aria-busy={ssoPendingId === p.id}
+                onClick={() => void handleBrokerLogin(p.id)}
+              >
+                {ssoPendingId === p.id ? "Redirecting…" : `Sign in with ${p.display_name}`}
+              </button>
+            ))}
           </div>
-          {!microsoftEnabled ? <p className="landing-hint">Sign-in is not configured for this deployment.</p> : null}
+          {loginProviders.length === 0 ? <p className="landing-hint">Sign-in is not configured for this deployment.</p> : null}
           <ThemeToggle className="landing-theme-toggle" id="landing-theme" />
           <button type="button" className="landing-admin" onClick={() => setAdminModalOpen(true)}>
             Admin sign-in

@@ -242,23 +242,27 @@ Flow:
 4. Session-Cookie wird gesetzt
 5. CSRF-Token wird in der Response zurueckgegeben
 
-### Microsoft-Login fuer Endnutzer
+### SSO-Login fuer Endnutzer (Broker)
+
+Provider-agnostisch ueber `provider_id` (z. B. `microsoft` fuer Entra, oder Eintraege aus `broker_login_providers` fuer OIDC).
 
 Flow:
 
-1. Frontend ruft `POST /api/v1/auth/microsoft/start` auf
-2. Backend erzeugt `state`, `nonce` und PKCE-Werte
-3. Browser wird zu Microsoft weitergeleitet
-4. Callback landet auf `GET /api/v1/auth/microsoft/callback`
-5. Backend tauscht Code gegen Tokens, validiert Claims und ordnet den Benutzer zu oder legt ihn an
-6. Session-Cookie wird gesetzt
-7. Redirect auf `/workspace?login_status=success`
+1. `GET /api/v1/auth/login-options` liefert `login_providers` (`id`, `display_name`)
+2. Frontend ruft `POST /api/v1/auth/{provider_id}/start` auf
+3. Backend speichert Pending-State `broker_login` (u. a. `provider_id`, PKCE, `nonce`, Correlation-ID)
+4. Redirect zur IdP-Authorize-URL
+5. Callback: `GET /api/v1/auth/{provider_id}/callback`
+6. Token-Austausch, Claim-Mapping auf das interne Profilmodell, `users` / `oauth_identities`, Session-Cookie, Redirect nach `/workspace/integrations-v2?login_status=success`
+
+Microsoft bleibt ueber `microsoft_oauth_settings` bzw. `MICROSOFT_BROKER_*` konfiguriert; zusaetzliche OIDC-Provider ueber Admin-API `/api/v1/admin/broker-login-providers`.
 
 Sicherheitsmerkmale:
 
 - PKCE
-- `state`-Pruefung
-- Nonce-Pruefung
+- einmaliger Pending-State (Replay-Schutz), Ablauf ca. 15 Minuten
+- `provider_id` im State muss mit Callback-Pfad uebereinstimmen
+- Nonce-Pruefung am `id_token` (wenn vorhanden)
 - serverseitige Session
 - CSRF-Schutz fuer schreibende Requests
 

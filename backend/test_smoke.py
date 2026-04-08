@@ -31,10 +31,17 @@ class TestSmoke(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             data = response.json()
         self.assertIn("microsoft_enabled", data)
+        self.assertIn("login_providers", data)
+        self.assertIsInstance(data.get("login_providers"), list)
 
     def test_admin_microsoft_oauth_requires_session(self) -> None:
         with TestClient(app) as client:
             response = client.get("/api/v1/admin/microsoft-oauth")
+            self.assertEqual(response.status_code, 401)
+
+    def test_admin_broker_login_providers_requires_session(self) -> None:
+        with TestClient(app) as client:
+            response = client.get("/api/v1/admin/broker-login-providers")
             self.assertEqual(response.status_code, 401)
 
     def test_access_grants_list_requires_session(self) -> None:

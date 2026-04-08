@@ -5,9 +5,10 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.database import get_db
-from app.microsoft_oauth_resolver import resolve_microsoft_oauth
+from app.broker_login.registry import list_available_login_providers
 from app.microsoft_oauth_resolver import microsoft_graph_oauth_redirect_uri
-from app.schemas import BrokerCallbackUrlsOut, LoginOptionsResponse
+from app.microsoft_oauth_resolver import resolve_microsoft_oauth
+from app.schemas import BrokerCallbackUrlsOut, LoginOptionsResponse, LoginProviderOption
 
 router = APIRouter(tags=["public"])
 
@@ -36,5 +37,12 @@ def broker_callback_urls():
 @router.get("/auth/login-options", response_model=LoginOptionsResponse)
 def login_options(db: Session = Depends(get_db)):
     settings = get_settings()
+    pairs = list_available_login_providers(db, settings)
+    providers = [LoginProviderOption(id=pid, display_name=label) for pid, label in pairs]
+    micro = next((p for p in providers if p.id == "microsoft"), None)
     resolved = resolve_microsoft_oauth(db, settings)
-    return LoginOptionsResponse(microsoft_enabled=resolved is not None, microsoft_display_name="Microsoft")
+    return LoginOptionsResponse(
+        login_providers=providers,
+        microsoft_enabled=resolved is not None,
+        microsoft_display_name=micro.display_name if micro else ("Microsoft" if resolved else None),
+    )

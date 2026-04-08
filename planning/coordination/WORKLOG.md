@@ -2428,3 +2428,32 @@
   - yes ([Unreleased] Fixed)
 - Follow-ups:
   - none
+
+## 2026-04-08 11:53 – Cursor Agent – README strukturiert und praxisnah überarbeitet
+
+- Done:
+  - `README.md` vollständig neu strukturiert und auf den aktiven Projektstand angepasst (FastAPI + React/Vite, Integration V2, Access Grants, Consumer Execute, MCP Relay).
+  - Konkrete API-/CLI-Beispiele ergänzt (`auth/login`, `access-grants`, `consumer execute`, `discover-tools`, `mcp`).
+  - `docs/CHANGELOG.md` unter `[Unreleased] Changed` ergänzt.
+- Next:
+  - Optional README um Architekturdiagramm ergänzen, falls für Onboarding gewünscht.
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: codex/hard-refactor-integration-model
+  - PR: none
+- Files touched:
+  - README.md
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands:
+    - none (Dokumentationsänderung)
+  - endpoints:
+    - none
+  - UI path:
+    - none
+- Changelog updated:
+  - yes ([Unreleased] Changed)
+- Follow-ups:
+  - none

@@ -36,6 +36,8 @@
 
 ### Changed
 
+- README grundlegend überarbeitet: klare Struktur nach Zweck, Praxisbeispielen, Features, Architektur, Kern-APIs, Use-Cases, Quickstart, API-/CLI-Beispielen und technischen Einschränkungen.
+
 - Consumer-MCP-Relay: INFO-Logs `mcp_relay_upstream_client_cache_hit`, `mcp_relay_upstream_client_cache_miss`, `mcp_relay_upstream_response_start` (u. a. `upstream_status`, `upstream_content_type`, `upstream_host` ohne Pfad/Query).
 
 - Workspace: Integrations are shown as cards (status, type line, Open / Add connection / Test / Graph settings); connection management moved to `/workspace/connections` (table with actions); Access keys use a table plus modal-based creation; add-integration and add-connection use step modals. Human-readable labels for auth and access modes live in `integrationLabels.ts`. Legacy path `/app/connections` redirects to `/workspace/connections`.

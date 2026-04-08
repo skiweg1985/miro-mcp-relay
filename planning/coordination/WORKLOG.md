@@ -2457,3 +2457,29 @@
   - yes ([Unreleased] Changed)
 - Follow-ups:
   - none
+
+## 2026-04-08 – Cursor Agent – Merge codex/hard-refactor-integration-model nach master
+
+- Done:
+  - Arbeitsbaum war bereits sauber (keine offenen Commits).
+  - Branch `codex/hard-refactor-integration-model` per Fast-Forward in `master` gemerged; `origin/master` gepusht (`60836ff..9ac77c2`).
+- Next:
+  - none
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: master (nach Merge)
+  - PR: none
+- Files touched:
+  - planning/coordination/WORKLOG.md (dieser Eintrag)
+- Test notes:
+  - commands:
+    - `git merge codex/hard-refactor-integration-model`, `git push origin master`
+  - endpoints:
+    - none
+  - UI path:
+    - none
+- Changelog updated:
+  - no (reiner Git-Flow)
+- Follow-ups:
+  - Im Repo gibt es keinen Branch `main`; Standard-Remote-Branch ist `master`.

@@ -364,7 +364,9 @@ export CONNECTION_ID='${instanceId}'`;
             <h3 className="usage-primary-heading">Retrieve upstream OAuth access token</h3>
             <p className="usage-prose usage-prose--compact">
               Authenticate with your broker access key. The response includes the current provider access token (refreshed if
-              needed). Refresh tokens are not returned.
+              needed), and when the connection stores a profile, <code className="usage-inline-code">email</code> and{" "}
+              <code className="usage-inline-code">username</code> (from the linked account metadata). Refresh tokens are not
+              returned.
             </p>
           </div>
           <UsageExampleBlock title="Endpoint" code={upstreamTokenUrl} />
@@ -377,7 +379,7 @@ export CONNECTION_ID='${instanceId}'`;
           <UsageExampleBlock
             title="Example (curl)"
             code={curlUpstreamToken}
-            caption="JSON body: access_token, token_type, expires_at, expires_in (if known), connection_id."
+            caption="JSON: access_token, token_type, expires_at, expires_in (if known), connection_id, email, username (when available from the connection profile)."
           />
         </section>
       ) : null}

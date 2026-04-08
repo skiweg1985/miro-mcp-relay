@@ -14,6 +14,7 @@ from app.upstream_oauth import (
     get_user_connection_for_grant_oauth,
     oauth_expires_at_from_connection,
     oauth_expires_in_seconds,
+    upstream_identity_from_connection,
 )
 
 router = APIRouter(tags=["consumer-token"])
@@ -66,6 +67,7 @@ def consumer_upstream_oauth_token(
 
     expires_at = oauth_expires_at_from_connection(conn)
     expires_in = oauth_expires_in_seconds(conn)
+    email, username = upstream_identity_from_connection(conn)
 
     touch_grant_used(db, grant)
     db.commit()
@@ -76,4 +78,6 @@ def consumer_upstream_oauth_token(
         expires_at=expires_at,
         expires_in=expires_in,
         connection_id=conn.id if conn else None,
+        email=email,
+        username=username,
     )

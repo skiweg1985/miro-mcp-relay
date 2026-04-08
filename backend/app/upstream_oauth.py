@@ -332,3 +332,20 @@ def oauth_expires_in_seconds(conn: UserConnection | None, *, now: datetime | Non
         return None
     t = now or utcnow()
     return max(0, int((exp - t).total_seconds()))
+
+
+def upstream_identity_from_connection(conn: UserConnection | None) -> tuple[str | None, str | None]:
+    """Best-effort ``(email, username)`` from OAuth profile in ``metadata_json``.
+
+    ``username`` may be UPN, ``preferred_username``, or ``display_name`` depending on provider.
+    """
+    if not conn:
+        return None, None
+    meta = loads_json(conn.metadata_json, {})
+    if not isinstance(meta, dict):
+        return None, None
+    raw_email = meta.get("email")
+    email = str(raw_email).strip() if raw_email else ""
+    raw_u = meta.get("username") or meta.get("preferred_username") or meta.get("display_name")
+    username = str(raw_u).strip() if raw_u else ""
+    return (email or None, username or None)

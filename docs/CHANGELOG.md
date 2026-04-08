@@ -56,6 +56,8 @@
 
 ### Changed
 
+- **Direct Token Access** (`POST …/consumer/integration-instances/{id}/token`): Response um optionale Felder **`email`** und **`username`** ergänzt (aus gespeichertem OAuth-Profil der Connection-Metadaten, falls vorhanden). Hilfsfunktion `upstream_identity_from_connection` in `upstream_oauth`.
+
 - Keycloak für Broker-Login-Tests: Service in `docker-compose.yml` unter Profil `test` (statt separater Datei `docker-compose.test.yml`); Runbook/`.env.test.example`/`AGENTS.md` angepasst (`docker compose --profile test up -d`).
 - Vite-Dev-Proxy: `/api` zeigt standardmäßig auf `http://localhost` (Port 80/443 je nach lokalem Stack).
 - Workspace **Access** — Modal „How to use this access“: fokussierte Struktur (Kurz-Summary, dann **Primary usage** mit Endpunkt/Header/Beispiel je nach Integration: MCP streamable Relay vs. MCP über Consumer-API vs. HTTPS-Toolcalls); weitere Beispiele und `validate` unter ausklappbaren Abschnitten; Verbindungs-/Policy-Details ebenfalls einklappbar; `deriveAccessPrimaryUsage` / `AccessPrimaryUsageKind` für die Auswahl des Hauptblocks.

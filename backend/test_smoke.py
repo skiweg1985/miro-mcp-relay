@@ -1,4 +1,5 @@
 import unittest
+from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -128,6 +129,24 @@ class TestSmoke(unittest.TestCase):
             cfg = loads_json(miro.config_json, {})
         base = get_settings().miro_mcp_base.rstrip("/")
         self.assertEqual(cfg.get("oauth_token_endpoint"), f"{base}/token")
+
+    def test_upstream_identity_from_connection_metadata(self) -> None:
+        from app.upstream_oauth import upstream_identity_from_connection
+
+        conn = SimpleNamespace(metadata_json='{"email":"user@example.com","username":"upn@tenant"}')
+        email, username = upstream_identity_from_connection(conn)  # type: ignore[arg-type]
+        self.assertEqual(email, "user@example.com")
+        self.assertEqual(username, "upn@tenant")
+
+        display_only = SimpleNamespace(metadata_json='{"email":"a@b.com","display_name":"Pat Example"}')
+        e2, u2 = upstream_identity_from_connection(display_only)  # type: ignore[arg-type]
+        self.assertEqual(e2, "a@b.com")
+        self.assertEqual(u2, "Pat Example")
+
+        empty = SimpleNamespace(metadata_json="{}")
+        e3, u3 = upstream_identity_from_connection(empty)  # type: ignore[arg-type]
+        self.assertIsNone(e3)
+        self.assertIsNone(u3)
 
 
 if __name__ == "__main__":

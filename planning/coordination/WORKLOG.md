@@ -2833,6 +2833,13 @@
 - Changelog updated: yes (Unreleased Changed)
 - Follow-ups: keine
 
+## 2026-04-08 – Cursor Agent – Direct Token Response email/username
+
+- Done: `ConsumerUpstreamOAuthTokenOut` + `upstream_identity_from_connection`; `AccessGrantUsageModal` Text; `docs/CHANGELOG.md` Changed; `AGENTS.md`; WORKLOG.
+- Test notes: `PYTHONPATH=backend python3 -m unittest backend.test_smoke -v`, `cd frontend && npm run build`
+- Changelog updated: yes (Unreleased Changed)
+- Follow-ups: keine
+
 ## 2026-04-08 – Cursor Agent – AccessKeyCreateModal Hooks-Fix
 
 - Done: `BrokerAccessPage` `AccessKeyCreateModal`: `useMemo` für `selectedInstance` entfernt (lag nach `if (!open) return null`); normale `find`-Zuweisung; `docs/CHANGELOG.md` Fixed; WORKLOG.

@@ -2833,6 +2833,18 @@
 - Changelog updated: yes (Unreleased Changed)
 - Follow-ups: keine
 
+## 2026-04-08 – Cursor Agent – AccessKeyCreateModal Hooks-Fix
+
+- Done: `BrokerAccessPage` `AccessKeyCreateModal`: `useMemo` für `selectedInstance` entfernt (lag nach `if (!open) return null`); normale `find`-Zuweisung; `docs/CHANGELOG.md` Fixed; WORKLOG.
+- Next: keine
+- Blockers: keine
+- Branch/PR: branch lokal, PR none
+- Files touched: `frontend/src/BrokerAccessPage.tsx`, `docs/CHANGELOG.md`, `planning/coordination/WORKLOG.md`
+- Test notes: `cd frontend && npm run build`
+- UI path: `/workspace/access` → New access key
+- Changelog updated: yes (Unreleased Fixed)
+- Follow-ups: keine
+
 ## 2026-04-08 – Cursor Agent – Access „How to use“ Modal Fokus
 
 - Done:

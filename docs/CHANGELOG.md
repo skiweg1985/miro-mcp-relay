@@ -39,6 +39,8 @@
 
 ### Fixed
 
+- **Access** / Modal „New access key“: Hook-Reihenfolge korrigiert (`useMemo` nach bedingtem `return` entfernt; Auswahl der Connection ohne Hook), vermeidet React-Fehler beim Öffnen des Modals.
+
 - Admin **Users**-Tabelle: Sign-in- und andere gekürzte Spalten — `admin-users-truncate` nicht mehr auf `<td>` (verhindert Layoutbruch in Firefox); Ellipsis auf innerem `span`, `inline-block` + `vertical-align: middle`.
 
 - `GET /api/v1/admin/users/{id}`: Session-Ablauf mit `ensure_utc` gegen `utcnow()` vergleichen (PostgreSQL liefert oft naive `TIMESTAMP`); vermeidet `TypeError: can't compare offset-naive and offset-aware datetimes`. Aktive Sessions in `lifecycle_cleanup_counts` werden analog gezählt.

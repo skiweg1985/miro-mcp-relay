@@ -58,10 +58,7 @@ function AccessKeyCreateModal({
     return int ? `${ins.name} · ${int.name}` : ins.name;
   };
 
-  const selectedInstance = useMemo(
-    () => instances.find((row) => row.id === instanceId) ?? null,
-    [instances, instanceId],
-  );
+  const selectedInstance = instances.find((row) => row.id === instanceId) ?? null;
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

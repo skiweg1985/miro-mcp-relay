@@ -58,6 +58,7 @@ Follow these repo-specific conventions and commands first.
   - `curl -sS http://localhost/api/v1/health`
 - Root endpoint check: `curl -sS http://localhost/`
 - Backend unit smoke (no running server): `PYTHONPATH=backend python3 -m unittest backend.test_smoke -v`
+- Broker login (mocks, no IdP): `PYTHONPATH=backend python3 -m unittest backend.test_broker_login_flow backend.test_broker_login -v`
 - HTTPS dev smoke test: `curl -k -sS https://localhost/api/v1/health`
 - Consumer MCP relay (laufender Broker): `pip install httpx` falls nötig, dann z. B. `DEBUG_MCP_ACCESS_KEY=bkr_… python3 scripts/debug-mcp-consumer-relay.py --base-url http://localhost` (HTTPS: `--insecure`)
 - Consumer-MCP-Relay-Fehlersuche: [`docs/troubleshooting-consumer-mcp-relay.md`](docs/troubleshooting-consumer-mcp-relay.md)

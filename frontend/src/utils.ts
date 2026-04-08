@@ -114,6 +114,9 @@ export function matchesRoute(pathname: string): RouteMatch {
   if (path === "/workspace/admin/microsoft-oauth") {
     return { name: "workspaceAdminMicrosoftOAuth", path: "/workspace/admin/microsoft-oauth" };
   }
+  if (path === "/workspace/admin/login-providers") {
+    return { name: "workspaceAdminLoginProviders", path: "/workspace/admin/login-providers" };
+  }
   if (path.startsWith("/grants") || path.startsWith("/token-access")) {
     return { name: "workspaceBrokerAccess", path: "/workspace/broker-access" };
   }

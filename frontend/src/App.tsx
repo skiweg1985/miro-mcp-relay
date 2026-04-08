@@ -7,6 +7,7 @@ import { Card, Field, LoadingScreen, PageIntro, ToastViewport } from "./componen
 import { BrokerAccessPage } from "./BrokerAccessPage";
 import { ConnectionsPage } from "./ConnectionsPage";
 import { IntegrationsV2Page } from "./IntegrationsV2Page";
+import { BrokerLoginProvidersAdminPage } from "./BrokerLoginProvidersAdminPage";
 import { MicrosoftOAuthAdminPage } from "./MicrosoftOAuthAdminPage";
 import { isApiError } from "./errors";
 import type { LoginProviderOption, RouteMatch } from "./types";
@@ -279,6 +280,7 @@ function AuthenticatedApp() {
     ];
     if (isAdmin) {
       base.push({ href: "/workspace/admin/microsoft-oauth", label: "Microsoft sign-in" });
+      base.push({ href: "/workspace/admin/login-providers", label: "Sign-in providers" });
     }
     return base;
   }, [isAdmin]);
@@ -289,7 +291,8 @@ function AuthenticatedApp() {
       route.name === "workspaceIntegrationsV2" ||
       route.name === "workspaceConnections" ||
       route.name === "workspaceBrokerAccess" ||
-      (route.name === "workspaceAdminMicrosoftOAuth" && session.user.is_admin);
+      (route.name === "workspaceAdminMicrosoftOAuth" && session.user.is_admin) ||
+      (route.name === "workspaceAdminLoginProviders" && session.user.is_admin);
     if (!allowed) {
       navigate("/workspace/integrations-v2");
     }
@@ -303,7 +306,7 @@ function AuthenticatedApp() {
     return <LoginPage onSuccess={navigate} />;
   }
 
-  if (route.name === "workspaceAdminMicrosoftOAuth" && !isAdmin) {
+  if ((route.name === "workspaceAdminMicrosoftOAuth" || route.name === "workspaceAdminLoginProviders") && !isAdmin) {
     return <LoadingScreen label="Redirecting…" />;
   }
 
@@ -311,7 +314,8 @@ function AuthenticatedApp() {
     route.name !== "workspaceIntegrationsV2" &&
     route.name !== "workspaceConnections" &&
     route.name !== "workspaceBrokerAccess" &&
-    !(route.name === "workspaceAdminMicrosoftOAuth" && isAdmin)
+    !(route.name === "workspaceAdminMicrosoftOAuth" && isAdmin) &&
+    !(route.name === "workspaceAdminLoginProviders" && isAdmin)
   ) {
     return <LoadingScreen label="Redirecting to integrations..." />;
   }
@@ -328,6 +332,8 @@ function AuthenticatedApp() {
         <BrokerAccessPage />
       ) : route.name === "workspaceConnections" ? (
         <ConnectionsPage />
+      ) : route.name === "workspaceAdminLoginProviders" && isAdmin ? (
+        <BrokerLoginProvidersAdminPage />
       ) : route.name === "workspaceAdminMicrosoftOAuth" && isAdmin ? (
         <MicrosoftOAuthAdminPage />
       ) : (

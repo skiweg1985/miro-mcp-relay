@@ -13,6 +13,7 @@ import type {
   IntegrationV2Out,
   LoginOptionsResponse,
   MicrosoftOAuthAdminOut,
+  BrokerLoginProviderOut,
   SessionResponse,
 } from "./types";
 
@@ -220,6 +221,29 @@ export const api = {
       method: "PUT",
       csrfToken,
       body,
+    });
+  },
+  listBrokerLoginProviders() {
+    return request<BrokerLoginProviderOut[]>("/api/v1/admin/broker-login-providers");
+  },
+  createBrokerLoginProvider(csrfToken: string, body: Record<string, unknown>) {
+    return request<BrokerLoginProviderOut>("/api/v1/admin/broker-login-providers", {
+      method: "POST",
+      csrfToken,
+      body,
+    });
+  },
+  patchBrokerLoginProvider(csrfToken: string, providerKey: string, body: Record<string, unknown>) {
+    return request<BrokerLoginProviderOut>(`/api/v1/admin/broker-login-providers/${encodeURIComponent(providerKey)}`, {
+      method: "PATCH",
+      csrfToken,
+      body,
+    });
+  },
+  deleteBrokerLoginProvider(csrfToken: string, providerKey: string) {
+    return request<{ ok: boolean }>(`/api/v1/admin/broker-login-providers/${encodeURIComponent(providerKey)}`, {
+      method: "DELETE",
+      csrfToken,
     });
   },
 };

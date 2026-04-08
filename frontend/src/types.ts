@@ -169,12 +169,34 @@ export type MicrosoftOAuthAdminOut = {
   redirect_uri: string;
 };
 
+export type BrokerLoginOIDCConfig = {
+  issuer: string;
+  authorization_endpoint: string;
+  token_endpoint: string;
+  userinfo_endpoint: string | null;
+  jwks_uri: string | null;
+  scopes: string[];
+  claim_mapping: Record<string, string>;
+};
+
+export type BrokerLoginProviderOut = {
+  ok: boolean;
+  provider_key: string;
+  display_name: string;
+  enabled: boolean;
+  client_id: string;
+  has_client_secret: boolean;
+  oidc: BrokerLoginOIDCConfig;
+  callback_redirect_uri: string;
+};
+
 export type RouteMatch =
   | { name: "login"; path: "/login" }
   | { name: "workspaceIntegrationsV2"; path: "/workspace/integrations-v2" }
   | { name: "workspaceConnections"; path: "/workspace/connections" }
   | { name: "workspaceBrokerAccess"; path: "/workspace/broker-access" }
   | { name: "workspaceAdminMicrosoftOAuth"; path: "/workspace/admin/microsoft-oauth" }
+  | { name: "workspaceAdminLoginProviders"; path: "/workspace/admin/login-providers" }
   | { name: "notFound"; path: string };
 
 export type Toast = {

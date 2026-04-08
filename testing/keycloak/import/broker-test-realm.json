@@ -1,0 +1,77 @@
+{
+  "id": "broker-test",
+  "realm": "broker-test",
+  "displayName": "Broker OIDC test",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "clients": [
+    {
+      "clientId": "broker-login",
+      "name": "broker-login",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://localhost:8000/*",
+        "http://127.0.0.1:8000/*",
+        "http://localhost:5173/*",
+        "http://host.docker.internal:8000/*"
+      ],
+      "webOrigins": ["+"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      }
+    },
+    {
+      "clientId": "broker-login-confidential",
+      "name": "broker-login-confidential",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "broker-test-client-secret-change-me",
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://localhost:8000/*",
+        "http://127.0.0.1:8000/*",
+        "http://localhost:5173/*",
+        "http://host.docker.internal:8000/*"
+      ],
+      "webOrigins": ["+"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      }
+    }
+  ],
+  "users": [
+    {
+      "username": "testuser",
+      "enabled": true,
+      "email": "testuser@example.com",
+      "emailVerified": true,
+      "firstName": "Test",
+      "lastName": "User",
+      "attributes": {
+        "locale": ["de-DE"],
+        "zoneinfo": ["Europe/Berlin"]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "testpass-change-me",
+          "temporary": false
+        }
+      ]
+    }
+  ]
+}

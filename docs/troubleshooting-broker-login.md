@@ -1,5 +1,7 @@
 # Broker sign-in (OAuth / OIDC)
 
+Schritt-für-Schritt (Provider anlegen, Keycloak-Tests, Kommandos): [runbook-broker-login-testing.md](./runbook-broker-login-testing.md).
+
 ## Flow
 
 1. `POST /api/v1/auth/{provider_id}/start` stores pending state (`broker_login`), returns authorize URL.

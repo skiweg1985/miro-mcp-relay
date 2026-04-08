@@ -2540,3 +2540,33 @@
   - yes ([Unreleased] Added)
 - Follow-ups:
   - none
+
+## 2026-04-08 – Cursor Agent – Login-Refactor Abschluss (UI, Keycloak-Tests, Flow-Tests)
+
+- Done:
+  - Admin-UI **Sign-in providers** (`BrokerLoginProvidersAdminPage.tsx`, Route `/workspace/admin/login-providers`, API-Anbindung).
+  - Backend: OIDC-Config mit http(s)-URL-Validierung und Pflicht-Claim-Pfaden `subject`/`email`.
+  - `docker-compose.test.yml`: Keycloak mit `--import-realm`, `testing/keycloak/import/broker-test-realm.json`, `.env.test.example`.
+  - `backend/test_broker_login_flow.py` (Microsoft + generischer OIDC Happy Path, Fehlerpfade, Admin 422).
+  - `docs/runbook-broker-login-testing.md`, Verweis in `docs/troubleshooting-broker-login.md`, `docs/CHANGELOG.md`, `AGENTS.md`.
+- Next:
+  - Playwright/CI-E2E gegen laufenden Keycloak optional; `id_token`-Signaturprüfung (JWKS) falls produktionsrelevant.
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: feature/dev
+  - PR: none
+- Files touched:
+  - frontend: `BrokerLoginProvidersAdminPage.tsx`, `App.tsx`, `api.ts`, `types.ts`, `utils.ts`
+  - backend: `schemas.py`, `broker_login/oidc_config.py`, `test_broker_login_flow.py`
+  - `docker-compose.test.yml`, `testing/keycloak/import/*`, `.env.test.example`, `docs/*`, `AGENTS.md`, `planning/coordination/WORKLOG.md`
+- Test notes:
+  - commands:
+    - `PYTHONPATH=backend python3 -m unittest backend.test_broker_login_flow backend.test_broker_login backend.test_smoke -v`
+    - `cd frontend && npm run build`
+  - UI path:
+    - `/workspace/admin/login-providers`
+- Changelog updated:
+  - yes ([Unreleased] Added)
+- Follow-ups:
+  - none

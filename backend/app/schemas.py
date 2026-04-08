@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any
+from urllib.parse import urlparse
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class LoginRequest(BaseModel):
@@ -179,6 +180,16 @@ class MicrosoftOAuthAdminUpdate(BaseModel):
     client_secret: str | None = None
 
 
+def _http_url(value: str, field_label: str) -> str:
+    raw = str(value or "").strip()
+    if not raw:
+        raise ValueError(f"{field_label} is required")
+    parsed = urlparse(raw)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise ValueError(f"{field_label} must be a valid http(s) URL")
+    return raw
+
+
 class BrokerLoginOIDCConfigIn(BaseModel):
     issuer: str = Field(default="", max_length=512)
     authorization_endpoint: str = Field(min_length=1, max_length=2000)
@@ -196,6 +207,53 @@ class BrokerLoginOIDCConfigIn(BaseModel):
             "zoneinfo": "zoneinfo",
         }
     )
+
+    @field_validator("authorization_endpoint", "token_endpoint", mode="before")
+    @classmethod
+    def _validate_core_urls(cls, v: object) -> str:
+        return _http_url(str(v or ""), "Endpoint URL")
+
+    @field_validator("userinfo_endpoint", "jwks_uri", mode="before")
+    @classmethod
+    def _validate_optional_urls(cls, v: object) -> str | None:
+        if v is None:
+            return None
+        s = str(v).strip()
+        if not s:
+            return None
+        return _http_url(s, "URL")
+
+    @field_validator("issuer", mode="before")
+    @classmethod
+    def _issuer_optional_url(cls, v: object) -> str:
+        s = str(v or "").strip()
+        if not s:
+            return ""
+        return _http_url(s, "Issuer")
+
+    @field_validator("scopes", mode="before")
+    @classmethod
+    def _scopes_non_empty(cls, v: object) -> list[str]:
+        if v is None:
+            return ["openid", "profile", "email"]
+        if isinstance(v, str):
+            parts = [p.strip() for p in v.split() if p.strip()]
+            return parts if parts else ["openid", "profile", "email"]
+        if isinstance(v, list):
+            parts = [str(x).strip() for x in v if str(x).strip()]
+            return parts if parts else ["openid", "profile", "email"]
+        return ["openid", "profile", "email"]
+
+    @model_validator(mode="after")
+    def _claim_mapping_required_paths(self) -> BrokerLoginOIDCConfigIn:
+        m = self.claim_mapping or {}
+        sub_path = str(m.get("subject") or "").strip()
+        email_path = str(m.get("email") or "").strip()
+        if not sub_path:
+            raise ValueError("claim_mapping.subject must be a non-empty claim path (e.g. sub)")
+        if not email_path:
+            raise ValueError("claim_mapping.email must be a non-empty claim path (e.g. email)")
+        return self
 
 
 class BrokerLoginProviderOut(BaseModel):

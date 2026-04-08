@@ -2749,6 +2749,21 @@
 - Changelog updated: yes (Unreleased Changed)
 - Follow-ups: keine
 
+## 2026-04-08 – Cursor Agent – Connections table column distribution
+
+- Done:
+  - `connections-table-wrap` + `data-table--connections`: `table-layout: fixed`, Prozent-Spalten, `min-width: 720px`; `.table-cell-ellipsis`; Auth/Traffic/Status-Zellen ohne unnötiges Umbrechen; Aktions-Spalte `min-width: 200px`.
+  - `ConnectionsPage`: `wrapClassName` / `tableClassName`, sechs Spalten-Klassen, `title` für abgeschnittene Texte.
+  - `docs/CHANGELOG.md` [Unreleased] Changed ergänzt.
+- Next: keine
+- Blockers: keine
+- Branch/PR: branch lokal, PR none
+- Files touched: `frontend/src/ConnectionsPage.tsx`, `frontend/src/index.css`, `docs/CHANGELOG.md`, `planning/coordination/WORKLOG.md`
+- Test notes: `cd frontend && npm run build`
+- UI path: `/workspace/connections`
+- Changelog updated: yes
+- Follow-ups: keine
+
 ## 2026-04-08 – Cursor Agent – Admin Users Sign-in column layout
 
 - Done: `admin-users-truncate` von `<td>` auf inneres `<span>`; CSS `inline-block` + `vertical-align: middle` statt `display: block` auf Zellen; CHANGELOG Fixed.

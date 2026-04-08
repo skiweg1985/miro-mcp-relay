@@ -52,7 +52,7 @@
 
 ### Changed
 
-- Workspace **Connections** (`/workspace/connections`): Tabellenzeilen mit Aktions-Spalte umbrechen nicht mehr (`inline-actions--table`, `data-table-col--actions`); „Connect“ als `secondary-button` statt voller Primärfüllung, konsistente Zeilenhöhe mit Open/Test/Disconnect.
+- Workspace **Connections** (`/workspace/connections`): Tabelle `table-layout: fixed` mit Spaltenanteilen über die volle Card-Breite; Authentication/Traffic/Status ohne unnötigen Zeilenumbruch; Name/Integration/Auth mit `table-cell-ellipsis` und `title` bei Kürzung; Aktionszeile `inline-actions--table`; „Connect“ als `secondary-button`.
 
 - README grundlegend überarbeitet: klare Struktur nach Zweck, Praxisbeispielen, Features, Architektur, Kern-APIs, Use-Cases, Quickstart, API-/CLI-Beispielen und technischen Einschränkungen.
 

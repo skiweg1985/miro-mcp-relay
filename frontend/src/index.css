@@ -547,14 +547,6 @@ h3 {
   justify-content: flex-end;
 }
 
-.data-table th.data-table-col--actions,
-.data-table td.data-table-col--actions {
-  width: 1%;
-  white-space: nowrap;
-  vertical-align: middle;
-  text-align: right;
-}
-
 .login-panel {
   padding: var(--space-4);
 }
@@ -1477,6 +1469,67 @@ h3 {
 
 .table-wrap {
   overflow-x: auto;
+}
+
+.table-cell-ellipsis {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.connections-table-wrap {
+  width: 100%;
+}
+
+.connections-table-wrap .data-table--connections {
+  table-layout: fixed;
+  width: 100%;
+  min-width: 720px;
+}
+
+.connections-table-wrap .data-table--connections th.data-table-col--name,
+.connections-table-wrap .data-table--connections td.data-table-col--name {
+  width: 18%;
+}
+
+.connections-table-wrap .data-table--connections th.data-table-col--integration,
+.connections-table-wrap .data-table--connections td.data-table-col--integration {
+  width: 28%;
+}
+
+.connections-table-wrap .data-table--connections th.data-table-col--auth,
+.connections-table-wrap .data-table--connections td.data-table-col--auth {
+  width: 18%;
+}
+
+.connections-table-wrap .data-table--connections th.data-table-col--traffic,
+.connections-table-wrap .data-table--connections td.data-table-col--traffic {
+  width: 12%;
+}
+
+.connections-table-wrap .data-table--connections th.data-table-col--status,
+.connections-table-wrap .data-table--connections td.data-table-col--status {
+  width: 12%;
+}
+
+.connections-table-wrap .data-table--connections th.data-table-col--actions,
+.connections-table-wrap .data-table--connections td.data-table-col--actions {
+  width: 12%;
+  min-width: 200px;
+  white-space: nowrap;
+  vertical-align: middle;
+  text-align: right;
+}
+
+.connections-table-wrap .data-table--connections td.data-table-col--auth,
+.connections-table-wrap .data-table--connections td.data-table-col--traffic {
+  white-space: nowrap;
+}
+
+.connections-table-wrap .data-table--connections td.data-table-col--status {
+  white-space: nowrap;
 }
 
 .data-table {

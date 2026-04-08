@@ -174,6 +174,9 @@ export function ConnectionsPage() {
   const rows = instances.map((instance) => {
     const intName = integrationNameById.get(instance.integration_id) ?? "—";
     const intType = integrations.find((i) => i.id === instance.integration_id);
+    const integrationLine = intType
+      ? `${intName} · ${integrationTypeLabel(intType.type)}`
+      : intName;
     const status = connectionRowStatus(instance);
     const actions = (
       <div className="inline-actions inline-actions--table" onClick={(event) => event.stopPropagation()}>
@@ -207,13 +210,19 @@ export function ConnectionsPage() {
       </div>
     );
     return [
-      <span key="n">{instance.name}</span>,
-      <span key="i">
+      <span key="n" className="table-cell-ellipsis" title={instance.name}>
+        {instance.name}
+      </span>,
+      <span key="i" className="table-cell-ellipsis" title={integrationLine}>
         {intName}
         {intType ? <span className="muted-copy"> · {integrationTypeLabel(intType.type)}</span> : null}
       </span>,
-      <span key="a">{authModeLabel(instance.auth_mode)}</span>,
-      <span key="t">{accessModeLabel(instance.access_mode)}</span>,
+      <span key="a" className="table-cell-ellipsis" title={authModeLabel(instance.auth_mode)}>
+        {authModeLabel(instance.auth_mode)}
+      </span>,
+      <span key="t" title={accessModeLabel(instance.access_mode)}>
+        {accessModeLabel(instance.access_mode)}
+      </span>,
       <StatusBadge key="s" tone={status.tone}>
         {status.label}
       </StatusBadge>,
@@ -341,7 +350,16 @@ export function ConnectionsPage() {
         <DataTable
           columns={["Name", "Integration", "Authentication", "Traffic", "Status", "Actions"]}
           rows={rows}
-          columnClasses={[undefined, undefined, undefined, undefined, undefined, "data-table-col--actions"]}
+          wrapClassName="connections-table-wrap"
+          tableClassName="data-table--connections"
+          columnClasses={[
+            "data-table-col--name",
+            "data-table-col--integration",
+            "data-table-col--auth",
+            "data-table-col--traffic",
+            "data-table-col--status",
+            "data-table-col--actions",
+          ]}
           emptyTitle="No connections yet"
           emptyBody="Create a connection to route traffic through the broker."
           onRowClick={(rowIndex) => {

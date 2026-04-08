@@ -1,6 +1,10 @@
 import type {
   AccessGrantCreatedResponse,
   AccessGrantOut,
+  AdminUserActionResult,
+  AdminUserDetailResponse,
+  AdminUserHardDeleteResult,
+  AdminUserListResponse,
   ApiError,
   AuthFlowStartResponse,
   BrokerCallbackUrls,
@@ -244,6 +248,71 @@ export const api = {
     return request<{ ok: boolean }>(`/api/v1/admin/broker-login-providers/${encodeURIComponent(providerKey)}`, {
       method: "DELETE",
       csrfToken,
+    });
+  },
+  listAdminUsers(params: { status?: string; q?: string; provider_key?: string; limit?: number; offset?: number }) {
+    const sp = new URLSearchParams();
+    if (params.status) sp.set("status", params.status);
+    if (params.q?.trim()) sp.set("q", params.q.trim());
+    if (params.provider_key?.trim()) sp.set("provider_key", params.provider_key.trim());
+    if (params.limit != null) sp.set("limit", String(params.limit));
+    if (params.offset != null) sp.set("offset", String(params.offset));
+    const qs = sp.toString();
+    return request<AdminUserListResponse>(`/api/v1/admin/users${qs ? `?${qs}` : ""}`);
+  },
+  getAdminUserDetail(userId: string) {
+    return request<AdminUserDetailResponse>(`/api/v1/admin/users/${encodeURIComponent(userId)}`);
+  },
+  adminDeprovisionUser(csrfToken: string, userId: string) {
+    return request<AdminUserActionResult>(`/api/v1/admin/users/${encodeURIComponent(userId)}/deprovision`, {
+      method: "POST",
+      csrfToken,
+      body: {},
+    });
+  },
+  adminSoftDeleteUser(csrfToken: string, userId: string) {
+    return request<AdminUserActionResult>(`/api/v1/admin/users/${encodeURIComponent(userId)}/soft-delete`, {
+      method: "POST",
+      csrfToken,
+      body: {},
+    });
+  },
+  adminReactivateUser(csrfToken: string, userId: string) {
+    return request<AdminUserActionResult>(`/api/v1/admin/users/${encodeURIComponent(userId)}/reactivate`, {
+      method: "POST",
+      csrfToken,
+      body: {},
+    });
+  },
+  adminRevokeAllUserSessions(csrfToken: string, userId: string) {
+    return request<AdminUserActionResult>(`/api/v1/admin/users/${encodeURIComponent(userId)}/sessions/revoke-all`, {
+      method: "POST",
+      csrfToken,
+      body: {},
+    });
+  },
+  adminRevokeUserSession(csrfToken: string, userId: string, sessionId: string) {
+    return request<AdminUserActionResult>(
+      `/api/v1/admin/users/${encodeURIComponent(userId)}/sessions/${encodeURIComponent(sessionId)}/revoke`,
+      {
+        method: "POST",
+        csrfToken,
+        body: {},
+      },
+    );
+  },
+  adminRevokeAllUserAccessKeys(csrfToken: string, userId: string) {
+    return request<AdminUserActionResult>(`/api/v1/admin/users/${encodeURIComponent(userId)}/access-keys/revoke-all`, {
+      method: "POST",
+      csrfToken,
+      body: {},
+    });
+  },
+  adminHardDeleteUser(csrfToken: string, userId: string, confirmEmail: string) {
+    return request<AdminUserHardDeleteResult>(`/api/v1/admin/users/${encodeURIComponent(userId)}`, {
+      method: "DELETE",
+      csrfToken,
+      body: { confirm_email: confirmEmail.trim() },
     });
   },
 };

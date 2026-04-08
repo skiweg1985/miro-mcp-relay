@@ -190,6 +190,115 @@ export type BrokerLoginProviderOut = {
   callback_redirect_uri: string;
 };
 
+export type AdminUserLifecycleCounts = {
+  active_sessions: number;
+  access_keys_active: number;
+  access_keys_revoked: number;
+  access_keys_invalid: number;
+  access_keys_total: number;
+  connections_total: number;
+  connections_with_stored_oauth: number;
+  oauth_identities: number;
+};
+
+export type AdminUserListRow = {
+  id: string;
+  organization_id: string;
+  email: string;
+  display_name: string;
+  is_admin: boolean;
+  account_status: string;
+  auth_summary: string;
+  created_at: string;
+  last_login_at: string | null;
+  last_activity_at: string | null;
+  access_keys_active: number;
+  access_keys_total: number;
+  connections_total: number;
+};
+
+export type AdminUserListResponse = {
+  ok: boolean;
+  users: AdminUserListRow[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+export type AdminOAuthIdentityRow = {
+  id: string;
+  provider_key: string;
+  subject: string;
+  issuer: string | null;
+  email: string | null;
+  display_name: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AdminUserSessionRow = {
+  id: string;
+  created_at: string;
+  expires_at: string;
+  is_active: boolean;
+};
+
+export type AdminUserConnectionRow = {
+  id: string;
+  integration_instance_id: string;
+  integration_instance_name: string;
+  status: string;
+  has_stored_oauth: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AdminUserAccessGrantSummaryRow = {
+  id: string;
+  integration_instance_id: string;
+  integration_instance_name: string;
+  name: string;
+  key_prefix: string;
+  status: string;
+  effective_status: string;
+  created_at: string;
+  last_used_at: string | null;
+  revoked_at: string | null;
+};
+
+export type AdminUserDetailResponse = {
+  ok: boolean;
+  id: string;
+  organization_id: string;
+  email: string;
+  display_name: string;
+  is_admin: boolean;
+  account_status: string;
+  auth_summary: string;
+  created_at: string;
+  updated_at: string;
+  last_login_at: string | null;
+  last_activity_at: string | null;
+  counts: AdminUserLifecycleCounts;
+  oauth_identities: AdminOAuthIdentityRow[];
+  sessions: AdminUserSessionRow[];
+  connections: AdminUserConnectionRow[];
+  access_grants: AdminUserAccessGrantSummaryRow[];
+};
+
+export type AdminUserActionResult = {
+  ok: boolean;
+  account_status: string;
+  sessions_revoked?: number;
+  access_grants_revoked?: number;
+  connections_cleared?: number;
+};
+
+export type AdminUserHardDeleteResult = {
+  ok: boolean;
+  id: string;
+};
+
 export type RouteMatch =
   | { name: "login"; path: "/login" }
   | { name: "workspaceIntegrationsV2"; path: "/workspace/integrations-v2" }
@@ -197,6 +306,7 @@ export type RouteMatch =
   | { name: "workspaceBrokerAccess"; path: "/workspace/broker-access" }
   | { name: "workspaceAdminMicrosoftOAuth"; path: "/workspace/admin/microsoft-oauth" }
   | { name: "workspaceAdminLoginProviders"; path: "/workspace/admin/login-providers" }
+  | { name: "workspaceAdminUsers"; path: "/workspace/admin/users" }
   | { name: "notFound"; path: string };
 
 export type Toast = {

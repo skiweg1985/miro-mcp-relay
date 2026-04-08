@@ -117,6 +117,9 @@ export function matchesRoute(pathname: string): RouteMatch {
   if (path === "/workspace/admin/login-providers") {
     return { name: "workspaceAdminLoginProviders", path: "/workspace/admin/login-providers" };
   }
+  if (path === "/workspace/admin/users") {
+    return { name: "workspaceAdminUsers", path: "/workspace/admin/users" };
+  }
   if (path.startsWith("/grants") || path.startsWith("/token-access")) {
     return { name: "workspaceBrokerAccess", path: "/workspace/broker-access" };
   }

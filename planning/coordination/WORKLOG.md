@@ -2659,3 +2659,33 @@
   - yes ([Unreleased] Added)
 - Follow-ups:
   - none
+
+## 2026-04-08 – Cursor Agent – Admin User Management
+
+- Done:
+  - Backend: `User.deleted_at`, `User.last_login_at`; `services/user_lifecycle.py` (Deprovision, Soft-Delete, Hard-Delete, Session-/Grant-Widerruf, Connections leeren); `routers/admin_users.py` (Liste/Detail/Lifecycle-API); `deps`/`auth`/`user_resolution`/`errors` für Kontosperre und `last_login_at`; `seed.reconcile_schema` für neue Spalten.
+  - Frontend: `/workspace/admin/users` mit Tabelle, Suche/Filtern, Detailmodal, Impact-Texte in `ConfirmModal`, Aktionen (Deactivate, Mark removed, Reactivate/Restore, Sessions/Keys, Hard Delete mit E-Mail-Bestätigung).
+  - Doku: `docs/CHANGELOG.md`, `docs/technische-referenz.md`; Tests `backend/test_admin_users.py`, Smoke `test_admin_users_requires_session`.
+- Next:
+  - keine
+- Blockers:
+  - keine
+- Branch/PR:
+  - branch: feature/dev (lokal)
+  - PR: none
+- Files touched:
+  - backend: `models.py`, `seed.py`, `schemas.py`, `main.py`, `deps.py`, `routers/auth.py`, `routers/admin_users.py`, `services/user_lifecycle.py`, `broker_login/user_resolution.py`, `broker_login/errors.py`, `test_smoke.py`, `test_admin_users.py`
+  - frontend: `App.tsx`, `api.ts`, `types.ts`, `utils.ts`, `UserManagementAdminPage.tsx`, `index.css`
+  - docs: `CHANGELOG.md`, `technische-referenz.md`, `planning/coordination/WORKLOG.md`
+- Test notes:
+  - commands:
+    - `PYTHONPATH=backend python3 -m unittest discover -s backend -p 'test_*.py' -v`
+    - `cd frontend && npm run build`
+  - endpoints:
+    - `GET /api/v1/admin/users`, `GET /api/v1/admin/users/{id}`, Lifecycle-POSTs/DELETE wie OpenAPI
+  - UI path:
+    - `/workspace/admin/users`
+- Changelog updated:
+  - yes ([Unreleased] Added)
+- Follow-ups:
+  - keine

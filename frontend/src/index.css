@@ -3251,3 +3251,92 @@ html.dark .integration-card:hover {
   padding: 0.25rem 0.6rem;
   font-size: var(--font-caption);
 }
+
+.danger-text {
+  color: var(--danger);
+}
+
+.user-admin-toolbar {
+  margin-bottom: var(--space-4);
+}
+
+.user-admin-pager {
+  margin-top: var(--space-4);
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.user-admin-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+@media (max-width: 840px) {
+  .user-admin-detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.user-admin-dl {
+  margin: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+
+.user-admin-dl > div {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.user-admin-dl dt {
+  margin: 0;
+  font-size: var(--font-caption);
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.user-admin-dl dd {
+  margin: 0;
+  font-size: var(--font-body-sm);
+  color: var(--ink);
+}
+
+.user-admin-metric-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  line-height: var(--line-relaxed);
+  color: var(--ink-secondary);
+}
+
+.user-admin-metric-list li {
+  margin-bottom: var(--space-2);
+}
+
+.user-admin-metric-list li:last-child {
+  margin-bottom: 0;
+}
+
+.user-admin-impact-list {
+  margin: var(--space-2) 0 0;
+  padding-left: 1.2rem;
+  line-height: var(--line-relaxed);
+  color: var(--ink-secondary);
+}
+
+.user-admin-actions {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+.user-admin-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}

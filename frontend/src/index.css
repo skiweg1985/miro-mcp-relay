@@ -541,6 +541,20 @@ h3 {
   flex-wrap: wrap;
 }
 
+.inline-actions--table {
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.data-table th.data-table-col--actions,
+.data-table td.data-table-col--actions {
+  width: 1%;
+  white-space: nowrap;
+  vertical-align: middle;
+  text-align: right;
+}
+
 .login-panel {
   padding: var(--space-4);
 }
@@ -1542,6 +1556,7 @@ h3 {
 .admin-conn-actions {
   justify-content: flex-end;
   flex-wrap: nowrap;
+  align-items: center;
 }
 
 .grants-filter-bar {

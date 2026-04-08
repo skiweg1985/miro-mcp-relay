@@ -185,7 +185,7 @@ export function DataTable({
   emptyBody: string;
   tableClassName?: string;
   wrapClassName?: string;
-  columnClasses?: string[];
+  columnClasses?: (string | undefined)[];
   rowKey?: (rowIndex: number) => Key;
   rowClassName?: (rowIndex: number) => string | undefined;
   wrapKey?: string;

@@ -176,7 +176,7 @@ export function ConnectionsPage() {
     const intType = integrations.find((i) => i.id === instance.integration_id);
     const status = connectionRowStatus(instance);
     const actions = (
-      <div className="inline-actions" onClick={(event) => event.stopPropagation()}>
+      <div className="inline-actions inline-actions--table" onClick={(event) => event.stopPropagation()}>
         <button type="button" className="ghost-button" onClick={() => setDetailInstanceId(instance.id)}>
           Open
         </button>
@@ -196,7 +196,7 @@ export function ConnectionsPage() {
           ) : (
             <button
               type="button"
-              className="primary-button"
+              className="secondary-button"
               disabled={busy}
               onClick={() => void connectOAuth(instance.id)}
             >
@@ -341,6 +341,7 @@ export function ConnectionsPage() {
         <DataTable
           columns={["Name", "Integration", "Authentication", "Traffic", "Status", "Actions"]}
           rows={rows}
+          columnClasses={[undefined, undefined, undefined, undefined, undefined, "data-table-col--actions"]}
           emptyTitle="No connections yet"
           emptyBody="Create a connection to route traffic through the broker."
           onRowClick={(rowIndex) => {

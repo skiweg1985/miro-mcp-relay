@@ -52,6 +52,8 @@
 
 ### Changed
 
+- Workspace **Connections** (`/workspace/connections`): Tabellenzeilen mit Aktions-Spalte umbrechen nicht mehr (`inline-actions--table`, `data-table-col--actions`); „Connect“ als `secondary-button` statt voller Primärfüllung, konsistente Zeilenhöhe mit Open/Test/Disconnect.
+
 - README grundlegend überarbeitet: klare Struktur nach Zweck, Praxisbeispielen, Features, Architektur, Kern-APIs, Use-Cases, Quickstart, API-/CLI-Beispielen und technischen Einschränkungen.
 
 - Consumer-MCP-Relay: INFO-Logs `mcp_relay_upstream_client_cache_hit`, `mcp_relay_upstream_client_cache_miss`, `mcp_relay_upstream_response_start` (u. a. `upstream_status`, `upstream_content_type`, `upstream_host` ohne Pfad/Query).

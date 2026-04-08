@@ -2734,6 +2734,21 @@
 - Changelog updated: yes (Unreleased Changed)
 - Follow-ups: keine
 
+## 2026-04-08 – Cursor Agent – Connections table row height (Clarity UI)
+
+- Done:
+  - `ConnectionsPage`: Aktionszeile `inline-actions inline-actions--table`; `Connect` → `secondary-button`; `DataTable` mit `columnClasses` für Aktions-Spalte.
+  - `index.css`: `.inline-actions--table`, `.data-table-col--actions` (th+td, rechtsbündig, nowrap); `DataTable` `columnClasses` typisiert als `(string | undefined)[]`.
+  - `docs/CHANGELOG.md` [Unreleased] Changed.
+- Next: keine
+- Blockers: keine
+- Branch/PR: branch lokal, PR none
+- Files touched: `frontend/src/ConnectionsPage.tsx`, `frontend/src/components.tsx`, `frontend/src/index.css`, `docs/CHANGELOG.md`, `planning/coordination/WORKLOG.md`
+- Test notes: `cd frontend && npm run build`
+- UI path: `/workspace/connections`
+- Changelog updated: yes (Unreleased Changed)
+- Follow-ups: keine
+
 ## 2026-04-08 – Cursor Agent – Admin Users Sign-in column layout
 
 - Done: `admin-users-truncate` von `<td>` auf inneres `<span>`; CSS `inline-block` + `vertical-align: middle` statt `display: block` auf Zellen; CHANGELOG Fixed.

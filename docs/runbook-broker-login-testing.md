@@ -48,7 +48,7 @@ Keycloak-Logs prüfen (`docker compose -f docker-compose.test.yml logs keycloak`
 PYTHONPATH=backend python3 -m unittest backend.test_broker_login_flow backend.test_broker_login backend.test_smoke -v
 ```
 
-`test_broker_login_flow` nutzt Mocks für HTTP (Token/Userinfo) und deckt Happy Path sowie zentrale Fehlerpfade ab; Microsoft-Regression über gemockte `resolve_microsoft_oauth` + Callback.
+`test_broker_login_flow` nutzt Mocks für HTTP (Token/Userinfo) und deckt Happy Path sowie zentrale Fehlerpfade ab; Microsoft-Regression über gemockte `resolve_microsoft_oauth` + Callback. Gemischte Authorization-URL (Browser, z. B. `localhost:8180`) und Token-/Userinfo-URL (Broker im Docker-Netz, z. B. `http://keycloak:8180/...`) deckt `test_generic_oidc_public_auth_host_internal_token_host` ab.
 
 ## Integrationstest mit laufendem Keycloak
 

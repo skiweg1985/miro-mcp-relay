@@ -4,6 +4,7 @@
 
 ### Added
 
+- `test_broker_login_flow.test_generic_oidc_public_auth_host_internal_token_host`: prüft OIDC-Konfiguration mit öffentlicher Authorization-URL und internen Token-/Userinfo-URLs (z. B. `localhost` vs. Docker-Service-Name); erfasst per Mock die tatsächlichen Backend-HTTP-Ziele.
 - Optionaler Integrationstest `backend/test_keycloak_broker_login_integration.py`: bei `KEYCLOAK_LOGIN_INTEGRATION=1` und laufendem Keycloak (`docker-compose.test.yml`) echter Authorization-Code-Flow inkl. Formular-Login am IdP und Broker-Callback (ohne Browser); Realm-Client **broker-login-confidential** um Redirects `http://localhost:8000/*` / `http://127.0.0.1:8000/*` ergänzt.
 - Admin-UI **Sign-in providers** (`/workspace/admin/login-providers`): CRUD für generische OIDC-Login-Provider; Hinweis Broker-Login vs. Integration OAuth.
 - Keycloak-Teststack: `docker-compose.test.yml` mit `--import-realm`, Realm-JSON unter `testing/keycloak/import/`, Vorlage `.env.test.example`.

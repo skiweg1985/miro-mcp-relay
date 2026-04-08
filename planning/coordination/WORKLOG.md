@@ -2541,6 +2541,35 @@
 - Follow-ups:
   - none
 
+## 2026-04-08 – Cursor Agent – OIDC Split-URL Test (Auth vs. Token-Host)
+
+- Done:
+  - `test_broker_login_flow.test_generic_oidc_public_auth_host_internal_token_host`: Mock prüft `auth_url` gegen `localhost:8180` und POST/GET gegen `http://keycloak:8180/.../token|userinfo`.
+  - `MockAsyncTransport` optional mit `record_urls`; Runbook- und CHANGELOG-Hinweis.
+- Next:
+  - none
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: feature/dev
+  - PR: none
+- Files touched:
+  - backend/test_broker_login_flow.py
+  - docs/runbook-broker-login-testing.md
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands:
+    - `PYTHONPATH=backend python3 -m unittest backend.test_broker_login_flow.TestBrokerLoginFlow.test_generic_oidc_public_auth_host_internal_token_host -v`
+  - endpoints:
+    - `POST /api/v1/auth/oidc-split-host-test/start`, `GET …/callback` (Testdaten)
+  - UI path:
+    - none
+- Changelog updated:
+  - yes ([Unreleased] Added)
+- Follow-ups:
+  - E2E mit realem Keycloak und Split-URLs nur im Container-Netz sinnvoll (Host-Unittest kann `keycloak` nicht auflösen).
+
 ## 2026-04-08 – Cursor Agent – Keycloak-Integrationstest Broker-Login
 
 - Done:

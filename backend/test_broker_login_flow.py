@@ -30,11 +30,22 @@ def fake_id_token(payload: dict) -> str:
 
 
 class MockAsyncTransport:
-    def __init__(self, post_status: int = 200, post_body: dict | None = None, get_status: int = 200, get_body: dict | None = None):
+    def __init__(
+        self,
+        post_status: int = 200,
+        post_body: dict | None = None,
+        get_status: int = 200,
+        get_body: dict | None = None,
+        *,
+        record_urls: bool = False,
+    ):
         self._post_status = post_status
         self._post_body = post_body if post_body is not None else {}
         self._get_status = get_status
         self._get_body = get_body if get_body is not None else {}
+        self.record_urls = record_urls
+        self.post_urls: list[str] = []
+        self.get_urls: list[str] = []
 
     async def __aenter__(self):
         return self
@@ -43,12 +54,16 @@ class MockAsyncTransport:
         return False
 
     async def post(self, *args, **kwargs):
+        if self.record_urls and args:
+            self.post_urls.append(str(args[0]))
         resp = MagicMock()
         resp.status_code = self._post_status
         resp.json = MagicMock(return_value=dict(self._post_body))
         return resp
 
     async def get(self, *args, **kwargs):
+        if self.record_urls and args:
+            self.get_urls.append(str(args[0]))
         resp = MagicMock()
         resp.status_code = self._get_status
         resp.json = MagicMock(return_value=dict(self._get_body))
@@ -311,6 +326,95 @@ class TestBrokerLoginFlow(unittest.TestCase):
             db = SessionLocal()
             try:
                 r = db.scalar(select(BrokerLoginProvider).where(BrokerLoginProvider.provider_key == "oidc-flow-test"))
+                if r:
+                    db.delete(r)
+                    db.commit()
+            finally:
+                db.close()
+
+    @patch("app.routers.auth.httpx.AsyncClient")
+    def test_generic_oidc_public_auth_host_internal_token_host(self, mock_client_cls) -> None:
+        """Docker-style split: browser reaches IdP on localhost; broker reaches token/userinfo on service name."""
+        auth_base = "http://localhost:8180/realms/broker-test/protocol/openid-connect"
+        internal_base = "http://keycloak:8180/realms/broker-test/protocol/openid-connect"
+        provider_key = "oidc-split-host-test"
+
+        db = SessionLocal()
+        try:
+            org = db.scalar(select(Organization).order_by(Organization.created_at.asc()))
+            self.assertIsNotNone(org)
+            oidc_cfg = {
+                "issuer": "http://localhost:8180/realms/broker-test",
+                "authorization_endpoint": f"{auth_base}/auth",
+                "token_endpoint": f"{internal_base}/token",
+                "userinfo_endpoint": f"{internal_base}/userinfo",
+                "jwks_uri": None,
+                "scopes": ["openid", "email"],
+                "claim_mapping": {
+                    "subject": "sub",
+                    "email": "email",
+                    "display_name": "name",
+                    "preferred_username": "preferred_username",
+                    "locale": "locale",
+                    "zoneinfo": "zoneinfo",
+                },
+            }
+            row = BrokerLoginProvider(
+                organization_id=org.id,
+                provider_key=provider_key,
+                display_name="Split host test",
+                enabled=True,
+                client_id="cid",
+                encrypted_client_secret=encrypt_text("sec"),
+                oidc_config_json=dumps_json(oidc_cfg),
+            )
+            db.merge(row)
+            db.commit()
+        finally:
+            db.close()
+
+        try:
+            with TestClient(app) as client:
+                start = client.post(f"/api/v1/auth/{provider_key}/start")
+                self.assertEqual(start.status_code, 200, start.text)
+                start_body = start.json()
+                auth_url = start_body["auth_url"]
+                state = start_body["state"]
+            self.assertIn("localhost:8180", auth_url)
+            self.assertNotIn("keycloak", auth_url)
+            db = SessionLocal()
+            try:
+                pending_row = db.get(OAuthPendingState, state)
+                nonce = str(loads_json(pending_row.payload_json, {}).get("nonce") or "")
+            finally:
+                db.close()
+
+            token_body = {
+                "access_token": "at-split",
+                "id_token": fake_id_token({"sub": "split-sub", "email": "split@example.com", "name": "S", "nonce": nonce}),
+            }
+            userinfo_body = {"email": "split@example.com", "name": "S User"}
+
+            holder = MockAsyncTransport(
+                post_status=200,
+                post_body=token_body,
+                get_status=200,
+                get_body=userinfo_body,
+                record_urls=True,
+            )
+            mock_client_cls.return_value = holder
+
+            with TestClient(app, follow_redirects=False) as client:
+                response = client.get(f"/api/v1/auth/{provider_key}/callback?code=cc&state={state}")
+            self.assertEqual(response.status_code, 302)
+            self.assertIn("login_status=success", response.headers.get("location", ""))
+
+            self.assertEqual(holder.post_urls, [f"{internal_base}/token"])
+            self.assertEqual(holder.get_urls, [f"{internal_base}/userinfo"])
+        finally:
+            db = SessionLocal()
+            try:
+                r = db.scalar(select(BrokerLoginProvider).where(BrokerLoginProvider.provider_key == provider_key))
                 if r:
                     db.delete(r)
                     db.commit()

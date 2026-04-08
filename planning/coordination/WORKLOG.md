@@ -2689,3 +2689,17 @@
   - yes ([Unreleased] Added)
 - Follow-ups:
   - keine
+
+## 2026-04-08 – Cursor Agent – Admin user detail naive/aware datetimes
+
+- Done:
+  - `admin_users.get_user_detail`: `expires_at` per `ensure_utc` vor Vergleich mit `utcnow()`; unbenutzten Import `apply_full_user_cleanup` entfernt.
+  - `user_lifecycle.lifecycle_cleanup_counts`: aktive Sessions konsistent per `ensure_utc` in Python gezählt.
+  - `docs/CHANGELOG.md` [Unreleased] Fixed.
+- Next: keine
+- Blockers: keine
+- Branch/PR: branch lokal, PR none
+- Files touched: `backend/app/routers/admin_users.py`, `backend/app/services/user_lifecycle.py`, `docs/CHANGELOG.md`, `planning/coordination/WORKLOG.md`
+- Test notes: `PYTHONPATH=backend python3 -m unittest backend.test_admin_users backend.test_smoke -v`
+- Changelog updated: yes (Unreleased Fixed)
+- Follow-ups: keine

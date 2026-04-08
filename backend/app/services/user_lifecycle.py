@@ -16,7 +16,7 @@ from app.models import (
     UserConnection,
     UserConnectionStatus,
 )
-from app.security import utcnow
+from app.security import ensure_utc, utcnow
 from app.services.access_grants import is_grant_usable
 
 AccountStatus = Literal["active", "disabled", "deleted"]
@@ -96,17 +96,11 @@ def clear_user_connections(db: Session, user_id: str) -> int:
 
 def lifecycle_cleanup_counts(db: Session, user_id: str) -> dict[str, int]:
     now = utcnow()
-    active_sessions = int(
-        db.scalar(
-            select(func.count())
-            .select_from(SessionModel)
-            .where(
-                SessionModel.user_id == user_id,
-                SessionModel.revoked_at.is_(None),
-                SessionModel.expires_at > now,
-            )
-        )
-        or 0
+    open_sessions = db.scalars(
+        select(SessionModel).where(SessionModel.user_id == user_id, SessionModel.revoked_at.is_(None))
+    ).all()
+    active_sessions = sum(
+        1 for s in open_sessions if (exp := ensure_utc(s.expires_at)) is not None and exp > now
     )
     grants = db.scalars(select(AccessGrant).where(AccessGrant.user_id == user_id)).all()
     active_keys = sum(1 for g in grants if is_grant_usable(g, now=now))

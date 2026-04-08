@@ -30,11 +30,10 @@ from app.schemas import (
     AdminUserSessionOut,
     AdminOAuthIdentityOut,
 )
-from app.security import utcnow
+from app.security import ensure_utc, utcnow
 from app.services.access_grants import effective_grant_display_status
 from app.services.user_lifecycle import (
     account_status,
-    apply_full_user_cleanup,
     assert_mutable_admin_target_db,
     deprovision_user,
     hard_delete_user,
@@ -175,7 +174,8 @@ def get_user_detail(user_id: str, db: Session = Depends(get_db), _admin: User = 
     ).all()
     sessions_out: list[AdminUserSessionOut] = []
     for s in sess_rows:
-        live = s.revoked_at is None and s.expires_at > now
+        exp = ensure_utc(s.expires_at)
+        live = bool(exp is not None and s.revoked_at is None and exp > now)
         sessions_out.append(
             AdminUserSessionOut(id=s.id, created_at=s.created_at, expires_at=s.expires_at, is_active=live)
         )

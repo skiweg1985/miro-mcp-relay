@@ -33,6 +33,7 @@
 
 ### Fixed
 
+- `GET /api/v1/admin/users/{id}`: Session-Ablauf mit `ensure_utc` gegen `utcnow()` vergleichen (PostgreSQL liefert oft naive `TIMESTAMP`); vermeidet `TypeError: can't compare offset-naive and offset-aware datetimes`. Aktive Sessions in `lifecycle_cleanup_counts` werden analog gezählt.
 - `POST /api/v1/integration-instances/{id}/discover-tools` erlaubt den Connection-Test jetzt für alle authentifizierten Nutzer der Organisation (nicht nur Admin), damit der Test-Button in `/workspace/connections` auch im User-Kontext funktioniert.
 - OAuth-Upstream-Tokens (Miro, Microsoft Graph und gleich konfigurierte Custom-OAuth-Integrationen): serverseitige Expiry-Prüfung mit automatischem `refresh_token`-Flow vor Ablauf. Für bestehende Verbindungen ohne gespeichertes `oauth_expires_at` wird einmalig ein Refresh-Versuch zur Normalisierung durchgeführt; bei Erfolg werden Access-/Refresh-Token und neues `oauth_expires_at` persistiert.
 - Consumer-MCP-Relay: Upstream-`httpx.AsyncClient` wird pro Access-Grant wiederverwendet (Pool mit LRU, Shutdown schließt Clients). Streamable-HTTP-Ziele wie Miro MCP erwarten dieselbe TCP-Verbindung für `initialize` und Folge-POSTs (`tools/list` lieferte zuvor oft einen leeren Body). Hinweis: bei mehreren Uvicorn-Workern kann dieselbe Grant-ID auf verschiedene Prozesse fallen — dann ggf. `--workers 1` oder Sticky Routing.

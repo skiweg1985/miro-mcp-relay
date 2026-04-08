@@ -373,11 +373,17 @@ export function CapabilityGate({
 export function StatusBadge({
   tone,
   children,
+  title,
 }: {
   tone: "neutral" | "success" | "warn" | "danger";
   children: ReactNode;
+  title?: string;
 }) {
-  return <span className={`status-badge ${tone}`}>{children}</span>;
+  return (
+    <span className={`status-badge ${tone}`} title={title}>
+      {children}
+    </span>
+  );
 }
 
 export function Field({

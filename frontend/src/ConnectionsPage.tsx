@@ -223,7 +223,7 @@ export function ConnectionsPage() {
       <span key="t" title={accessModeLabel(instance.access_mode)}>
         {accessModeLabel(instance.access_mode)}
       </span>,
-      <StatusBadge key="s" tone={status.tone}>
+      <StatusBadge key="s" tone={status.tone} title={status.label}>
         {status.label}
       </StatusBadge>,
       actions,

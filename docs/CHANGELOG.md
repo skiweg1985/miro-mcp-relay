@@ -52,7 +52,9 @@
 
 ### Changed
 
-- Workspace **Connections** (`/workspace/connections`): Tabelle `table-layout: fixed` mit Spaltenanteilen über die volle Card-Breite; Authentication/Traffic/Status ohne unnötigen Zeilenumbruch; Name/Integration/Auth mit `table-cell-ellipsis` und `title` bei Kürzung; Aktionszeile `inline-actions--table`; „Connect“ als `secondary-button`.
+- Workspace **Access** — Modal „How to use this access“: fokussierte Struktur (Kurz-Summary, dann **Primary usage** mit Endpunkt/Header/Beispiel je nach Integration: MCP streamable Relay vs. MCP über Consumer-API vs. HTTPS-Toolcalls); weitere Beispiele und `validate` unter ausklappbaren Abschnitten; Verbindungs-/Policy-Details ebenfalls einklappbar; `deriveAccessPrimaryUsage` / `AccessPrimaryUsageKind` für die Auswahl des Hauptblocks.
+
+- Workspace **Connections** (`/workspace/connections`): Tabelle `table-layout: fixed` mit Spaltenanteilen über die volle Card-Breite; Authentication/Traffic/Status ohne unnötigen Zeilenumbruch; Name/Integration/Auth mit `table-cell-ellipsis` und `title` bei Kürzung; Aktionszeile `inline-actions--table`; „Connect“ als `secondary-button`. Aktions-Spalte fest `calc(8 * --space-6)`; übrige Spalten anteilig von `100% − Aktionsbreite` (verhindert Überlappung von Status-Badge und Aktionsbuttons); Status-Zelle `overflow: hidden` + Ellipsis auf Badge; `StatusBadge` optional `title`.
 
 - README grundlegend überarbeitet: klare Struktur nach Zweck, Praxisbeispielen, Features, Architektur, Kern-APIs, Use-Cases, Quickstart, API-/CLI-Beispielen und technischen Einschränkungen.
 

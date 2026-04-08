@@ -1480,44 +1480,59 @@ h3 {
 }
 
 .connections-table-wrap {
+  --connections-actions-w: calc(8 * var(--space-6));
   width: 100%;
 }
 
 .connections-table-wrap .data-table--connections {
   table-layout: fixed;
   width: 100%;
-  min-width: 720px;
+  min-width: 800px;
 }
 
 .connections-table-wrap .data-table--connections th.data-table-col--name,
 .connections-table-wrap .data-table--connections td.data-table-col--name {
-  width: 18%;
+  width: calc((100% - var(--connections-actions-w)) * 0.2);
 }
 
 .connections-table-wrap .data-table--connections th.data-table-col--integration,
 .connections-table-wrap .data-table--connections td.data-table-col--integration {
-  width: 28%;
+  width: calc((100% - var(--connections-actions-w)) * 0.28);
 }
 
 .connections-table-wrap .data-table--connections th.data-table-col--auth,
 .connections-table-wrap .data-table--connections td.data-table-col--auth {
-  width: 18%;
+  width: calc((100% - var(--connections-actions-w)) * 0.18);
 }
 
 .connections-table-wrap .data-table--connections th.data-table-col--traffic,
 .connections-table-wrap .data-table--connections td.data-table-col--traffic {
-  width: 12%;
+  width: calc((100% - var(--connections-actions-w)) * 0.12);
 }
 
 .connections-table-wrap .data-table--connections th.data-table-col--status,
 .connections-table-wrap .data-table--connections td.data-table-col--status {
-  width: 12%;
+  width: calc((100% - var(--connections-actions-w)) * 0.22);
+  overflow: hidden;
+  vertical-align: middle;
+}
+
+.connections-table-wrap .data-table--connections td.data-table-col--status .status-badge {
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .connections-table-wrap .data-table--connections th.data-table-col--actions,
 .connections-table-wrap .data-table--connections td.data-table-col--actions {
-  width: 12%;
-  min-width: 200px;
+  width: var(--connections-actions-w);
+  min-width: var(--connections-actions-w);
+  max-width: var(--connections-actions-w);
+  box-sizing: border-box;
+  padding-left: var(--space-4);
   white-space: nowrap;
   vertical-align: middle;
   text-align: right;
@@ -1525,10 +1540,6 @@ h3 {
 
 .connections-table-wrap .data-table--connections td.data-table-col--auth,
 .connections-table-wrap .data-table--connections td.data-table-col--traffic {
-  white-space: nowrap;
-}
-
-.connections-table-wrap .data-table--connections td.data-table-col--status {
   white-space: nowrap;
 }
 
@@ -3225,8 +3236,64 @@ html.dark .integration-card:hover {
   margin-top: var(--space-4);
 }
 
+.usage-modal-section--tight {
+  margin-top: var(--space-2);
+}
+
 .usage-modal-section .detail-modal-section-title {
   margin-bottom: var(--space-2);
+}
+
+.usage-primary-card {
+  margin-top: var(--space-4);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-muted);
+}
+
+.usage-primary-kicker {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-caption);
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--ink-secondary);
+}
+
+.usage-primary-lede {
+  margin-bottom: var(--space-3);
+}
+
+.usage-primary-heading {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-body);
+  font-weight: 750;
+  line-height: 1.35;
+  color: var(--ink-primary);
+}
+
+.usage-field-label {
+  margin: 0 0 var(--space-1);
+  font-size: var(--font-caption);
+  font-weight: 650;
+  color: var(--ink-secondary);
+}
+
+.usage-example-pre--inline {
+  max-height: none;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.usage-prose--compact {
+  margin-bottom: var(--space-2);
+}
+
+.usage-list--tight li {
+  margin-bottom: var(--space-1);
 }
 
 .usage-prose {

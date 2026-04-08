@@ -2764,6 +2764,22 @@
 - Changelog updated: yes
 - Follow-ups: keine
 
+## 2026-04-08 – Cursor Agent – Connections Status/Actions overlap fix
+
+- Done:
+  - Ursache: `width: 12%` + `min-width: 200px` auf Aktions-Spalte hat Status-Spalte zu schmal gemacht; Badge-Inhalt lief in die nächste Spalte.
+  - `index.css`: `--connections-actions-w: calc(8 * var(--space-6))`, erste fünf Spalten `calc((100% - var(--connections-actions-w)) * …)`, Status `overflow: hidden`, Badge Ellipsis; Aktions-Spalte fest in px; `padding-left` zwischen Status und Aktionen.
+  - `StatusBadge`: optionales `title`; `ConnectionsPage` setzt `title={status.label}`.
+  - `docs/CHANGELOG.md` ergänzt.
+- Next: keine
+- Blockers: keine
+- Branch/PR: branch lokal, PR none
+- Files touched: `frontend/src/index.css`, `frontend/src/components.tsx`, `frontend/src/ConnectionsPage.tsx`, `docs/CHANGELOG.md`, `planning/coordination/WORKLOG.md`
+- Test notes: `cd frontend && npm run build`
+- UI path: `/workspace/connections`
+- Changelog updated: yes
+- Follow-ups: keine
+
 ## 2026-04-08 – Cursor Agent – Admin Users Sign-in column layout
 
 - Done: `admin-users-truncate` von `<td>` auf inneres `<span>`; CSS `inline-block` + `vertical-align: middle` statt `display: block` auf Zellen; CHANGELOG Fixed.
@@ -2785,3 +2801,19 @@
 - UI path: `/workspace/integrations-v2`, `/workspace/connections`
 - Changelog updated: yes (Unreleased Added)
 - Follow-ups: automatische OIDC-Discovery anbinden
+
+## 2026-04-08 – Cursor Agent – Access „How to use“ Modal Fokus
+
+- Done:
+  - `AccessGrantUsageModal`: Informationsarchitektur umgestellt (Summary → Primary usage → ausklappbar: weitere Beispiele, Verbindungsdetails, Advanced); MCP Relay vs. MCP Consumer-API vs. HTTPS-Toolcalls als Hauptblock; `deriveAccessPrimaryUsage` / `AccessPrimaryUsageKind` exportiert; Modal-Beschreibung auf Platzhalter-Hinweis reduziert.
+  - `index.css`: Styles für Primary-Card und kompakte Usage-Zeilen.
+  - `docs/CHANGELOG.md` [Unreleased] Changed; WORKLOG.
+- Next: optional API-Feld für explizite Primary Usage (`direct_token` im Typ reserviert).
+- Blockers: keine
+- Branch/PR: branch lokal, PR none
+- Files touched: `frontend/src/AccessGrantUsageModal.tsx`, `frontend/src/index.css`, `docs/CHANGELOG.md`, `planning/coordination/WORKLOG.md`
+- Test notes: `cd frontend && npm run build`
+- endpoints: unverändert (nur UI)
+- UI path: `/workspace/access` → Usage
+- Changelog updated: yes (Unreleased Changed)
+- Follow-ups: keine

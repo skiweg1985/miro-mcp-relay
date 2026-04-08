@@ -42,8 +42,8 @@ Die Laufzeit besteht aus einem FastAPI-Backend (`backend/app`) und einer React/V
 - `POST /api/v1/auth/login`  
   Session-Login (lokaler User), Antwort enthält `csrf_token`.
 
-- `POST /api/v1/auth/microsoft/start`  
-  Startet Microsoft OAuth Login für Endnutzer.
+- `POST /api/v1/auth/{provider_id}/start`  
+  Startet Broker-Login für einen konfigurierten Provider (z. B. `microsoft` oder OIDC-`provider_id` aus **Sign-in providers**).
 
 - `GET /api/v1/integrations`  
   Listet Integrationen der Organisation.
@@ -65,6 +65,9 @@ Die Laufzeit besteht aus einem FastAPI-Backend (`backend/app`) und einer React/V
 
 - `POST /api/v1/consumer/integration-instances/{instance_id}/mcp`  
   MCP Relay Entry-Point (zusätzliche Pfade sind erlaubt).
+
+- `POST /api/v1/consumer/integration-instances/{instance_id}/token`  
+  Liefert das aktuelle Upstream-OAuth-Access-Token, nur wenn der Access Grant **Direct token access** erlaubt und die Connection OAuth nutzt; kein Refresh Token in der Antwort (optional `email` / `username` aus Profil-Metadaten).
 
 ### Wichtige Header
 - `X-CSRF-Token`: Pflicht für state-changing Session-Endpunkte.

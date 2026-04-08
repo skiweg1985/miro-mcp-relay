@@ -2,46 +2,19 @@
 
 ## Stand Integration V2
 
-- **Backend** (`backend/app/`): FastAPI mit Sessions, Microsoft-Enduser-Login (OAuth: vollständige Konfiguration in `microsoft_oauth_settings` mit verschlüsseltem Client-Secret, sonst Fallback auf `MICROSOFT_BROKER_*`), Integrations-API V2: **Anlegen** von Integrationen/Instanzen und **session-basiertes** `discover-tools` nur für Admin; Listen und `execute` für alle Nutzer der Organisation. **`GET /api/v1/integration-instances/{id}/inspect`**: Instanz, zugehörige Integration und optional `user_connection` mit Profilfeldern aus `metadata_json` (nach erfolgreichem Integration-OAuth befüllt; Microsoft Graph: Profil primär über **`GET https://graph.microsoft.com/v1.0/me`**, ergänzend `id_token`-Claims). **Integration-OAuth-Connect** (`integration_oauth`): Nutzer starten OAuth zum Zielsystem pro `IntegrationInstance` (Template `miro_default` / `microsoft_graph_default`). **Microsoft Graph** (Entra): Redirect-URI `GET .../connections/microsoft-graph/callback` (oder `…/integration-instances/oauth/callback`, gleicher Handler); konfigurierbar via `MICROSOFT_GRAPH_OAUTH_REDIRECT_URI` / `MICROSOFT_GRAPH_OAUTH_REDIRECT_PATH` / `config_json.graph_oauth_redirect_uri`. **Miro**: Redirect `GET .../integration-instances/oauth/callback`. `GET /api/v1/broker-callback-urls`: `microsoft_graph` vs. `integration_oauth`/`miro`. **Microsoft Graph**: Standard `resolve_microsoft_oauth` (Broker-Login-App); optional eigene Entra-App über `PATCH /api/v1/integrations/{id}` (`config_json`: `graph_oauth_use_broker_defaults`, `graph_oauth_*`, verschlüsseltes Client-Secret am Integrationsmodell). **Miro**: dynamische Client-Registrierung am Registration-Endpoint (`oauth_registration_endpoint`, `oauth_dynamic_client_registration_enabled`), PKCE; Token-Austausch am MCP-Authorization-Server (`oauth_token_endpoint`, z. B. `{miro_mcp_base}/token`, nicht `https://api.miro.com/v1/oauth/token` für MCP-DCR); alternativ statische `MIRO_OAUTH_*` oder `oauth_client_id`/`oauth_client_secret` in `Integration.config_json` (klassische Miro-App ggf. klassische Token-URL). **AccessGrant** (Broker-Access-Keys, gehasht gespeichert): `GET/POST /api/v1/access-grants`, `POST /api/v1/access-grants/validate`, `POST .../revoke`. **Consumer-Ausführung** (ohne Browser-Session): `POST /api/v1/consumer/integration-instances/{id}/execute` und `.../discover-tools` mit `X-Broker-Access-Key` oder `Authorization: Bearer bkr_...` — getrennt von Upstream-Auth (`X-User-Token` / gespeicherte UserConnection). **UserConnection** optional für OAuth-Upstream pro Nutzer-Instanz.
-- **Admin-API**: `GET/PUT /api/v1/admin/microsoft-oauth` (Admin-Session, `PUT` mit `X-CSRF-Token`); **Benutzerverwaltung** `GET /api/v1/admin/users` (Filter `status`, `q`, `provider_key`, Pagination), `GET /api/v1/admin/users/{id}` (Detail inkl. Sessions, Connections, Access Grants, OAuth-Identities); schreibend mit `X-CSRF-Token`: `POST .../deprovision`, `POST .../soft-delete`, `POST .../reactivate`, `POST .../sessions/revoke-all`, `POST .../sessions/{session_id}/revoke`, `POST .../access-keys/revoke-all`, `DELETE .../users/{id}` mit JSON `{ "confirm_email" }` (Hard Delete); `PATCH /api/v1/integrations/{id}` (Graph-`config_json`-Merge, optionales Client-Secret für eigene Entra-App).
-- **Frontend** (`frontend/`): React/Vite, Einstieg `/workspace/integrations-v2`; Admins: `/workspace/admin/users`, `/workspace/admin/microsoft-oauth`, `/workspace/admin/login-providers`; Broker-Zugang (Access Keys) unter `/workspace/broker-access`.
-- **`src/`**: veralteter Node-Referenzcode, nicht der deployte Laufzeitpfad.
+- **Backend** (`backend/app/`): FastAPI mit Sessions, Microsoft-Enduser-Login (OAuth: vollständige Konfiguration in `microsoft_oauth_settings` mit verschlüsseltem Client-Secret, sonst Fallback auf `MICROSOFT_BROKER_*`), Integrations-API V2: **Anlegen** von Integrationen/Instanzen und **session-basiertes** `discover-tools` nur für Admin; Listen und `execute` für alle Nutzer der Organisation. **`GET /api/v1/integration-instances/{id}/inspect`**: Instanz, zugehörige Integration und optional `user_connection` mit Profilfeldern aus `metadata_json` (nach erfolgreichem Integration-OAuth befüllt; Microsoft Graph: Profil primär über **`GET https://graph.microsoft.com/v1.0/me`**, ergänzend `id_token`-Claims). **Integration-OAuth-Connect** (`integration_oauth`): Nutzer starten OAuth zum Zielsystem pro `IntegrationInstance` (Template `miro_default` / `microsoft_graph_default`). **Microsoft Graph** (Entra): Redirect-URI `GET .../connections/microsoft-graph/callback` (oder `…/integration-instances/oauth/callback`, gleicher Handler); konfigurierbar via `MICROSOFT_GRAPH_OAUTH_REDIRECT_URI` / `MICROSOFT_GRAPH_OAUTH_REDIRECT_PATH` / `config_json.graph_oauth_redirect_uri`. **Miro**: Redirect `GET .../integration-instances/oauth/callback`. `GET /api/v1/broker-callback-urls`: `microsoft_graph` vs. `integration_oauth`/`miro`. **Microsoft Graph**: Standard `resolve_microsoft_oauth` (Broker-Login-App); optional eigene Entra-App über `PATCH /api/v1/integrations/{id}` (`config_json`: `graph_oauth_use_broker_defaults`, `graph_oauth_*`, verschlüsseltes Client-Secret am Integrationsmodell). **Miro**: dynamische Client-Registrierung am Registration-Endpoint (`oauth_registration_endpoint`, `oauth_dynamic_client_registration_enabled`), PKCE; Token-Austausch am MCP-Authorization-Server (`oauth_token_endpoint`, z. B. `{miro_mcp_base}/token`, nicht `https://api.miro.com/v1/oauth/token` für MCP-DCR); alternativ statische `MIRO_OAUTH_*` oder `oauth_client_id`/`oauth_client_secret` in `Integration.config_json` (klassische Miro-App ggf. klassische Token-URL). **AccessGrant** (Broker-Access-Keys, gehasht gespeichert): `GET/POST /api/v1/access-grants`, `POST /api/v1/access-grants/validate`, `POST .../revoke`. **Consumer-Ausführung** (ohne Browser-Session): `POST /api/v1/consumer/integration-instances/{id}/execute` und `.../discover-tools` mit `X-Broker-Access-Key` oder `Authorization: Bearer bkr_...` — getrennt von Upstream-Auth (`X-User-Token` / gespeicherte UserConnection). **Direct Token Access:** `POST /api/v1/consumer/integration-instances/{id}/token` mit Broker-Access-Key, nur bei Grant-Flag `direct_token_access` und OAuth-Connection; Response ohne Refresh Token, optional `email` / `username` aus Connection-Metadaten. **UserConnection** optional für OAuth-Upstream pro Nutzer-Instanz.
+- **Admin-API**: `GET/PUT /api/v1/admin/microsoft-oauth` (Admin-Session, `PUT` mit `X-CSRF-Token`); **Benutzerverwaltung** `GET /api/v1/admin/users` (Filter `status`, `q`, `provider_key`, Pagination), `GET /api/v1/admin/users/{id}` (Detail inkl. Sessions, Connections, Access Grants, OAuth-Identities); schreibend mit `X-CSRF-Token`: `POST .../deprovision`, `POST .../soft-delete`, `POST .../reactivate`, `POST .../sessions/revoke-all`, `POST .../sessions/{session_id}/revoke`, `POST .../access-keys/revoke-all`, `DELETE .../users/{id}` mit JSON `{ "confirm_email" }` (Hard Delete); `PATCH /api/v1/integrations/{id}` (Graph-`config_json`-Merge, optionales Client-Secret für eigene Entra-App); **Broker-Login-Provider** `GET/POST/PATCH/DELETE /api/v1/admin/broker-login-providers` (OIDC-Anmeldung am Workspace).
+- **Frontend** (`frontend/`): React/Vite, Einstieg `/workspace/integrations-v2`; Verbindungen `/workspace/connections`; Broker-Zugang (Access Keys) `/workspace/broker-access`; Admins zusätzlich `/workspace/admin/users`, `/workspace/admin/microsoft-oauth`, `/workspace/admin/login-providers`.
+- **`src/`**: Node-Referenzcode und Tests, nicht der deployte Laufzeitpfad des Brokers.
 
-Aeltere Abschnitte weiter unten in diesem Dokument koennen noch historische Begriffe enthalten; sie gelten nicht mehr fuer den aktiven Stack.
-
-## Architekturueberblick (Legacy-Abschnitt unten teils veraltet)
-
-Das Repository umfasst drei relevante Codebereiche:
-
-- `frontend/`
-  React/Vite-Single-Page-App fuer Admin- und Self-Service-Oberflaechen
-
-- `backend/app/`
-  FastAPI-Backend fuer Sessions, Provider-Verwaltung, Connected Accounts, Delegation Grants, Token-Issuance und Audit
-
-- `backend/app/routers/legacy_miro.py`
-  FastAPI-Kompatibilitaetsschicht fuer historische Miro-Endpunkte wie `/miro/mcp/{profile_id}`, `/healthz` und `/readyz`
-
-`src/` enthaelt weiterhin historischen Node-Code, ist aber nicht mehr der vorgesehene Laufzeitpfad der aktuellen Anwendung.
-
-## Architekturprinzipien
-
-- Trennung zwischen Benutzeroberflaeche, Broker-Logik und Legacy-Kompatibilitaet
-- serverseitige Speicherung sensibler Tokenmaterialien
-- explizite Freigabe von Servicezugriffen ueber Service-Clients und Delegation Grants
-- klare Auditierbarkeit aller relevanten Zustandsaenderungen und Zugriffsvorgaenge
-- Rueckwaertskompatibilitaet fuer bestehende Miro-MCP-Clients ueber FastAPI-Routen
-
-## Laufzeitarchitektur
+## Architekturueberblick
 
 ```mermaid
 flowchart LR
-    Browser["Browser / React Frontend"] --> API["FastAPI Backend (/api/v1)"]
-    API --> DB["SQLite oder andere SQLAlchemy-DB"]
-    API --> Miro["Miro OAuth / API"]
-    API --> Microsoft["Microsoft Login / OIDC"]
-    Service["Service Client"] --> API
-    LegacyClients["Legacy Miro MCP Clients"] --> API
+  Browser["Browser / React Frontend"] --> API["FastAPI Backend (/api/v1)"]
+  API --> DB["SQLAlchemy-DB"]
+  API --> Upstream["OAuth- und API-Upstreams"]
+  Consumer["Automation / MCP-Clients"] --> API
 ```
 
 ## Frontend
@@ -51,74 +24,56 @@ flowchart LR
 - React 18
 - TypeScript
 - Vite
-- clientseitige Routing-Logik auf Basis von `window.location.pathname`
+- Routing über `window.location.pathname` und `matchesRoute` in `App.tsx`
 
 ### Zentrale Dateien
 
-- `frontend/src/App.tsx`
-  enthaelt Routing, Seitenlogik und Rollentrennung zwischen Admin und Endnutzer
+- `frontend/src/App.tsx` — Routing, Login, Workspace-Shell
+- `frontend/src/api.ts` — HTTP zu `/api/v1`
+- `frontend/src/app-context.tsx` — Session, Login/Logout, Toasts
+- `frontend/src/components.tsx` — gemeinsame UI-Bausteine
 
-- `frontend/src/api.ts`
-  kapselt alle HTTP-Aufrufe gegen `/api/v1`
+### Workspace-Routen (authentifiziert)
 
-- `frontend/src/app-context.tsx`
-  verwaltet Session-Zustand, Login/Logout und Toasts
+- `/workspace/integrations-v2` — Integrationen und Instanzen
+- `/workspace/connections` — OAuth-Verbindungen je Instanz
+- `/workspace/broker-access` — Access Grants (Broker Access Keys)
 
-- `frontend/src/components.tsx`
-  wiederverwendbare UI-Bausteine
+Admin (zusätzlich, nur `is_admin`):
 
-### Routing-Modell
+- `/workspace/admin/users`
+- `/workspace/admin/microsoft-oauth`
+- `/workspace/admin/login-providers`
 
-Die App verwendet keinen externen Router; das Routing ist in der Anwendung implementiert.
-
-Admin-Routen:
-
-- `/app`
-- `/app/providers`
-- `/app/connections`
-- `/app/delegation`
-- `/app/audit`
-
-Self-Service-Routen:
-
-- `/workspace`
-- `/workspace/integrations`
-- `/workspace/clients`
-- `/grants`
-- `/token-access`
-
-Rollenselektion:
-
-- Endnutzer werden aus Admin-Routen nach `/workspace` umgeleitet
-- Admins können Self-Service unter `/workspace` nutzen (z. B. OAuth-Rückkehr); die Admin-Konsole bleibt unter `/app`
+Anonym: `/` oder `/login` zeigen die Sign-in-Seite (siehe `matchesRoute` in `frontend/src/utils.ts`).
 
 ## Backend
-
-### Technologie
-
-- FastAPI
-- SQLAlchemy ORM
-- Pydantic / pydantic-settings
-- httpx fuer externe OAuth- und Provider-Requests
 
 ### Einstiegspunkt
 
 - `backend/app/main.py`
 
-Das Backend registriert folgende Router unter `/api/v1`:
+### Registrierte Router (alle mit `settings.api_v1_prefix`, üblicherweise `/api/v1`)
 
-- `public`
-- `auth`
-- `connections`
-- `token_issuance`
-- `user`
-- `admin`
+| Modul | Inhalt (Kurz) |
+|-------|-----------------|
+| `public` | Health, Callback-URLs, Login-Optionen |
+| `auth` | Login, Logout, Broker-Login Start/Callback, Session |
+| `integrations_v2` | Integrationen, Instanzen, Admin-Lifecycle |
+| `integration_oauth` | OAuth Start/Callback/Disconnect pro Instanz |
+| `access_grants` | Access Grants (Browser-Session) |
+| `consumer_execution` | `execute`, `discover-tools` |
+| `consumer_token` | Direct Token Access |
+| `consumer_mcp_relay` | MCP Relay (streamable HTTP) |
+| `admin_microsoft_oauth` | Microsoft Sign-in-Konfiguration |
+| `admin_login_providers` | OIDC Sign-in-Provider |
+| `admin_users` | Nutzerverwaltung |
 
-Zusaetzlich bindet `backend/app/main.py` den Router `legacy_miro` ohne `/api/v1`-Prefix ein. Darueber laufen die kompatiblen Endpunkte `/miro/*`, `/healthz` und `/readyz`.
+Es gibt keinen `legacy_miro`-Router mehr; Miro-Nutzung für Consumer läuft über Integration-Instanz, Access Grant und Consumer-Routen.
 
 ### Konfiguration
 
-Die Konfiguration wird in `backend/app/core/config.py` ueber Umgebungsvariablen geladen.
+Die Konfiguration wird in `backend/app/core/config.py` über Umgebungsvariablen geladen.
 
 Wichtige Variablen:
 
@@ -132,11 +87,7 @@ Wichtige Variablen:
 - `BOOTSTRAP_ADMIN_EMAIL`
 - `BOOTSTRAP_ADMIN_PASSWORD`
 - `MICROSOFT_BROKER_*`
-- `MIRO_OAUTH_SCOPE`
-- `MIRO_OAUTH_EMAIL_MODE`
-- `MIRO_RETRY_COUNT`
-- `MIRO_BREAKER_FAIL_THRESHOLD`
-- `MIRO_BREAKER_OPEN_MS`
+- Miro-/Integrations-Defaults: `MIRO_*`, siehe Konfiguration und `default_integrations`
 
 Besonderheit:
 
@@ -146,277 +97,148 @@ Besonderheit:
 
 ### Datenbank
 
-Die neue Broker-Anwendung nutzt SQLAlchemy mit einer konfigurierbaren Datenbank.
+SQLAlchemy mit konfigurierbarer Datenbank (lokal oft SQLite, in Docker typischerweise PostgreSQL).
 
-Standard lokal:
+### Zentrale Entitäten (`backend/app/models.py`)
 
-- `sqlite:///./broker.db`
-
-### Wichtige Entitaeten
-
-Die zentralen Tabellen sind in `backend/app/models.py` definiert.
-
-#### Organization
-
-- organisatorische Mandantentrennung
-
-#### User
-
-- Benutzerkonto innerhalb einer Organisation
-- kann Admin oder Endnutzer sein
-
-#### Session
-
-- serverseitige Session mit gehashtem Session-Token und CSRF-Token
-
-#### ProviderDefinition
-
-- abstrakter Providertyp, z. B. Miro oder Microsoft
-
-#### ProviderInstance
-
-- konkrete technische Instanz eines Providers
-
-#### ProviderApp
-
-- Richtlinienobjekt fuer Downstream-Zugriff
-- enthaelt unter anderem Scopes, Access-Mode und Flags fuer Relay oder Direct Token
-
-#### UserAuthIdentity
-
-- Verknuepfung eines Benutzers mit externer Identitaet, insbesondere fuer Microsoft-Login
-
-#### ConnectedAccount
-
-- konkrete Benutzerverbindung zu einer Provider-App
-
-#### TokenMaterial
-
-- verschluesseltes Access- und Refresh-Token zu einer Verbindung
-
-#### ServiceClient
-
-- technischer Verbraucher des Brokers mit Shared Secret; optional `created_by_user_id` (Besitzer); Verwaltung durch den jeweiligen Nutzer
-
-#### DelegationGrant
-
-- delegierte Zugriffsfreiabe zwischen Benutzer, Service-Client und Provider-App
-
-#### GrantedCapability
-
-- optionale feingranulare Zusatzfaehigkeiten pro Grant
-
-#### TokenIssueEvent
-
-- Diagnostik- und Historieneintrag fuer Zugriffsausgaben und Relay-Entscheidungen
-
-#### AuditEvent
-
-- allgemeines Audit-Logging fuer Zustandsaenderungen
+- **Organization** — Mandant
+- **User** — Konten inkl. Admin-Flag; Soft-Delete / Lifecycle über Admin-API
+- **Session** — Session-Cookie, CSRF
+- **OAuthIdentity** — externe Identitäten (z. B. Microsoft Login)
+- **MicrosoftOAuthSettings** — Entra-App für Broker-Login (optional DB-gestützt)
+- **BrokerLoginProvider** — zusätzliche OIDC-Provider für Broker-Login
+- **Integration** — Integrationsdefinition (Typ, Auth, Endpunkte, Konfiguration)
+- **IntegrationInstance** — konkrete Instanz je Organisation
+- **UserConnection** — OAuth-Token und Metadaten pro Nutzer und Instanz
+- **AccessGrant** — Broker Access Key (nur Hash gespeichert); optional Ablauf, Tool-Liste, `direct_token_access`
+- **IntegrationTool** — Tool-Metadaten für Execution/Policy
+- **OAuthPendingState** — OAuth-State über Requests hinweg
+- **AuditEvent** — Audit-Log
 
 ## Seed und Initialisierung
 
-Beim Start wird `init_db()` aus `backend/app/seed.py` ausgefuehrt.
+Beim Start wird `init_db()` aus `backend/app/seed.py` ausgeführt.
 
 Dabei werden:
 
-- die Datenbanktabellen erzeugt
+- die Datenbanktabellen erzeugt oder angeglichen (`reconcile_schema`)
 - eine Default-Organisation angelegt
 - ein Bootstrap-Admin erzeugt (sofern konfiguriert)
 - vordefinierte V2-Integrationen und -Instanzen angelegt (`ensure_default_integrations` in `default_integrations.py`), falls noch nicht vorhanden
 
 Vordefinierte Integrationen (stabile IDs, pro Default-Organisation):
 
-- **Miro MCP** (`Integration` `mcp_server`, MCP aktiv): Upstream-Endpoint aus `MIRO_*` / `miro_mcp_base`, Instanz mit Upstream-Auth `oauth` (Nutzer-Token an den MCP).
-- **Microsoft Graph** (`Integration` `oauth_provider`, MCP nicht aktiv): OAuth-Metadaten (Authorize/Token-URL aus Broker-Einstellungen) und Graph-Basis-URL; Instanz mit `oauth` fuer Ressourcen-Zugriff ueber Nutzer-Token — kein MCP-`discover_tools` bis ein MCP-faehiger Endpoint angebunden wird.
+- **Miro MCP** (`Integration` `mcp_server`, MCP aktiv): Upstream-Endpoint aus `MIRO_*` / `miro_mcp_base`, Instanz mit Upstream-Auth `oauth`.
+- **Microsoft Graph** (`Integration` `oauth_provider`, MCP nicht aktiv): OAuth-Metadaten und Graph-Basis-URL; Instanz mit `oauth` für Ressourcenzugriff über Nutzer-Token.
 
 ## Authentifizierung und Sessions
 
-### Admin-Login
-
-Flow:
+### Admin-Login (lokal)
 
 1. `POST /api/v1/auth/login`
-2. Backend prueft E-Mail und Passwort gegen `users`
+2. Backend prüft E-Mail und Passwort gegen `users`
 3. Session wird erzeugt
 4. Session-Cookie wird gesetzt
-5. CSRF-Token wird in der Response zurueckgegeben
+5. CSRF-Token wird in der Response zurückgegeben
 
-### SSO-Login fuer Endnutzer (Broker)
+### SSO-Login für Endnutzer (Broker)
 
-Provider-agnostisch ueber `provider_id` (z. B. `microsoft` fuer Entra, oder Eintraege aus `broker_login_providers` fuer OIDC).
-
-Flow:
+Provider-agnostisch über `provider_id` (z. B. `microsoft` für Entra, oder Einträge aus `broker_login_providers` für OIDC).
 
 1. `GET /api/v1/auth/login-options` liefert `login_providers` (`id`, `display_name`)
-2. Frontend ruft `POST /api/v1/auth/{provider_id}/start` auf
-3. Backend speichert Pending-State `broker_login` (u. a. `provider_id`, PKCE, `nonce`, Correlation-ID)
+2. `POST /api/v1/auth/{provider_id}/start`
+3. Pending-State `broker_login` (u. a. PKCE, `nonce`, Correlation-ID)
 4. Redirect zur IdP-Authorize-URL
-5. Callback: `GET /api/v1/auth/{provider_id}/callback`
-6. Token-Austausch, Claim-Mapping auf das interne Profilmodell, `users` / `oauth_identities`, Session-Cookie, Redirect nach `/workspace/integrations-v2?login_status=success`
+5. `GET /api/v1/auth/{provider_id}/callback`
+6. Token-Austausch, Claim-Mapping, `users` / `oauth_identities`, Session-Cookie, Redirect z. B. nach `/workspace/integrations-v2?login_status=success`
 
-Microsoft bleibt ueber `microsoft_oauth_settings` bzw. `MICROSOFT_BROKER_*` konfiguriert; zusaetzliche OIDC-Provider ueber Admin-API `/api/v1/admin/broker-login-providers`.
+Microsoft über `microsoft_oauth_settings` bzw. `MICROSOFT_BROKER_*`; weitere OIDC-Provider über `/api/v1/admin/broker-login-providers`.
 
-Sicherheitsmerkmale:
+## Integration-OAuth (Miro, Graph, generisch)
 
-- PKCE
-- einmaliger Pending-State (Replay-Schutz), Ablauf ca. 15 Minuten
-- `provider_id` im State muss mit Callback-Pfad uebereinstimmen
-- Nonce-Pruefung am `id_token` (wenn vorhanden)
-- serverseitige Session
-- CSRF-Schutz fuer schreibende Requests
+Implementierung: `backend/app/routers/integration_oauth.py` (und Hilfen in `upstream_oauth.py`).
 
-## Miro-Connect-Flow
+Kurzablauf:
 
-Der Miro-Flow ist in `backend/app/routers/connections.py` und `backend/app/miro.py` implementiert.
+1. Nutzer startet `POST /api/v1/integration-instances/{id}/oauth/start` (Session, CSRF)
+2. Redirect zum Provider
+3. Callback `GET /api/v1/integration-instances/oauth/callback` (und Microsoft-Graph-Variante mit gleichem Handler je nach konfiguriertem Pfad)
+4. Token werden in `user_connections` gespeichert; Profilfelder in `metadata_json`
 
-Flow:
+Disconnect: `POST .../oauth/disconnect`.
 
-1. Frontend ruft `POST /api/v1/connections/miro/start`
-2. Backend erstellt oder erneuert einen Pending-State fuer den OAuth-Flow
-3. Browser wird zu Miro weitergeleitet
-4. Callback kommt auf `GET /api/v1/connections/miro/callback`
-5. Das Backend tauscht den Code gegen Tokenmaterial
-6. Die erkannte Provider-Identitaet wird geprueft
-7. `ConnectedAccount` und `TokenMaterial` werden angelegt oder aktualisiert
-8. Redirect zurueck ins Frontend auf `/workspace/integrations` mit Statusparametern
+## Consumer-Zugriff (ohne Browser-Session)
 
-Stand Self-Service und Miro:
+Voraussetzung: gültiger **Access Grant**, Broker Access Key im Header (`X-Broker-Access-Key` oder `Authorization: Bearer bkr_...`).
 
-- Self-Service-Connect ist fuer Miro umgesetzt
-- Refresh und Probe sind fuer Miro implementiert
+| Zweck | Methode | Pfad |
+|--------|---------|------|
+| Tool-Ausführung | POST | `/api/v1/consumer/integration-instances/{id}/execute` |
+| Tool-Discovery | POST | `/api/v1/consumer/integration-instances/{id}/discover-tools` |
+| MCP Relay (streamable HTTP) | ANY | `/api/v1/consumer/integration-instances/{id}/mcp` (+ optionale Subpfade) |
+| Upstream-OAuth-Access-Token | POST | `/api/v1/consumer/integration-instances/{id}/token` (nur mit Grant-Flag `direct_token_access`, OAuth-Connection) |
 
-## Delegation und Servicezugriff
+Verbindungsinfo für MCP: `GET .../mcp-connection-info` (siehe Consumer-Router).
 
-### Grundprinzip
+Details und Fehlerbilder: `docs/troubleshooting-consumer-mcp-relay.md`.
 
-Zugriff erfolgt mit einem Access Credential (Klartext), das an einen konkreten Grant gebunden ist und im HTTP-Header `X-Access-Key` uebergeben wird (Abwaertskompatibilitaet: `X-Delegated-Credential`). Optional kann der Grant an einen Service-Client gebunden sein; dann kann zusaetzlich `X-Service-Secret` zur Abwaertskompatibilitaet verlangt werden. Grants ohne Service-Client reichen mit `X-Access-Key` allein.
-
-### Direct Token Issuance
-
-Endpunkt:
-
-- `POST /api/v1/token-issues/provider-access`
-
-Header:
-
-- `X-Access-Key` (Pflicht; Abwaertskompatibilitaet `X-Delegated-Credential`)
-- `X-Service-Secret` (optional, z. B. bei aelteren Grants mit Service-Client-Bindung)
-
-Payload:
-
-- `provider_app_key`
-- optionale `requested_scopes`
-- optional `connected_account_id`
-
-Das Backend prueft unter anderem:
-
-- optional Service-Client-Abgleich, wenn mitgegeben
-- Gueltigkeit des Grants
-- erlaubten Access-Mode
-- Scope-Grenzen
-- Zugehoerigkeit zu Provider-App und Connected Account
-
-Danach wird entweder:
-
-- ein Zugriffstoken ausgegeben oder
-- der Zugriff blockiert
-
-Beide Faelle werden in `TokenIssueEvent` und `AuditEvent` dokumentiert.
-
-### Relay-Zugriff fuer Miro
-
-Endpunkt:
-
-- `POST /api/v1/broker-proxy/miro/{connected_account_id}`
-
-`X-Access-Key` ist Pflicht (Abwaertskompatibilitaet `X-Delegated-Credential`); `X-Service-Secret` optional (siehe Direct Token). Der Broker validiert die Berechtigung und leitet den Request danach gegen Miro weiter.
-
-Pro Miro-Verbindung liegt der Relay-Key als `legacy_relay_token_hash` (Lookup bei der Verifizierung) und als `encrypted_legacy_relay_token` (Fernet, `BROKER_ENCRYPTION_KEY`) vor. Klartext an den Kontoinhaber: `GET /api/v1/connections/{id}/miro-access` und `GET /api/v1/connections/{id}/access-details` nach Session-Authentifizierung, sofern der Ciphertext gespeichert ist.
-
-## API-Struktur
+## API-Übersicht (Auszug)
 
 ### Public
 
 - `GET /api/v1/health`
-- `GET /api/v1/provider-definitions`
+- `GET /api/v1/broker-callback-urls`
+- `GET /api/v1/auth/login-options`
 
 ### Auth
 
-- `POST /api/v1/auth/login`
-- `POST /api/v1/auth/microsoft/start`
-- `GET /api/v1/auth/microsoft/callback`
-- `POST /api/v1/auth/logout`
+- `POST /api/v1/auth/login`, `POST /api/v1/auth/logout`
+- `POST /api/v1/auth/{provider_id}/start`, `GET /api/v1/auth/{provider_id}/callback`
 - `GET /api/v1/sessions/me`
 
-### User / Self-Service
+### Integrations V2 & OAuth
 
-- `GET /api/v1/provider-apps`
-- `GET /api/v1/connections`
-- `POST /api/v1/connections/miro/start`
-- `GET /api/v1/connections/miro/callback`
-- `POST /api/v1/connections/{id}/refresh`
-- `POST /api/v1/connections/{id}/revoke`
-- `POST /api/v1/connections/{id}/probe`
-- `GET/POST/PATCH/DELETE /api/v1/service-clients` (eigene Clients; Schreibzugriffe mit CSRF)
-- `POST /api/v1/service-clients/{id}/rotate-secret`
-- `GET /api/v1/delegation-grants`
-- `POST /api/v1/delegation-grants`
-- `GET /api/v1/delegation-grants/{id}/access-credential` (Legacy-Pfad: `.../delegated-credential`)
-- `POST /api/v1/delegation-grants/{id}/rotate-credential`
-- `POST /api/v1/delegation-grants/{id}/revoke`
-- `GET /api/v1/token-issues`
+- Integrationen/Instanzen: siehe OpenAPI (`GET/POST/PATCH/DELETE` je nach Rolle)
+- `integration_oauth`: Start, Callback, Disconnect
+
+### Access Grants
+
+- `GET/POST /api/v1/access-grants`, `POST .../validate`, Revoke/Löschen nach API
+
+### Consumer
+
+- `execute`, `discover-tools`, `mcp`, `token` wie oben
 
 ### Admin
 
-- `GET /api/v1/admin/users`
-- `GET/POST /api/v1/admin/provider-instances`
-- `GET/POST /api/v1/admin/provider-apps`
-- `GET /api/v1/admin/connected-accounts`
-- `POST /api/v1/admin/connected-accounts/manual`
-- `GET /api/v1/admin/service-clients` (Organisation, Leselist)
-- `GET /api/v1/admin/users/{user_id}/service-clients`
-- `GET/POST /api/v1/admin/delegation-grants`
-- `POST /api/v1/admin/delegation-grants/{id}/revoke`
-- `GET /api/v1/admin/audit`
-- `GET /api/v1/admin/token-issues`
-- `GET /api/v1/admin/migrations/miro/status`
-- `POST /api/v1/admin/migrations/miro/import`
+- `admin_microsoft_oauth`, `admin_login_providers`, `admin_users` — siehe OpenAPI
+
+Die vollständige Liste liefert die interaktive Dokumentation: `/api/v1/docs`.
 
 ## Security-Modell
 
 ### Session und CSRF
 
 - authentifizierte Browser-Requests verwenden Cookies
-- schreibende Requests verwenden zusaetzlich `X-CSRF-Token`
+- schreibende Session-Requests verwenden zusätzlich `X-CSRF-Token`
 
-### Secret-Handling
+### Geheimnisse
 
-- Service-Client-Secrets werden nur gehasht gespeichert
-- Access Credentials (Delegation-Grants) werden nur gehasht gespeichert
-- Provider-Tokens und Client-Secrets werden verschluesselt gespeichert
+- Broker Access Keys nur als Hash gespeichert; Klartext nur bei Erstellung
+- OAuth-Tokens und Client-Secrets verschlüsselt in der DB, wo vorgesehen
 
 ### Rollen
 
-- `require_admin` schuetzt Admin-Endpunkte
-- normale Benutzer koennen nur auf eigene Verbindungen, Grants und Token-Issue-Historie zugreifen
+- `require_admin` schützt Admin-Endpunkte und kritische Integrationsänderungen
+- Consumer-Routen prüfen Grant, Organisation und Tool-Policy
 
-## Legacy-Node-Quelle
+## Referenzcode unter `src/`
 
-`src/index.js` enthaelt weiterhin den urspruenglichen Node/Express-Prototypen des Miro-Relay.
-
-Merkmale:
-
-- Express-Anwendung
-- dateibasierte Persistenz unter `data/`
-- historische Health-, Ready- und Relay-Endpunkte
-- historischer Browser-Flow fuer Miro
-
-Fuer die aktuelle Anwendung ist dieser Code vor allem Referenzmaterial und Grundlage fuer die kleinen Node-Platform-Tests. Die produktiv relevante Kompatibilitaet fuer bestehende Miro-Clients wird heute im FastAPI-Backend bereitgestellt.
+`src/` enthält älteren Node-Code für Tests und Vergleich, nicht den produktiven Python-Pfad.
 
 ## Lokale Entwicklung
 
-### Aktueller Stack
+### Broker-Stack
 
 ```bash
 cd backend
@@ -430,39 +252,31 @@ npm install
 npm run dev
 ```
 
-### Legacy-Node-Prototyp (optional)
-
-```bash
-npm install
-npm start
-```
-
-Dieser Startpfad ist nur fuer Altvergleiche oder gezielte Referenzpruefungen sinnvoll, nicht fuer den regulaeren Broker-Stack.
-
 ### Docker-Stack
 
 ```bash
 docker compose up -d --build
 ```
 
-## Verifikation und Tests
+Keycloak-Tests: Profil `test` in `docker-compose.yml`, siehe `docs/runbook-broker-login-testing.md`.
 
-### Node-Referenztests
+## Verifikation und Tests
 
 ```bash
 node --test
+# oder
+npm test
 ```
-
-### Backend
 
 ```bash
 python3 -m py_compile backend/app/*.py backend/app/routers/*.py backend/app/core/*.py
-python3 -m unittest backend/test_welle1_smoke.py
+PYTHONPATH=backend python3 -m unittest backend.test_smoke -v
 ```
 
-## Bekannte Grenzen
+Broker-Login (Mocks): `PYTHONPATH=backend python3 -m unittest backend.test_broker_login_flow backend.test_broker_login -v`
 
-- Der generische Broker ist modellseitig vorbereitet; der Self-Service-Connect ist auf Miro fokussiert.
-- Connection-Probe und Refresh sind fuer Miro implementiert.
-- Das Frontend setzt In-App-Routing ohne externe Router-Bibliothek ein.
-- Das Repository enthaelt weiterhin historischen Node-Code; der aktive Integrationspfad fuer Browser, Service-Clients und Legacy-MCP-Clients laeuft aber ueber das FastAPI-Backend.
+## Grenzen und Hinweise
+
+- Consumer-Ausführung ohne gültiges Upstream-OAuth schlägt mit passenden API-Fehlern fehl (`oauth_upstream_token_missing` o. ä.).
+- MCP-Relay erfordert MCP-fähige Integration und passenden Access-Modus; siehe `docs/troubleshooting-consumer-mcp-relay.md`.
+- `src/` ist Referenz; produktive Integration läuft über FastAPI und das React-Frontend.

@@ -56,6 +56,8 @@
 
 ### Changed
 
+- **Dokumentation:** `docs/technische-referenz.md` und `docs/funktionsuebersicht.md` an Integration V2, aktuelle Router und Workspace-Pfade angeglichen; `docs/README.md` und Root-`README.md` um Direct-Token-Endpoint und generischen Broker-Login-Start ergänzt; veraltete Abschnitte (Legacy-Miro-Router, Delegation/alter Admin-Pfad) entfernt oder ersetzt. Eingechecktes `frontend/dist` an den Vite-Build angepasst (Asset-Hash).
+
 - **Direct Token Access** (`POST …/consumer/integration-instances/{id}/token`): Response um optionale Felder **`email`** und **`username`** ergänzt (aus gespeichertem OAuth-Profil der Connection-Metadaten, falls vorhanden). Hilfsfunktion `upstream_identity_from_connection` in `upstream_oauth`.
 
 - Keycloak für Broker-Login-Tests: Service in `docker-compose.yml` unter Profil `test` (statt separater Datei `docker-compose.test.yml`); Runbook/`.env.test.example`/`AGENTS.md` angepasst (`docker compose --profile test up -d`).

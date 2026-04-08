@@ -1,3 +1,18 @@
+## 2026-04-08 – Cursor Agent – Doku V2 + dist + push
+
+- Done:
+  - `docs/technische-referenz.md`, `docs/funktionsuebersicht.md`, `docs/README.md` neu ausgerichtet (Integration V2, Router aus `main.py`, Workspace-Routen, Consumer-APIs); Root-`README.md` (Direct Token, `POST /auth/{provider_id}/start`).
+  - `docs/CHANGELOG.md` [Unreleased] Changed ergänzt; `frontend/dist` mit neuem JS-Bundle (`index-DGdXYXOs.js`) und bereinigter `index.html` committet.
+- Next: keine
+- Blockers: keine
+- Branch/PR: branch `feature/dev`, PR: none
+- Files touched: `docs/technische-referenz.md`, `docs/funktionsuebersicht.md`, `docs/README.md`, `README.md`, `docs/CHANGELOG.md`, `frontend/dist/index.html`, `frontend/dist/assets/index-*.js`, `planning/coordination/WORKLOG.md`
+- Test notes: keine zusätzlichen Läufe (nur Doku und statische Assets)
+- endpoints: n/a
+- UI path: n/a
+- Changelog updated: yes (Unreleased Changed)
+- Follow-ups: keine
+
 ## 2026-04-07 – Cursor Agent – dist push
 
 - Done:

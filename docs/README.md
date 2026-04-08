@@ -2,14 +2,16 @@
 
 ## Inhalt
 
-- [`funktionsuebersicht.md`](funktionsuebersicht.md) — Rollen, fachliche Ablaeufe und Oberflaechenbereiche
-- [`technische-referenz.md`](technische-referenz.md) — Architektur, Datenmodell, APIs, Konfiguration und lokale Entwicklung
+- [`funktionsuebersicht.md`](funktionsuebersicht.md) — Rollen, Kernobjekte, Workspace-Pfade, Consumer-Abgrenzung
+- [`technische-referenz.md`](technische-referenz.md) — Architektur, Datenmodell, Router, Konfiguration, lokale Entwicklung
+- [`runbook-broker-login-testing.md`](runbook-broker-login-testing.md) — OIDC-Sign-in-Provider, Keycloak-Testprofil, Unittests
+- [`troubleshooting-broker-login.md`](troubleshooting-broker-login.md) — Broker-Anmeldung (OIDC / Microsoft)
+- [`troubleshooting-consumer-mcp-relay.md`](troubleshooting-consumer-mcp-relay.md) — Consumer-MCP-Relay, Streams, HAProxy
 
-## Ueberblick
+## Überblick
 
-Die Anwendung ist ein OAuth-Broker mit zwei Nutzungsarten:
+Die Anwendung ist ein OAuth-Broker: Admins richten Integrationen und Sign-in ein, Nutzer verbinden OAuth-Konten zu **Integration instances**, und **Access grants** steuern den Zugriff für Consumer-APIs (`execute`, `discover-tools`, MCP-Relay, optional Direct Token).
 
-- Admin-Control-Deck fuer Betrieb, Konfiguration und Governance
-- Self-Service-Workspace fuer Endnutzer: Konten verbinden, Freigaben erstellen, Zugriffe pruefen
+Miro ist ein vordefiniertes Integrationsbeispiel (MCP); das Modell unterstützt weitere Integrationstypen und generische OAuth/OIDC-Anbindungen.
 
-Miro ist der zentral angebundene Downstream-Provider im Self-Service-Flow. Das Modell laesst sich um weitere Provider-Apps, Service-Clients und delegierte Zugriffsszenarien erweitern.
+Das Repository-Root-[`README.md`](../README.md) enthält Quickstart, Beispiel-`curl`-Aufrufe und Projektstruktur.

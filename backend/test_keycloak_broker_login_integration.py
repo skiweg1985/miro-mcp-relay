@@ -1,6 +1,6 @@
 """Optional integration test: real Keycloak (imported realm) + broker OIDC login.
 
-Requires a running Keycloak with realm ``broker-test`` (see ``docker-compose.test.yml``).
+Requires a running Keycloak with realm ``broker-test`` (see ``docker compose --profile test up`` and ``docker-compose.yml``).
 Enable with ``KEYCLOAK_LOGIN_INTEGRATION=1``. No mocks: authorization code + PKCE and token exchange hit the IdP.
 
 When the test runs on the host, use the same origin for all IdP calls (default

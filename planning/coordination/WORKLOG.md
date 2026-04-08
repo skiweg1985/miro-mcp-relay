@@ -2818,6 +2818,21 @@
 - Changelog updated: yes (Unreleased Added)
 - Follow-ups: keine
 
+## 2026-04-08 – Cursor Agent – Compose Keycloak-Profil, Vite, dist
+
+- Done:
+  - `docker-compose.yml`: Keycloak unter `profiles: [test]`; `docker-compose.test.yml` entfernt.
+  - `docs/runbook-broker-login-testing.md`, `AGENTS.md`, `.env.test.example`, `backend/test_keycloak_broker_login_integration.py`: `docker compose --profile test up -d`.
+  - `frontend/vite.config.ts`: Proxy `/api` → `http://localhost`.
+  - `frontend/dist` neu gebaut; `docs/CHANGELOG.md` [Unreleased] Changed; WORKLOG.
+- Next: keine
+- Blockers: keine
+- Branch/PR: branch lokal, PR none
+- Files touched: `docker-compose.yml`, `docker-compose.test.yml` (deleted), `frontend/vite.config.ts`, `frontend/tsconfig.tsbuildinfo`, `frontend/dist/*`, `docs/runbook-broker-login-testing.md`, `AGENTS.md`, `.env.test.example`, `backend/test_keycloak_broker_login_integration.py`, `docs/CHANGELOG.md`, `planning/coordination/WORKLOG.md`
+- Test notes: `cd frontend && npm run build`
+- Changelog updated: yes (Unreleased Changed)
+- Follow-ups: keine
+
 ## 2026-04-08 – Cursor Agent – Access „How to use“ Modal Fokus
 
 - Done:

@@ -60,7 +60,7 @@ Follow these repo-specific conventions and commands first.
 - Backend unit smoke (no running server): `PYTHONPATH=backend python3 -m unittest backend.test_smoke -v`
 - Generische Integration-OAuth: `PYTHONPATH=backend python3 -m unittest backend.test_generic_integration_oauth -v`
 - Broker login (mocks, no IdP): `PYTHONPATH=backend python3 -m unittest backend.test_broker_login_flow backend.test_broker_login -v`
-- Broker login (Keycloak, optional): `docker compose -f docker-compose.test.yml up -d`, dann `KEYCLOAK_LOGIN_INTEGRATION=1 PYTHONPATH=backend python3 -m unittest backend.test_keycloak_broker_login_integration -v` (siehe `docs/runbook-broker-login-testing.md`)
+- Broker login (Keycloak, optional): `docker compose --profile test up -d`, dann `KEYCLOAK_LOGIN_INTEGRATION=1 PYTHONPATH=backend python3 -m unittest backend.test_keycloak_broker_login_integration -v` (siehe `docs/runbook-broker-login-testing.md`)
 - HTTPS dev smoke test: `curl -k -sS https://localhost/api/v1/health`
 - Consumer MCP relay (laufender Broker): `pip install httpx` falls nötig, dann z. B. `DEBUG_MCP_ACCESS_KEY=bkr_… python3 scripts/debug-mcp-consumer-relay.py --base-url http://localhost` (HTTPS: `--insecure`)
 - Direct Token Access: `POST /api/v1/consumer/integration-instances/{id}/token` mit `X-Broker-Access-Key` — nur wenn der Access Grant `direct_token_access` hat und die Connection OAuth nutzt; Response enthält `access_token` (kein Refresh Token).

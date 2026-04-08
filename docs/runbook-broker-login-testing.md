@@ -25,9 +25,9 @@ Unverändert unter **Microsoft sign-in** (`/workspace/admin/microsoft-oauth`). R
 
 1. Stack starten:
    ```bash
-   docker compose -f docker-compose.test.yml up -d
+   docker compose --profile test up -d
    ```
-2. Warten bis Keycloak bereit ist, dann Konsole: `http://localhost:8180/` (Admin: `KEYCLOAK_ADMIN` / `KEYCLOAK_ADMIN_PASSWORD` aus `docker-compose.test.yml`).
+2. Warten bis Keycloak bereit ist, dann Konsole: `http://localhost:8180/` (Admin: `KEYCLOAK_ADMIN` / `KEYCLOAK_ADMIN_PASSWORD` aus `docker-compose.yml`, Service `keycloak`).
 3. Realm **broker-test** wird beim Start per Import aus `testing/keycloak/import/broker-test-realm.json` angelegt (sofern Import ohne Fehler durchläuft).
 4. Testnutzer: `testuser` / `change-me`, E-Mail `testuser@example.com`; Attribute `locale=de-DE`, `zoneinfo=Europe/Berlin`.
 5. Vertraulicher Client: **broker-login-confidential**, Secret: `broker-test-client-secret-change-me` (nur für lokale Tests).
@@ -40,7 +40,7 @@ Unverändert unter **Microsoft sign-in** (`/workspace/admin/microsoft-oauth`). R
 
 **Wenn der Realm-Import fehlschlägt**
 
-Keycloak-Logs prüfen (`docker compose -f docker-compose.test.yml logs keycloak`). JSON-Import ist versionsabhängig; Realm dann manuell anlegen und Clients/Redirect-URIs wie oben setzen.
+Keycloak-Logs prüfen (`docker compose --profile test logs keycloak`). JSON-Import ist versionsabhängig; Realm dann manuell anlegen und Clients/Redirect-URIs wie oben setzen.
 
 ## Automatisierte Tests (ohne Keycloak)
 
@@ -55,7 +55,7 @@ PYTHONPATH=backend python3 -m unittest backend.test_broker_login_flow backend.te
 Voraussetzungen: Keycloak wie oben erreichbar; Unittest vom Projektroot mit `PYTHONPATH=backend` (gleiche SQLite-Datei wie die übrigen Backend-Tests, übliches Arbeitsverzeichnis beachten). Standard `BROKER_PUBLIC_BASE_URL` ist `http://localhost:8000`; die Callback-URL muss bei **broker-login-confidential** als Redirect-URI erlaubt sein.
 
 ```bash
-docker compose -f docker-compose.test.yml up -d
+docker compose --profile test up -d
 KEYCLOAK_LOGIN_INTEGRATION=1 PYTHONPATH=backend python3 -m unittest backend.test_keycloak_broker_login_integration -v
 ```
 

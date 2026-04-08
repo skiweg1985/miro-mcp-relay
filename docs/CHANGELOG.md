@@ -4,6 +4,7 @@
 
 ### Added
 
+- Connections-Detailmodal zeigt OAuth-Token-Zeitpunkte aus der Connection-Metadaten: `Access token expires` (`oauth_expires_at`) und `Last token refresh` (`oauth_last_refresh_at`).
 - `docs/troubleshooting-consumer-mcp-relay.md`: Symptome, Ursachen (OAuth, Streamable-HTTP/TCP, Multi-Worker, HAProxy-Timeouts), Checks (`grep mcp_relay_`, Debug-Skript); Verweis in `AGENTS.md`.
 - `.cursor/rules/mcp-relay-troubleshooting.mdc`: Kurz-Checkliste für Agent-Runs zu Consumer-MCP-Relay.
 
@@ -23,6 +24,8 @@
 
 ### Fixed
 
+- `POST /api/v1/integration-instances/{id}/discover-tools` erlaubt den Connection-Test jetzt für alle authentifizierten Nutzer der Organisation (nicht nur Admin), damit der Test-Button in `/workspace/connections` auch im User-Kontext funktioniert.
+- OAuth-Upstream-Tokens (Miro, Microsoft Graph und gleich konfigurierte Custom-OAuth-Integrationen): serverseitige Expiry-Prüfung mit automatischem `refresh_token`-Flow vor Ablauf. Für bestehende Verbindungen ohne gespeichertes `oauth_expires_at` wird einmalig ein Refresh-Versuch zur Normalisierung durchgeführt; bei Erfolg werden Access-/Refresh-Token und neues `oauth_expires_at` persistiert.
 - Consumer-MCP-Relay: Upstream-`httpx.AsyncClient` wird pro Access-Grant wiederverwendet (Pool mit LRU, Shutdown schließt Clients). Streamable-HTTP-Ziele wie Miro MCP erwarten dieselbe TCP-Verbindung für `initialize` und Folge-POSTs (`tools/list` lieferte zuvor oft einen leeren Body). Hinweis: bei mehreren Uvicorn-Workern kann dieselbe Grant-ID auf verschiedene Prozesse fallen — dann ggf. `--workers 1` oder Sticky Routing.
 
 - Consumer-MCP-Relay: Bei abgebrochenem Upstream-Stream (`httpx.ReadError` beim Lesen der Antwort) wird eine Warnung geloggt und der Stream beendet — kein ASGI-Traceback mehr durch `StreamingResponse`-Passthrough.

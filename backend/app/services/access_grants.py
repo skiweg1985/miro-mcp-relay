@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.models import AccessGrant, AccessGrantStatus, IntegrationInstance, UserConnection, UserConnectionStatus
 from app.security import dumps_json, lookup_secret_hash, utcnow, verify_lookup_secret
-from app.upstream_oauth import oauth_token_from_connection_row
+from app.upstream_oauth import get_or_refresh_upstream_oauth_token_for_grant, oauth_token_from_connection_row
 
 
 BROKER_ACCESS_KEY_PREFIX = "bkr_"
@@ -120,6 +120,15 @@ def resolve_upstream_oauth_token_for_grant(
 
     if instance.auth_mode != AuthMode.OAUTH.value:
         return None
+    refreshed = get_or_refresh_upstream_oauth_token_for_grant(
+        db,
+        grant_user_id=grant.user_id,
+        organization_id=grant.organization_id,
+        instance=instance,
+        user_connection_id=grant.user_connection_id,
+    )
+    if refreshed:
+        return refreshed
     if grant.user_connection_id:
         conn = db.get(UserConnection, grant.user_connection_id)
         if (

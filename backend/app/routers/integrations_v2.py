@@ -494,7 +494,7 @@ async def discover_tools(
     instance_id: str,
     x_user_token: str | None = Header(default=None, alias="X-User-Token"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(get_current_user),
 ):
     instance = db.scalar(
         select(IntegrationInstance).where(

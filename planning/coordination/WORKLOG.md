@@ -2332,3 +2332,99 @@
 - Test notes: `python3 -m py_compile backend/app/routers/consumer_mcp_relay.py`
 - Changelog updated: yes ([Unreleased] Added, Changed)
 - Follow-ups: keine
+
+## 2026-04-08 11:39 – Cursor Agent – OAuth expiry check + auto-refresh
+
+- Done:
+  - `backend/app/routers/integration_oauth.py`: speichert beim OAuth-Callback `oauth_expires_at`, `oauth_token_endpoint` und Provider-Kind in `user_connections.metadata_json`.
+  - `backend/app/upstream_oauth.py`: zentrale serverseitige Expiry-Prüfung mit automatischem `refresh_token`-Flow (Miro, Microsoft Graph, Custom-OAuth mit konfiguriertem Token-Endpoint und Client-Credentials); persistiert rotiertes Access-/Refresh-Token plus neues `oauth_expires_at`.
+  - Legacy-Verbindungen ohne Expiry-Metadaten werden beim nächsten Zugriff einmalig refresh-versucht, um auf den neuen Ablauf zu migrieren.
+  - `backend/app/services/access_grants.py`: Grant-Token-Auflösung nutzt zentrale Refresh-Funktion.
+  - `docs/CHANGELOG.md` [Unreleased] Fixed ergänzt.
+- Next:
+  - Optional: reaktiven Retry nach Upstream-401 im `consumer_mcp_relay` ergänzen.
+  - Optional: dedizierte Backend-Tests für Refresh-Happy-Path und Refresh-Fehlerfall ergänzen.
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: codex/hard-refactor-integration-model
+  - PR: none
+- Files touched:
+  - backend/app/routers/integration_oauth.py
+  - backend/app/upstream_oauth.py
+  - backend/app/services/access_grants.py
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands:
+    - `python3 -m py_compile backend/app/upstream_oauth.py backend/app/routers/integration_oauth.py backend/app/services/access_grants.py`
+  - endpoints:
+    - `POST /api/v1/integration-instances/{id}/oauth/start`
+    - `GET /api/v1/integration-instances/oauth/callback`
+    - `POST /api/v1/consumer/integration-instances/{id}/execute`
+    - `ANY /api/v1/consumer/integration-instances/{id}/mcp`
+  - UI path:
+    - `/workspace/integrations-v2`
+- Changelog updated:
+  - yes ([Unreleased] Fixed)
+- Follow-ups:
+  - Refresh-401-Retry nur bei Bedarf ergänzen, falls Provider trotz Expiry-Vorprüfung sporadisch `401` liefert.
+
+## 2026-04-08 11:42 – Cursor Agent – Connection modal OAuth token timing
+
+- Done:
+  - `backend/app/upstream_oauth.py`: bei erfolgreichem Refresh wird zusätzlich `oauth_last_refresh_at` in `user_connections.metadata_json` persistiert.
+  - `frontend/src/ConnectionDetailModal.tsx`: Connected-account-Details zeigen jetzt `Access token expires` (aus `oauth_expires_at`) und `Last token refresh` (aus `oauth_last_refresh_at`) mit klaren Fallback-Texten.
+  - `docs/CHANGELOG.md` [Unreleased] Added ergänzt.
+- Next:
+  - Optional `oauth_last_refresh_at` auch als explizites Feld in einem typed Backend-Schema ausgeben, statt nur über `profile`.
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: codex/hard-refactor-integration-model
+  - PR: none
+- Files touched:
+  - backend/app/upstream_oauth.py
+  - frontend/src/ConnectionDetailModal.tsx
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands:
+    - `python3 -m py_compile backend/app/upstream_oauth.py`
+  - endpoints:
+    - `GET /api/v1/integration-instances/{id}/inspect`
+  - UI path:
+    - `/workspace/connections` → `Open` (Connection-Modal)
+- Changelog updated:
+  - yes ([Unreleased] Added)
+- Follow-ups:
+  - Optional Anzeige einer relativen Zeit („vor 5 Minuten“) zusätzlich zu Datum/Uhrzeit.
+
+## 2026-04-08 11:47 – Cursor Agent – User darf Connection-Test ausführen
+
+- Done:
+  - `backend/app/routers/integrations_v2.py`: `discover-tools`-Route verwendet jetzt `get_current_user` statt `require_admin`.
+  - Dadurch funktioniert der Test-Button in `/workspace/connections` auch für normale eingeloggte Nutzer.
+  - `docs/CHANGELOG.md` [Unreleased] Fixed ergänzt.
+- Next:
+  - Optional: produktseitig prüfen, ob Nicht-Admins den Test in allen gewünschten Rollen sehen sollen.
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: codex/hard-refactor-integration-model
+  - PR: none
+- Files touched:
+  - backend/app/routers/integrations_v2.py
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands:
+    - `python3 -m py_compile backend/app/routers/integrations_v2.py`
+  - endpoints:
+    - `POST /api/v1/integration-instances/{id}/discover-tools`
+  - UI path:
+    - `/workspace/connections` → `Test`
+- Changelog updated:
+  - yes ([Unreleased] Fixed)
+- Follow-ups:
+  - none

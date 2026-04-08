@@ -6,6 +6,7 @@ import base64
 import hashlib
 import logging
 import secrets
+from datetime import timedelta
 from typing import Any
 from urllib.parse import quote
 
@@ -29,7 +30,7 @@ from app.microsoft_oauth_resolver import (
 from app.oauth_dcr import register_oauth_client_at_endpoint
 from app.oauth_pending_store import put_oauth_pending, pop_oauth_pending_payload
 from app.schemas import AuthFlowStartResponse
-from app.security import decode_jwt_payload_unverified, decrypt_text, dumps_json, encrypt_text, loads_json
+from app.security import decode_jwt_payload_unverified, decrypt_text, dumps_json, encrypt_text, loads_json, utcnow
 
 router = APIRouter(tags=["integration-oauth"])
 logger = logging.getLogger(__name__)
@@ -235,6 +236,17 @@ def _upsert_user_connection(
         merged = {**existing, **profile_metadata}
         row.metadata_json = dumps_json(merged)
     db.flush()
+
+
+def _oauth_expiry_metadata(token_data: dict[str, Any]) -> dict[str, Any]:
+    expires_in_raw = token_data.get("expires_in")
+    try:
+        expires_in = int(expires_in_raw) if expires_in_raw is not None else None
+    except (TypeError, ValueError):
+        expires_in = None
+    if expires_in is None or expires_in <= 0:
+        return {}
+    return {"oauth_expires_at": (utcnow() + timedelta(seconds=expires_in)).isoformat()}
 
 
 async def _profile_metadata_for_oauth(
@@ -513,6 +525,11 @@ async def _integration_oauth_callback_impl(
             if not access_token:
                 db.commit()
                 return _redirect_workspace(ok=False, message="missing_access_token")
+            token_meta = {
+                "oauth_provider_kind": KIND_MICROSOFT_GRAPH,
+                "oauth_token_endpoint": token_endpoint,
+                **_oauth_expiry_metadata(token_data),
+            }
 
         else:
             client_id, client_secret = _miro_resolve_client_for_token_exchange(
@@ -554,6 +571,11 @@ async def _integration_oauth_callback_impl(
             if not access_token:
                 db.commit()
                 return _redirect_workspace(ok=False, message="missing_access_token")
+            token_meta = {
+                "oauth_provider_kind": KIND_MIRO,
+                "oauth_token_endpoint": token_ep,
+                **_oauth_expiry_metadata(token_data),
+            }
 
         profile_meta = await _profile_metadata_for_oauth(kind=kind, token_data=token_data, access_token=access_token)
         _upsert_user_connection(
@@ -563,7 +585,7 @@ async def _integration_oauth_callback_impl(
             instance_id=instance.id,
             access_token=access_token,
             refresh_token=refresh_token,
-            profile_metadata=profile_meta,
+            profile_metadata={**profile_meta, **token_meta},
         )
         db.commit()
         return _redirect_workspace(ok=True)

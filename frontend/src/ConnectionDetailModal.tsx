@@ -89,6 +89,12 @@ export function ConnectionDetailModal({
     (typeof profile.username === "string" && profile.username.trim()) ||
     null;
   const providerLabel = oauthProviderProductLabel(profile.provider);
+  const oauthExpiresAt =
+    typeof profile.oauth_expires_at === "string" && profile.oauth_expires_at.trim() ? profile.oauth_expires_at : null;
+  const oauthLastRefreshAt =
+    typeof profile.oauth_last_refresh_at === "string" && profile.oauth_last_refresh_at.trim()
+      ? profile.oauth_last_refresh_at
+      : null;
 
   return (
     <Modal
@@ -148,6 +154,14 @@ export function ConnectionDetailModal({
               {typeof profile.scopes_granted === "string" && profile.scopes_granted.trim() ? (
                 <DetailRow label="Granted scopes" value={<span className="detail-scopes">{profile.scopes_granted}</span>} />
               ) : null}
+              <DetailRow
+                label="Access token expires"
+                value={oauthExpiresAt ? formatDateTime(oauthExpiresAt) : "Unknown"}
+              />
+              <DetailRow
+                label="Last token refresh"
+                value={oauthLastRefreshAt ? formatDateTime(oauthLastRefreshAt) : "Not refreshed yet"}
+              />
               {typeof profile.tenant_id === "string" && profile.tenant_id.trim() ? (
                 <DetailRow label="Tenant" value={profile.tenant_id} />
               ) : null}

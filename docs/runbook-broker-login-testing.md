@@ -59,7 +59,7 @@ docker compose -f docker-compose.test.yml up -d
 KEYCLOAK_LOGIN_INTEGRATION=1 PYTHONPATH=backend python3 -m unittest backend.test_keycloak_broker_login_integration -v
 ```
 
-Der Test nutzt `TestClient` (Broker im selben Prozess): OIDC-Endpunkte aus dem Discovery-Dokument, Login-Formular gegen Keycloak, anschließend `GET /api/v1/auth/.../callback` mit echtem `code`. Erwartet werden Redirect mit `login_status=success` und Session-Cookie. Läuft nur bei `KEYCLOAK_LOGIN_INTEGRATION=1` und erreichbarem IdP.
+Der Test nutzt `TestClient` (Broker im selben Prozess): OIDC-Endpunkte aus dem Discovery-Dokument, danach auf die Origin von `KEYCLOAK_BASE_URL` (Standard `http://localhost:8180`) normalisiert, damit vom Host aus alle Aufrufe über die published URL laufen. Login-Formular gegen Keycloak, anschließend `GET /api/v1/auth/.../callback` mit echtem `code`. Erwartet werden Redirect mit `login_status=success` und Session-Cookie. Läuft nur bei `KEYCLOAK_LOGIN_INTEGRATION=1` und erreichbarem IdP.
 
 ## Abgrenzung
 

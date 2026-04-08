@@ -2,6 +2,11 @@
 
 Requires a running Keycloak with realm ``broker-test`` (see ``docker-compose.test.yml``).
 Enable with ``KEYCLOAK_LOGIN_INTEGRATION=1``. No mocks: authorization code + PKCE and token exchange hit the IdP.
+
+When the test runs on the host, use the same origin for all IdP calls (default
+``KEYCLOAK_BASE_URL=http://localhost:8180``). Discovery endpoints are rewritten to that
+origin so a published port is enough; split ``keycloak`` hostnames from in-container
+discovery are not required for this test.
 """
 
 from __future__ import annotations
@@ -10,7 +15,7 @@ import os
 import unittest
 from html import unescape
 from html.parser import HTMLParser
-from urllib.parse import parse_qs, urljoin, urlparse
+from urllib.parse import parse_qs, urljoin, urlparse, urlunparse
 
 import httpx
 from fastapi.testclient import TestClient
@@ -28,10 +33,34 @@ _KC_DEFAULT = "http://localhost:8180"
 _REALM_DEFAULT = "broker-test"
 
 
+def _keycloak_base_url() -> str:
+    return os.environ.get("KEYCLOAK_BASE_URL", _KC_DEFAULT).rstrip("/")
+
+
 def _keycloak_well_known_url() -> str:
-    base = os.environ.get("KEYCLOAK_BASE_URL", _KC_DEFAULT).rstrip("/")
+    base = _keycloak_base_url()
     realm = os.environ.get("KEYCLOAK_REALM", _REALM_DEFAULT).strip() or _REALM_DEFAULT
     return f"{base}/realms/{realm}/.well-known/openid-configuration"
+
+
+def _rewrite_url_origin(url: str, public_origin: str) -> str:
+    """Replace scheme/host/port with ``public_origin``; keep path, query, fragment."""
+    u = urlparse(str(url).strip())
+    b = urlparse(public_origin.rstrip("/") + "/")
+    if not u.path:
+        return str(url).strip()
+    return urlunparse((b.scheme, b.netloc, u.path, u.params, u.query, u.fragment))
+
+
+def _discovery_with_public_origin(meta: dict, public_origin: str) -> dict:
+    """Align issuer and endpoints with ``public_origin`` (e.g. host-reachable localhost:8180)."""
+    out = dict(meta)
+    for key in ("issuer", "authorization_endpoint", "token_endpoint", "userinfo_endpoint", "jwks_uri"):
+        val = out.get(key)
+        if not val or not isinstance(val, str) or not val.strip():
+            continue
+        out[key] = _rewrite_url_origin(val.strip(), public_origin)
+    return out
 
 
 def _keycloak_reachable() -> bool:
@@ -124,6 +153,18 @@ def _authorization_code_after_password_login(
     raise RuntimeError("too many redirects / steps in Keycloak login flow")
 
 
+class TestDiscoveryOriginHelpers(unittest.TestCase):
+    def test_rewrite_url_origin_swaps_host(self) -> None:
+        out = _rewrite_url_origin(
+            "http://keycloak:8180/realms/broker-test/protocol/openid-connect/token",
+            "http://localhost:8180",
+        )
+        self.assertEqual(
+            out,
+            "http://localhost:8180/realms/broker-test/protocol/openid-connect/token",
+        )
+
+
 @unittest.skipUnless(os.environ.get("KEYCLOAK_LOGIN_INTEGRATION") == "1", "set KEYCLOAK_LOGIN_INTEGRATION=1 to run")
 class TestKeycloakBrokerLoginIntegration(unittest.TestCase):
     @classmethod
@@ -151,7 +192,7 @@ class TestKeycloakBrokerLoginIntegration(unittest.TestCase):
     def test_keycloak_oidc_login_end_to_end(self) -> None:
         wk = httpx.get(_keycloak_well_known_url(), timeout=10.0)
         self.assertEqual(wk.status_code, 200, wk.text)
-        meta = wk.json()
+        meta = _discovery_with_public_origin(wk.json(), _keycloak_base_url())
         issuer = str(meta.get("issuer") or "").rstrip("/")
         auth_ep = str(meta.get("authorization_endpoint") or "")
         token_ep = str(meta.get("token_endpoint") or "")

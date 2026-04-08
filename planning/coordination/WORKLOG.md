@@ -2541,6 +2541,30 @@
 - Follow-ups:
   - none
 
+## 2026-04-08 – Cursor Agent – Keycloak-Integration: Discovery auf localhost normalisieren
+
+- Done:
+  - `test_keycloak_broker_login_integration`: nach Discovery werden Issuer/Token/Userinfo/JWKS auf `KEYCLOAK_BASE_URL` umgeschrieben; Docstring + Runbook; `TestDiscoveryOriginHelpers`.
+- Next:
+  - none
+- Blockers:
+  - none
+- Branch/PR:
+  - branch: feature/dev
+  - PR: none
+- Files touched:
+  - backend/test_keycloak_broker_login_integration.py
+  - docs/runbook-broker-login-testing.md
+  - docs/CHANGELOG.md
+  - planning/coordination/WORKLOG.md
+- Test notes:
+  - commands:
+    - `PYTHONPATH=backend python3 -m unittest backend.test_keycloak_broker_login_integration -v`
+- Changelog updated:
+  - yes ([Unreleased] Added, Keycloak-Integration-Zeile erweitert)
+- Follow-ups:
+  - none
+
 ## 2026-04-08 – Cursor Agent – OIDC Split-URL Test (Auth vs. Token-Host)
 
 - Done:

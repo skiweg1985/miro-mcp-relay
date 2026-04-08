@@ -352,8 +352,10 @@ export function UserManagementAdminPage() {
                       {formatAccountStatus(u.account_status)}
                     </span>
                   </td>
-                  <td className="admin-users-truncate" title={u.auth_summary}>
-                    {u.auth_summary}
+                  <td>
+                    <span className="admin-users-truncate" title={u.auth_summary}>
+                      {u.auth_summary}
+                    </span>
                   </td>
                   <td>
                     <OptionalTime iso={u.last_activity_at} />
@@ -502,7 +504,9 @@ export function UserManagementAdminPage() {
                                 {i.subject}
                               </code>
                             </td>
-                            <td className="admin-users-truncate">{i.email ?? "—"}</td>
+                            <td>
+                              <span className="admin-users-truncate">{i.email ?? "—"}</span>
+                            </td>
                             <td>
                               <OptionalTime iso={i.created_at} />
                             </td>
@@ -591,7 +595,9 @@ export function UserManagementAdminPage() {
                       <tbody>
                         {detail.connections.map((c) => (
                           <tr key={c.id}>
-                            <td className="admin-users-truncate">{c.integration_instance_name}</td>
+                            <td>
+                              <span className="admin-users-truncate">{c.integration_instance_name}</span>
+                            </td>
                             <td>{c.status}</td>
                             <td>{c.has_stored_oauth ? "Stored" : "—"}</td>
                           </tr>
@@ -626,7 +632,9 @@ export function UserManagementAdminPage() {
                                 {g.name}
                               </span>
                             </td>
-                            <td className="admin-users-truncate">{g.integration_instance_name}</td>
+                            <td>
+                              <span className="admin-users-truncate">{g.integration_instance_name}</span>
+                            </td>
                             <td>
                               <span className="status-badge neutral">{g.effective_status}</span>
                             </td>

@@ -2733,3 +2733,10 @@
 - UI path: `/workspace/admin/users`
 - Changelog updated: yes (Unreleased Changed)
 - Follow-ups: keine
+
+## 2026-04-08 – Cursor Agent – Admin Users Sign-in column layout
+
+- Done: `admin-users-truncate` von `<td>` auf inneres `<span>`; CSS `inline-block` + `vertical-align: middle` statt `display: block` auf Zellen; CHANGELOG Fixed.
+- Files: `UserManagementAdminPage.tsx`, `index.css`, `docs/CHANGELOG.md`, WORKLOG
+- Test: `cd frontend && npm run build`
+- Changelog: yes (Unreleased Fixed)

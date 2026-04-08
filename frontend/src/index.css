@@ -3326,14 +3326,15 @@ html.dark .integration-card:hover {
 }
 
 .admin-users-truncate {
-  display: block;
+  display: inline-block;
+  max-width: 14rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 14rem;
+  vertical-align: middle;
 }
 
-td .admin-users-truncate {
+.data-table .admin-users-truncate {
   max-width: 12rem;
 }
 

@@ -2703,3 +2703,17 @@
 - Test notes: `PYTHONPATH=backend python3 -m unittest backend.test_admin_users backend.test_smoke -v`
 - Changelog updated: yes (Unreleased Fixed)
 - Follow-ups: keine
+
+## 2026-04-08 – Cursor Agent – Access-Key Ablauf in Tagen
+
+- Done:
+  - `BrokerAccessPage` / Modal „New access key“: Feld **Expires after (days)** (1–3650), leer = kein `expires_at`; Berechnung `Date` + Tage → ISO an `POST /api/v1/access-grants`.
+  - `docs/CHANGELOG.md` [Unreleased] Added.
+- Next: keine
+- Blockers: keine
+- Branch/PR: branch lokal, PR none
+- Files touched: `frontend/src/BrokerAccessPage.tsx`, `docs/CHANGELOG.md`, `planning/coordination/WORKLOG.md`
+- Test notes: `cd frontend && npm run build`
+- UI path: `/workspace/access` → New access key
+- Changelog updated: yes (Unreleased Added)
+- Follow-ups: keine

@@ -30,13 +30,17 @@ function AccessKeyCreateModal({
   const [instanceId, setInstanceId] = useState("");
   const [label, setLabel] = useState("");
   const [allowedTools, setAllowedTools] = useState("");
+  const [expiryDays, setExpiryDays] = useState("");
   const [busy, setBusy] = useState(false);
+
+  const maxExpiryDays = 3650;
 
   useEffect(() => {
     if (!open) return;
     setInstanceId(instances[0]?.id ?? "");
     setLabel("");
     setAllowedTools("");
+    setExpiryDays("");
   }, [open, instances]);
 
   if (!open) {
@@ -57,10 +61,25 @@ function AccessKeyCreateModal({
         .split(/[\n,]/)
         .map((entry) => entry.trim())
         .filter(Boolean);
+      const trimmedDays = expiryDays.trim();
+      let expiresAt: string | undefined;
+      if (trimmedDays !== "") {
+        const days = Number.parseInt(trimmedDays, 10);
+        if (!Number.isFinite(days) || days < 1) {
+          onError("Expiry must be a whole number of days, at least 1.");
+          return;
+        }
+        if (days > maxExpiryDays) {
+          onError(`Expiry cannot exceed ${maxExpiryDays} days.`);
+          return;
+        }
+        expiresAt = new Date(Date.now() + days * 86_400_000).toISOString();
+      }
       const created = await api.createAccessGrant(csrfToken, {
         integration_instance_id: instanceId,
         name: label.trim(),
         allowed_tools: tools,
+        ...(expiresAt ? { expires_at: expiresAt } : {}),
       });
       onCreated(created);
       onClose();
@@ -98,6 +117,18 @@ function AccessKeyCreateModal({
               value={allowedTools}
               onChange={(event) => setAllowedTools(event.target.value)}
               placeholder="tool_a, tool_b"
+            />
+          </Field>
+          <Field
+            label="Expires after (days)"
+            hint={`Whole days from now (1–${maxExpiryDays}). Leave blank for no expiry.`}
+          >
+            <input
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
+              value={expiryDays}
+              onChange={(event) => setExpiryDays(event.target.value.replace(/\s/g, ""))}
             />
           </Field>
         </div>

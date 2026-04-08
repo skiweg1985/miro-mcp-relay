@@ -2717,3 +2717,19 @@
 - UI path: `/workspace/access` → New access key
 - Changelog updated: yes (Unreleased Added)
 - Follow-ups: keine
+
+## 2026-04-08 – Cursor Agent – Admin Users Clarity UI Mono v2
+
+- Done:
+  - `UserManagementAdminPage`: PageIntro Eyebrow „Admin“, kürzere Beschreibung; Haupttabelle 6 Spalten; Fehler+Retry; Zeilen Enter/Space + Details-Button; `OptionalTime` für `time`; Detailmodal Sektionen + Metrik-Panel statt verschachtelter Cards; Footer mit Label-Tokens; Confirm-Texte gestrafft; `.sr-only`.
+  - `index.css`: `admin-users-*` nur `--space-*` / Typ-Tokens; Toolbar-Grid ab 720px einspaltig.
+  - Ausnahme: Detail-Modal bleibt `wide` (Inspektion).
+  - `docs/CHANGELOG.md` [Unreleased] Changed.
+- Next: keine
+- Blockers: keine
+- Branch/PR: branch lokal, PR none
+- Files touched: `frontend/src/UserManagementAdminPage.tsx`, `frontend/src/index.css`, `docs/CHANGELOG.md`, `planning/coordination/WORKLOG.md`
+- Test notes: `cd frontend && npm run build`
+- UI path: `/workspace/admin/users`
+- Changelog updated: yes (Unreleased Changed)
+- Follow-ups: keine

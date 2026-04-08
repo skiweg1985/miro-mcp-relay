@@ -58,6 +58,8 @@
 
 - Frontend: Clarity UI Mono v2 — consolidated spacing and type tokens (`--ink-primary`, `.muted`); landing, buttons, tables, and modals aligned to the 4–32 px scale; sidebar branding with `brand-kicker`; workspace nav label “Access”; integrations and access pages with calmer primary-button interaction, English UI copy, connection lists using `stack-cell--row`, and card form-action spacing.
 
+- Admin **Users** (`/workspace/admin/users`): Tabellenführung auf sechs Spalten, ruhigeres Detail (Sektionen statt verschachtelter Cards, Kennzahlenpanel), Copy gekürzt, Fehlerzustand mit Retry, fokussierbare Zeilen und Hilfetext (`sr-only`); Styles nur über `--space-*` und bestehende Typ-Tokens.
+
 - Microsoft Graph integration OAuth: default redirect `{BROKER_PUBLIC_BASE_URL}{api_v1_prefix}/connections/microsoft-graph/callback`; same handler as `…/integration-instances/oauth/callback`. Override via `MICROSOFT_GRAPH_OAUTH_REDIRECT_URI`, `MICROSOFT_GRAPH_OAUTH_REDIRECT_PATH`, or `config_json.graph_oauth_redirect_uri`.
 
 ### Added

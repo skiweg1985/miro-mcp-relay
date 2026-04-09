@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Integration-OAuth-Callback (`_upsert_user_connection`): Nach erfolgreichem Token-Tausch werden `oauth_refresh_error` / `oauth_refresh_error_at` / `oauth_refresh_error_http_status` aus `user_connections.metadata_json` entfernt. Workspace **Connections** zeigt damit nach **Sign in again** nicht mehr dauerhaft „Action needed“, wenn zuvor ein Refresh-Fehler gespeichert war.
+
 ### Changed
 
 - Workspace **Access** (`/workspace/access`): Modals **How to use** und Access-**Detail** neu strukturiert — zuerst Überblick und ein klarer Primärpfad (`direct_token` bei OAuth-Zugriff mit Token-API, sonst MCP oder Broker-HTTPS-API), darunter **Example** mit konkreten URLs/Platzhaltern; weitere Nutzungsarten eingeklappt (**Other ways to use this access**), Metadaten unter **Technical details**, Hilfs-Snippets unter **Reference snippets**, **Raw details** eingeklappt; Access-Detail: **Overview** + eingeklappte **Technical details**.

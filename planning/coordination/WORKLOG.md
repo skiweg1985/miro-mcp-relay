@@ -1,3 +1,19 @@
+## 2026-04-09 – Cursor Agent – OAuth Re-Login löscht Refresh-Fehler-Metadaten
+
+- Done:
+  - `integration_oauth._upsert_user_connection`: Metadaten nach Merge mit `_clear_oauth_refresh_error` bereinigen; immer `metadata_json` schreiben (auch wenn kein `profile_metadata`).
+  - Unit-Test `TestUpsertUserConnectionClearsStaleRefreshError` in `backend/test_generic_integration_oauth.py`.
+  - `docs/CHANGELOG.md` [Unreleased] Fixed.
+- Next: keine
+- Blockers: keine
+- Branch/PR: branch lokal `feature/dev`, PR: none
+- Files touched: `backend/app/routers/integration_oauth.py`, `backend/test_generic_integration_oauth.py`, `docs/CHANGELOG.md`, `planning/coordination/WORKLOG.md`
+- Test notes: `PYTHONPATH=backend python3 -m unittest backend.test_generic_integration_oauth -v`
+- endpoints: OAuth-Callback (UserConnection-Update)
+- UI path: `/workspace/connections` (Status nach erneutem Sign-in)
+- Changelog updated: yes (Unreleased Fixed)
+- Follow-ups: keine
+
 ## 2026-04-09 – Cursor Agent – Connections-Tabelle Actions-Pattern
 
 - Done:

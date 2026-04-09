@@ -242,5 +242,91 @@ class TestGenericOAuthRefreshSmoke(unittest.TestCase):
                 self.assertEqual(posted.get("client_secret"), "sec")
 
 
+class TestUpsertUserConnectionClearsStaleRefreshError(unittest.TestCase):
+    def test_upsert_clears_oauth_refresh_error_metadata(self) -> None:
+        from sqlalchemy import select
+        from sqlalchemy.orm import Session
+
+        from app.database import engine
+        from app.models import Integration, IntegrationInstance, User, UserConnection, UserConnectionStatus
+        from app.routers.integration_oauth import _upsert_user_connection
+        from app.security import dumps_json, encrypt_text, loads_json
+        from app.token_health import compute_oauth_connection_health
+
+        init_db()
+        settings = get_settings()
+        user_id: str | None = None
+        org_id: str | None = None
+        instance_id: str | None = None
+        conn_id: str | None = None
+        with Session(engine) as db:
+            user = db.scalar(select(User).where(User.email == settings.bootstrap_admin_email))
+            self.assertIsNotNone(user)
+            integ = Integration(
+                organization_id=user.organization_id,
+                name="Upsert clear err",
+                type="oauth_provider",
+                config_json=dumps_json(_generic_cfg()),
+                mcp_enabled=False,
+                oauth_client_secret_encrypted=encrypt_text("sec"),
+            )
+            db.add(integ)
+            db.flush()
+            inst = IntegrationInstance(
+                organization_id=user.organization_id,
+                integration_id=integ.id,
+                name="Conn",
+                auth_mode="oauth",
+                auth_config_json=dumps_json({"header_name": "Authorization", "prefix": "Bearer"}),
+                access_mode="relay",
+                access_config_json=dumps_json({}),
+                created_by_user_id=user.id,
+            )
+            db.add(inst)
+            db.flush()
+            conn = UserConnection(
+                organization_id=user.organization_id,
+                user_id=user.id,
+                integration_instance_id=inst.id,
+                status=UserConnectionStatus.ACTIVE.value,
+                oauth_refresh_token_encrypted=encrypt_text("refr-tok"),
+                oauth_access_token_encrypted=encrypt_text("bad"),
+                metadata_json=dumps_json(
+                    {
+                        "oauth_refresh_error": "invalid_grant",
+                        "oauth_refresh_error_at": "2020-01-01T00:00:00+00:00",
+                        "oauth_expires_at": "2000-01-01T00:00:00+00:00",
+                    }
+                ),
+            )
+            db.add(conn)
+            db.commit()
+            user_id = user.id
+            org_id = user.organization_id
+            instance_id = inst.id
+            conn_id = conn.id
+
+        with Session(engine) as db:
+            _upsert_user_connection(
+                db,
+                organization_id=org_id or "",
+                user_id=user_id or "",
+                instance_id=instance_id or "",
+                access_token="new-access",
+                refresh_token="refr-tok",
+                profile_metadata={"oauth_expires_at": "2099-01-01T00:00:00+00:00"},
+            )
+            db.commit()
+
+        with Session(engine) as db:
+            row = db.get(UserConnection, conn_id)
+            self.assertIsNotNone(row)
+            meta = loads_json(row.metadata_json, {})
+            self.assertIsInstance(meta, dict)
+            self.assertNotIn("oauth_refresh_error", meta)
+            self.assertNotIn("oauth_refresh_error_at", meta)
+            self.assertEqual(compute_oauth_connection_health(row), "healthy")
+
+
 if __name__ == "__main__":
     unittest.main()

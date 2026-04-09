@@ -43,6 +43,7 @@ from app.oauth_dcr import register_oauth_client_at_endpoint
 from app.oauth_pending_store import put_oauth_pending, pop_oauth_pending_payload
 from app.schemas import AuthFlowStartResponse
 from app.security import decode_jwt_payload_unverified, decrypt_text, dumps_json, encrypt_text, loads_json, utcnow
+from app.upstream_oauth import _clear_oauth_refresh_error
 
 router = APIRouter(tags=["integration-oauth"])
 logger = logging.getLogger(__name__)
@@ -241,12 +242,12 @@ def _upsert_user_connection(
     row.status = UserConnectionStatus.ACTIVE.value
     row.oauth_access_token_encrypted = encrypt_text(access_token)
     row.oauth_refresh_token_encrypted = encrypt_text(refresh_token) if refresh_token else None
-    if profile_metadata:
-        existing = loads_json(row.metadata_json, {})
-        if not isinstance(existing, dict):
-            existing = {}
-        merged = {**existing, **profile_metadata}
-        row.metadata_json = dumps_json(merged)
+    existing = loads_json(row.metadata_json, {})
+    if not isinstance(existing, dict):
+        existing = {}
+    merged = {**existing, **(profile_metadata or {})}
+    _clear_oauth_refresh_error(merged)
+    row.metadata_json = dumps_json(merged)
     db.flush()
 
 

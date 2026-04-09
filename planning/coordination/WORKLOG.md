@@ -2855,6 +2855,22 @@
 - Changelog updated: yes (Unreleased Changed)
 - Follow-ups: keine
 
+## 2026-04-09 – Cursor Agent – Direct Token Response connection_name / access_name
+
+- Done:
+  - `ConsumerUpstreamOAuthTokenOut`: Pflichtfelder `connection_name` (Integration Instance), `access_name` (Access Grant); `consumer_token` befüllt aus `instance.name` / `grant.name`.
+  - `AccessGrantUsageModal` Caption; `AGENTS.md`; `docs/technische-referenz.md`; `docs/CHANGELOG.md` [Unreleased] Changed (Direct Token Access Response konsolidiert).
+- Next: keine
+- Blockers: keine
+- Branch/PR: branch feature/dev, PR none
+- Files touched: `backend/app/schemas.py`, `backend/app/routers/consumer_token.py`, `frontend/src/AccessGrantUsageModal.tsx`, `AGENTS.md`, `docs/CHANGELOG.md`, `docs/technische-referenz.md`, `planning/coordination/WORKLOG.md`
+- Test notes:
+  - commands: `python3 -m py_compile backend/app/schemas.py backend/app/routers/consumer_token.py`, `PYTHONPATH=backend python3 -m unittest backend.test_smoke -v`
+  - endpoints: `POST /api/v1/consumer/integration-instances/{id}/token`
+- UI path: `/workspace/access` → Usage → Direct token access
+- Changelog updated: yes (Unreleased Changed)
+- Follow-ups: keine
+
 ## 2026-04-08 – Cursor Agent – AccessKeyCreateModal Hooks-Fix
 
 - Done: `BrokerAccessPage` `AccessKeyCreateModal`: `useMemo` für `selectedInstance` entfernt (lag nach `if (!open) return null`); normale `find`-Zuweisung; `docs/CHANGELOG.md` Fixed; WORKLOG.

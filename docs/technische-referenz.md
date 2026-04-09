@@ -178,6 +178,8 @@ Voraussetzung: gültiger **Access Grant**, Broker Access Key im Header (`X-Broke
 | MCP Relay (streamable HTTP) | ANY | `/api/v1/consumer/integration-instances/{id}/mcp` (+ optionale Subpfade) |
 | Upstream-OAuth-Access-Token | POST | `/api/v1/consumer/integration-instances/{id}/token` (nur mit Grant-Flag `direct_token_access`, OAuth-Connection) |
 
+Antwort u. a. `access_token`, optional `expires_at` / `expires_in`, `connection_id`, **`connection_name`** (Integration Instance), **`access_name`** (Access Grant), optional Profilfelder aus der Connection.
+
 Verbindungsinfo für MCP: `GET .../mcp-connection-info` (siehe Consumer-Router).
 
 Details und Fehlerbilder: `docs/troubleshooting-consumer-mcp-relay.md`.

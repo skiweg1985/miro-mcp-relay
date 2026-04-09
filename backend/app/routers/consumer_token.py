@@ -45,6 +45,8 @@ def consumer_upstream_oauth_token(
     if not raw:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="missing_broker_access_key")
     grant, instance, _integration = resolve_consumer_grant_context(db, raw_key=raw, instance_id=instance_id)
+    connection_name = instance.name
+    access_name = grant.name
 
     if not grant.direct_token_access_enabled:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="direct_token_access_disabled")
@@ -78,6 +80,8 @@ def consumer_upstream_oauth_token(
         expires_at=expires_at,
         expires_in=expires_in,
         connection_id=conn.id if conn else None,
+        connection_name=connection_name,
+        access_name=access_name,
         email=email,
         username=username,
     )

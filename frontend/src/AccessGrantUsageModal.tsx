@@ -379,7 +379,7 @@ export CONNECTION_ID='${instanceId}'`;
           <UsageExampleBlock
             title="Example (curl)"
             code={curlUpstreamToken}
-            caption="JSON: access_token, token_type, expires_at, expires_in (if known), connection_id, email, username (when available from the connection profile)."
+            caption="JSON: access_token, token_type, expires_at, expires_in (if known), connection_id, connection_name, access_name, email, username (when available from the connection profile)."
           />
         </section>
       ) : null}

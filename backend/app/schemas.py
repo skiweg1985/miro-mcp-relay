@@ -355,6 +355,8 @@ class ConsumerUpstreamOAuthTokenOut(BaseModel):
     expires_at: datetime | None = None
     expires_in: int | None = None
     connection_id: str | None = None
+    connection_name: str
+    access_name: str
     email: str | None = None
     username: str | None = None
 

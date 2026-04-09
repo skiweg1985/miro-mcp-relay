@@ -2997,3 +2997,19 @@
 - UI path: `/workspace/access` → Usage / Open
 - Changelog updated: yes (Unreleased Changed)
 - Follow-ups: keine
+
+## 2026-04-09 – Cursor Agent – Access Usage Modal: single-purpose Hero
+
+- Done:
+  - `AccessGrantUsageModal`: komplett neu aufgebaut — Context-Bar (Integration · Connection + Status-Badge) statt DetailSection; **Hero-Block** mit Lead-Satz, Method/Endpoint/Header als Inline-Felder, ein kopierbares Snippet; sekundäre Snippets unter **Also possible** (eingeklappt); **Technical details** eingeklappt; **Raw details** eingeklappt. Kein Overview-Grid, kein Reference-Dump, kein Multi-Heading-Layout.
+  - `index.css`: alte `usage-primary-*` / `usage-example-*` / `usage-modal-section` Klassen ersetzt durch `usage-context-bar`, `usage-hero`, `usage-inline-field`, `usage-copy-block`.
+  - `docs/CHANGELOG.md` [Unreleased] Changed konsolidiert; WORKLOG.
+- Next: keine
+- Blockers: keine
+- Branch/PR: branch feature/dev, PR none
+- Files touched: `frontend/src/AccessGrantUsageModal.tsx`, `frontend/src/index.css`, `docs/CHANGELOG.md`, `planning/coordination/WORKLOG.md`
+- Test notes: `cd frontend && npm run build`
+- endpoints: unverändert (nur UI)
+- UI path: `/workspace/access` → Usage
+- Changelog updated: yes (Unreleased Changed)
+- Follow-ups: keine

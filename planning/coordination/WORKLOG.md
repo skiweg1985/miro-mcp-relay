@@ -1,3 +1,19 @@
+## 2026-04-09 – Cursor Agent – Connections-Tabelle Actions-Pattern
+
+- Done:
+  - `ConnectionsPage`: Primary **Open** / **Connect** (OAuth nicht verbunden), sekundäre Aktionen im Overflow-Menü mit Portal + Fixed-Position; Außenklick, Escape, Scroll/Resize schließen das Menü.
+  - `index.css`: `--connections-actions-w` verkleinert, Styles für Zeilen-Actions und Menüpunkte.
+  - Frontend-Build; `docs/CHANGELOG.md` [Unreleased] Changed.
+- Next: keine
+- Blockers: keine
+- Branch/PR: branch lokal `feature/dev`, PR: none
+- Files touched: `frontend/src/ConnectionsPage.tsx`, `frontend/src/index.css`, `frontend/dist/*`, `docs/CHANGELOG.md`, `planning/coordination/WORKLOG.md`
+- Test notes: `cd frontend && npm run build`
+- endpoints: n/a
+- UI path: `/workspace/connections`
+- Changelog updated: yes (Unreleased Changed)
+- Follow-ups: keine
+
 ## 2026-04-09 – Cursor Agent – Brokr-Logo Frontend
 
 - Done:

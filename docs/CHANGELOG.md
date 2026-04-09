@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Workspace **Connections** (`/workspace/connections`): Tabellenzeile mit einer primären Aktion (**Open** bzw. bei OAuth ohne Verknüpfung **Connect**) und Overflow-Menü (**⋯**) für **Test**, **Refresh token**, ggf. **Sign in again**, **Disconnect**; schmalere Actions-Spalte; Menü als `position: fixed` per Portal, damit es bei horizontalem Scroll der Tabelle sichtbar bleibt.
+
 ### Added
 
 - Frontend: Brokr-Produktlogo als zentrale SVG-Datei (`frontend/src/assets/logo/brokr.svg`), React-Komponente `BrokrLogo` (Größen `sm`/`md`/`lg`, Varianten `gradient` und `mono` mit `currentColor`), SVG-Favicon zur Laufzeit aus demselben Asset; Einsatz in Sidebar (Name + Tagline), Login-Screen, Lade-Splash, Admin-Login-Modal; optionales `headingIcon` im `Modal`-Header.

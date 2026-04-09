@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { useAppContext } from "./app-context";
 import { api } from "./api";
@@ -28,6 +29,11 @@ export function ConnectionsPage() {
   const [editInstanceId, setEditInstanceId] = useState<string | null>(null);
   const [disconnectConfirmId, setDisconnectConfirmId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [openRowMenuId, setOpenRowMenuId] = useState<string | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
+  const menuAnchorRef = useRef<HTMLButtonElement | null>(null);
+
+  const closeRowMenu = useCallback(() => setOpenRowMenuId(null), []);
 
   const integrationNameById = useMemo(() => {
     const m = new Map<string, string>();
@@ -204,6 +210,59 @@ export function ConnectionsPage() {
     }
   }, [notify]);
 
+  useLayoutEffect(() => {
+    if (!openRowMenuId) {
+      setMenuPos(null);
+      return;
+    }
+    const el = menuAnchorRef.current;
+    if (!el) {
+      setMenuPos(null);
+      return;
+    }
+    const r = el.getBoundingClientRect();
+    setMenuPos({ top: r.bottom + 6, right: window.innerWidth - r.right });
+  }, [openRowMenuId]);
+
+  useEffect(() => {
+    if (!openRowMenuId) return;
+    const dismiss = () => closeRowMenu();
+    window.addEventListener("scroll", dismiss, true);
+    window.addEventListener("resize", dismiss);
+    return () => {
+      window.removeEventListener("scroll", dismiss, true);
+      window.removeEventListener("resize", dismiss);
+    };
+  }, [openRowMenuId, closeRowMenu]);
+
+  useEffect(() => {
+    if (!openRowMenuId) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeRowMenu();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [openRowMenuId, closeRowMenu]);
+
+  useEffect(() => {
+    if (!openRowMenuId) return;
+    const onDocClick = (e: MouseEvent) => {
+      const t = e.target;
+      if (!(t instanceof Node)) return;
+      const panel = document.querySelector("[data-connection-floating-menu]");
+      const trig = menuAnchorRef.current;
+      if (panel?.contains(t) || trig?.contains(t)) return;
+      closeRowMenu();
+    };
+    const id = window.setTimeout(() => document.addEventListener("click", onDocClick), 0);
+    return () => {
+      window.clearTimeout(id);
+      document.removeEventListener("click", onDocClick);
+    };
+  }, [openRowMenuId, closeRowMenu]);
+
+  const menuInstance = openRowMenuId ? instances.find((i) => i.id === openRowMenuId) : undefined;
+
   const rows = instances.map((instance) => {
     const intName = integrationNameById.get(instance.integration_id) ?? "—";
     const intType = integrations.find((i) => i.id === instance.integration_id);
@@ -211,54 +270,43 @@ export function ConnectionsPage() {
       ? `${intName} · ${integrationTypeLabel(intType.type)}`
       : intName;
     const status = connectionRowStatus(instance);
-    const needsSignInAgain =
-      instance.auth_mode === "oauth" &&
-      instance.oauth_connected &&
-      (instance.oauth_upstream_health === "expired" || instance.oauth_upstream_health === "refresh_failed");
-    const actions = (
-      <div className="inline-actions inline-actions--table" onClick={(event) => event.stopPropagation()}>
+    const oauthDisconnected = instance.auth_mode === "oauth" && !instance.oauth_connected;
+    const menuOpen = openRowMenuId === instance.id;
+    const primary =
+      oauthDisconnected ? (
+        <button
+          type="button"
+          className="secondary-button"
+          disabled={busy}
+          onClick={() => void connectOAuth(instance.id)}
+        >
+          Connect
+        </button>
+      ) : (
         <button type="button" className="ghost-button" onClick={() => setDetailInstanceId(instance.id)}>
           Open
         </button>
-        <button type="button" className="ghost-button" disabled={busy} onClick={() => void testConnection(instance.id)}>
-          Test
+      );
+    const actions = (
+      <div
+        className="connection-row-actions"
+        data-connection-menu={instance.id}
+        onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => event.stopPropagation()}
+      >
+        {primary}
+        <button
+          type="button"
+          className="ghost-button connection-actions-overflow-trigger"
+          disabled={busy}
+          ref={menuOpen ? menuAnchorRef : undefined}
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          aria-label="More actions"
+          onClick={() => setOpenRowMenuId((cur) => (cur === instance.id ? null : instance.id))}
+        >
+          <span aria-hidden>⋯</span>
         </button>
-        {instance.auth_mode === "oauth" ? (
-          instance.oauth_connected ? (
-            <>
-              <button type="button" className="ghost-button" disabled={busy} onClick={() => void runRefreshOAuth(instance.id)}>
-                Refresh token
-              </button>
-              {needsSignInAgain ? (
-                <button
-                  type="button"
-                  className="secondary-button"
-                  disabled={busy}
-                  onClick={() => void connectOAuth(instance.id)}
-                >
-                  Sign in again
-                </button>
-              ) : null}
-              <button
-                type="button"
-                className="ghost-button"
-                disabled={busy}
-                onClick={() => setDisconnectConfirmId(instance.id)}
-              >
-                Disconnect
-              </button>
-            </>
-          ) : (
-            <button
-              type="button"
-              className="secondary-button"
-              disabled={busy}
-              onClick={() => void connectOAuth(instance.id)}
-            >
-              Connect
-            </button>
-          )
-        ) : null}
       </div>
     );
     return [
@@ -298,6 +346,74 @@ export function ConnectionsPage() {
           ) : null
         }
       />
+
+      {menuInstance && menuPos
+        ? createPortal(
+            <div
+              data-connection-floating-menu
+              className="connection-actions-menu-dropdown connection-actions-menu-dropdown--fixed"
+              style={{ top: menuPos.top, right: menuPos.right }}
+              role="menu"
+            >
+              <button
+                type="button"
+                role="menuitem"
+                className="connection-actions-menu-item"
+                disabled={busy}
+                onClick={() => {
+                  closeRowMenu();
+                  void testConnection(menuInstance.id);
+                }}
+              >
+                Test
+              </button>
+              {menuInstance.auth_mode === "oauth" && menuInstance.oauth_connected ? (
+                <>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="connection-actions-menu-item"
+                    disabled={busy}
+                    onClick={() => {
+                      closeRowMenu();
+                      void runRefreshOAuth(menuInstance.id);
+                    }}
+                  >
+                    Refresh token
+                  </button>
+                  {menuInstance.oauth_upstream_health === "expired" ||
+                  menuInstance.oauth_upstream_health === "refresh_failed" ? (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="connection-actions-menu-item"
+                      disabled={busy}
+                      onClick={() => {
+                        closeRowMenu();
+                        void connectOAuth(menuInstance.id);
+                      }}
+                    >
+                      Sign in again
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="connection-actions-menu-item connection-actions-menu-item--danger"
+                    disabled={busy}
+                    onClick={() => {
+                      closeRowMenu();
+                      setDisconnectConfirmId(menuInstance.id);
+                    }}
+                  >
+                    Disconnect
+                  </button>
+                </>
+              ) : null}
+            </div>,
+            document.body,
+          )
+        : null}
 
       {disconnectConfirmId ? (
         <ConfirmModal

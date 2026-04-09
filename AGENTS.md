@@ -64,6 +64,7 @@ Follow these repo-specific conventions and commands first.
 - HTTPS dev smoke test: `curl -k -sS https://localhost/api/v1/health`
 - Consumer MCP relay (laufender Broker): `pip install httpx` falls nötig, dann z. B. `DEBUG_MCP_ACCESS_KEY=bkr_… python3 scripts/debug-mcp-consumer-relay.py --base-url http://localhost` (HTTPS: `--insecure`)
 - Direct Token Access: `POST /api/v1/consumer/integration-instances/{id}/token` mit `X-Broker-Access-Key` — nur wenn der Access Grant `direct_token_access` hat und die Connection OAuth nutzt; Response enthält `access_token` (kein Refresh Token), `connection_name` (Integration Instance), `access_name` (Access Grant), optional `email` und `username` aus Connection-Profil-Metadaten.
+- Access-Nutzung (Audit): strukturierte Ereignisse in `access_usage_events`; Rollups auf `access_grants`. Lesen: `GET /api/v1/access-grants/{grant_id}/usage-events` (eingeloggter Grant-Inhaber), `GET /api/v1/admin/access-usage/events` (Admin, Filter u. a. `user_id`, `integration_id`, `access_grant_id`, `usage_type`, `outcome`, `from`, `to`). UI: `/workspace/broker-access` (Aktivität im Detail), `/workspace/admin/access-activity`.
 - Consumer-MCP-Relay-Fehlersuche: [`docs/troubleshooting-consumer-mcp-relay.md`](docs/troubleshooting-consumer-mcp-relay.md)
 
 ## Testing Guidance (Especially Single Test)

@@ -8,6 +8,8 @@
 
 ### Changed
 
+- README und `AGENTS.md`: Access-Nutzung/Audit (APIs `GET …/access-grants/{id}/usage-events`, `GET …/admin/access-usage/events`), Workspace-Pfade `/workspace/broker-access` und `/workspace/admin/access-activity`, Hinweis zu `access_usage_events` und Aufbewahrung.
+
 - Workspace **Access** (`/workspace/access`): Usage-Modal radikal vereinfacht — ein einziger sichtbarer Primärblock (Kontextsatz, Method/Endpoint/Header, kopierbares Snippet); Sekundärnutzung unter **Also possible** (eingeklappt); **Technical details** und **Raw details** eingeklappt; kein Overview-DetailSection, kein Reference-Dump, kein Multi-Heading-Layout. Access-Detail: **Overview** + eingeklappte **Technical details**.
 
 - Workspace **Connections** (`/workspace/connections`): Tabellenzeile mit einer primären Aktion (**Open** bzw. bei OAuth ohne Verknüpfung **Connect**) und Overflow-Menü (**⋯**) für **Test**, **Refresh token**, ggf. **Sign in again**, **Disconnect**; schmalere Actions-Spalte; Menü als `position: fixed` per Portal, damit es bei horizontalem Scroll der Tabelle sichtbar bleibt.

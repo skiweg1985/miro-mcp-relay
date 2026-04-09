@@ -19,6 +19,7 @@ Die Laufzeit besteht aus einem FastAPI-Backend (`backend/app`) und einer React/V
   - OAuth-Connect/Disconnect pro Instanz.
 - Microsoft Login für Endnutzer (`/auth/microsoft/start`, `/auth/microsoft/callback`).
 - Access-Grant-Lifecycle (erstellen, validieren, widerrufen, löschen).
+- Nutzungs- und Aktivitätssicht für Access Grants: Ereignisse in der Datenbank, Rollup-Felder am Grant, Workspace **Access** und Admin **Access activity**.
 - Consumer-Ausführung und Tool-Discovery mit Broker Access Key.
 - Streamable-HTTP MCP Relay für MCP-Server-Integrationen.
 - Docker-Setup mit HAProxy, Backend, Frontend, Postgres.
@@ -31,7 +32,7 @@ Die Laufzeit besteht aus einem FastAPI-Backend (`backend/app`) und einer React/V
 4. Ein Consumer ruft den Broker mit diesem Key auf:
    - entweder als strukturierter Execute-Call,
    - oder als MCP-Relay-Call für streamable HTTP.  
-5. Der Broker prüft Grant, Tool-Policy und OAuth-Zustand, führt den Upstream-Call aus und protokolliert die Nutzung.
+5. Der Broker prüft Grant, Tool-Policy und OAuth-Zustand, führt den Upstream-Call aus und schreibt strukturierte Nutzungsereignisse (keine Secrets in den gespeicherten Metadaten).
 
 ## Verfügbare Funktionen / Schnittstellen / Tools
 
@@ -56,6 +57,12 @@ Die Laufzeit besteht aus einem FastAPI-Backend (`backend/app`) und einer React/V
 
 - `POST /api/v1/access-grants`  
   Erzeugt Access Grant und liefert den Klartext-Key einmalig zurück.
+
+- `GET /api/v1/access-grants/{grant_id}/usage-events`  
+  Liste der Nutzungsereignisse für einen eigenen Grant (Session-Cookie); optionaler Query-Parameter `outcome` (`success` \| `denied` \| `error`).
+
+- `GET /api/v1/admin/access-usage/events`  
+  Gefilterte Ereignisliste für Admins (Session-Cookie); ohne `from`/`to` gilt ein Standardfenster der letzten sieben Tage (UTC). Query-Parameter u. a. `user_id`, `integration_id`, `access_grant_id`, `usage_type`, `outcome`, `from`, `to`.
 
 - `POST /api/v1/consumer/integration-instances/{instance_id}/execute`  
   Führt eine Action/Tool-Nutzung über den Broker aus.
@@ -125,6 +132,8 @@ docker compose up -d --build
 
 Danach erreichbar:
 - UI: [http://localhost](http://localhost)
+- Workspace **Access**: `/workspace/broker-access` (Tabelle, Detail inkl. Aktivität)
+- Admin **Access activity** (nur Admin): `/workspace/admin/access-activity`
 - API Docs: [http://localhost/api/v1/docs](http://localhost/api/v1/docs)
 - Health: [http://localhost/api/v1/health](http://localhost/api/v1/health)
 
@@ -195,6 +204,7 @@ curl -sS -X POST http://localhost/api/v1/consumer/integration-instances/<instanc
 ```
 
 ## Hinweise / Einschränkungen
+- Die Tabelle `access_usage_events` wächst mit dem Traffic; langfristige Aufbewahrung und Bereinigung sind betrieblicher Verantwortung (kein automatischer Lösch-Job im Standard-Setup).
 - `src/` enthält Legacy-Node-Code als Referenz und Tests, ist aber nicht der aktive Runtime-Pfad.
 - State-changing Endpunkte mit Session erwarten `X-CSRF-Token`; ohne Token kommen `4xx`-Fehler.
 - Für OAuth-Instanzen schlägt Consumer-Ausführung ohne verfügbaren Upstream-Token mit `oauth_upstream_token_missing` fehl.

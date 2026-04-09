@@ -1,3 +1,19 @@
+## 2026-04-09 – Cursor Agent – Doku Access-Audit
+
+- Done:
+  - `README.md`: Features, Kern-APIs (`usage-events`, `admin/access-usage/events`), Quickstart-UI-Pfade, Hinweis `access_usage_events`/Aufbewahrung; Schritt 5 Nutzungsereignisse.
+  - `AGENTS.md`: Verifikationshinweis Access-Nutzung und UI-Pfade.
+  - `docs/CHANGELOG.md` [Unreleased] Changed.
+- Next: keine
+- Blockers: keine
+- Branch/PR: branch lokal `feature/dev`, PR: none
+- Files touched: `README.md`, `AGENTS.md`, `docs/CHANGELOG.md`, `planning/coordination/WORKLOG.md`
+- Test notes: n/a
+- endpoints: (Dokumentation)
+- UI path: `/workspace/broker-access`, `/workspace/admin/access-activity`
+- Changelog updated: yes (Unreleased Changed)
+- Follow-ups: keine
+
 ## 2026-04-09 – Cursor Agent – Access-Nutzung / Audit-Trail
 
 - Done:

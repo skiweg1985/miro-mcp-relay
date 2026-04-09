@@ -4,6 +4,8 @@
 
 ### Changed
 
+- Workspace **Access** (`/workspace/access`): Modals **How to use** und Access-**Detail** neu strukturiert — zuerst Überblick und ein klarer Primärpfad (`direct_token` bei OAuth-Zugriff mit Token-API, sonst MCP oder Broker-HTTPS-API), darunter **Example** mit konkreten URLs/Platzhaltern; weitere Nutzungsarten eingeklappt (**Other ways to use this access**), Metadaten unter **Technical details**, Hilfs-Snippets unter **Reference snippets**, **Raw details** eingeklappt; Access-Detail: **Overview** + eingeklappte **Technical details**.
+
 - Workspace **Connections** (`/workspace/connections`): Tabellenzeile mit einer primären Aktion (**Open** bzw. bei OAuth ohne Verknüpfung **Connect**) und Overflow-Menü (**⋯**) für **Test**, **Refresh token**, ggf. **Sign in again**, **Disconnect**; schmalere Actions-Spalte; Menü als `position: fixed` per Portal, damit es bei horizontalem Scroll der Tabelle sichtbar bleibt.
 
 ### Added

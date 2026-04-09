@@ -33,46 +33,43 @@ export function AccessGrantDetailModal({ grant, integrationName, onClose, onRevo
   const invLabel = accessGrantInvalidationReasonLabel(grant.invalidation_reason);
 
   return (
-    <Modal title={grant.name} description="Broker-issued access for an API client." wide onClose={onClose}>
-      <DetailSection title="Summary">
-        <DetailRow label="Client or app" value={grant.name} />
+    <Modal title={grant.name} wide onClose={onClose}>
+      <DetailSection title="Overview">
+        <DetailRow label="Access" value={grant.name} />
         <DetailRow
           label="Status"
           value={<StatusBadge tone={statusTone}>{accessGrantEffectiveStatusLabel(eff)}</StatusBadge>}
         />
-        <DetailRow label="Record status" value={accessGrantStatusLabel(grant.status)} />
-        <DetailRow label="Key prefix" value={grant.key_prefix} />
-        <DetailRow label="Created" value={formatDateTime(grant.created_at)} />
-        <DetailRow label="Expires" value={formatDateTime(grant.expires_at)} />
-        <DetailRow label="Last used" value={formatDateTime(grant.last_used_at)} />
-        {grant.invalidated_at ? <DetailRow label="Invalidated" value={formatDateTime(grant.invalidated_at)} /> : null}
-        {invLabel ? <DetailRow label="Reason" value={invLabel} /> : null}
-      </DetailSection>
-
-      <DetailSection title="Routing">
         <DetailRow label="Integration" value={integrationName} />
         <DetailRow label="Connection" value={grant.integration_instance_name} />
-        <DetailRow
-          label="Bound connection"
-          value={
-            grant.user_connection_id ? (
-              <span title={grant.user_connection_id}>Linked account</span>
-            ) : (
-              "Not bound to a specific linked account"
-            )
-          }
-        />
+        <DetailRow label="Expires" value={formatDateTime(grant.expires_at)} />
       </DetailSection>
 
-      <DetailSection title="Policy">
-        <DetailRow label="Allowed tools" value={tools} />
-        <DetailRow
-          label="Upstream token API"
-          value={grant.direct_token_access ? "Allowed" : "Off"}
-        />
-        <DetailRow label="Policy reference" value={grant.policy_ref ?? "—"} />
-        <DetailRow label="Notes" value={grant.notes ?? "—"} />
-      </DetailSection>
+      <details className="grant-disclosure grant-disclosure--nested">
+        <summary className="grant-disclosure-summary grant-disclosure-summary--sub">Technical details</summary>
+        <div className="grant-detail-disclosure-body">
+          <DetailRow label="Record status" value={accessGrantStatusLabel(grant.status)} />
+          <DetailRow label="Key prefix" value={grant.key_prefix} />
+          <DetailRow label="Created" value={formatDateTime(grant.created_at)} />
+          <DetailRow label="Last used" value={formatDateTime(grant.last_used_at)} />
+          {grant.invalidated_at ? <DetailRow label="Invalidated" value={formatDateTime(grant.invalidated_at)} /> : null}
+          {invLabel ? <DetailRow label="Reason" value={invLabel} /> : null}
+          <DetailRow
+            label="Bound account"
+            value={
+              grant.user_connection_id ? (
+                <span title={grant.user_connection_id}>Linked account</span>
+              ) : (
+                "Not bound to a specific linked account"
+              )
+            }
+          />
+          <DetailRow label="Allowed tools" value={tools} />
+          <DetailRow label="Upstream token API" value={grant.direct_token_access ? "On" : "Off"} />
+          <DetailRow label="Policy reference" value={grant.policy_ref ?? "—"} />
+          <DetailRow label="Notes" value={grant.notes ?? "—"} />
+        </div>
+      </details>
 
       <RawJsonDisclosure title="Raw details" data={grant} />
 

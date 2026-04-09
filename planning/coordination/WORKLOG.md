@@ -2965,3 +2965,19 @@
 - UI path: `/workspace/access` → Usage
 - Changelog updated: yes (Unreleased Changed)
 - Follow-ups: keine
+
+## 2026-04-09 – Cursor Agent – Access How-To Modal nutzungsorientiert
+
+- Done:
+  - `AccessGrantUsageModal`: Primärpfad `deriveAccessPrimaryUsage(grant, …)` — `direct_token` wenn OAuth + `direct_token_access`, sonst `mcp` oder `api_relay`; Abschnitte Overview / How to use / Example; sekundäre Pfade unter **Other ways to use this access**; **Technical details** (Metadaten + OAuth-Hinweis); **Reference snippets** (validate, Bearer-curl, env, JSON); **Raw details** eingeklappt.
+  - `AccessGrantDetailModal`: **Overview** mit Kernfeldern; Policy/Routing in eingeklappte **Technical details**; **Raw details**; Modal ohne Architektur-Subtitle.
+  - `docs/CHANGELOG.md` [Unreleased] Changed; WORKLOG.
+- Next: keine
+- Blockers: keine
+- Branch/PR: branch feature/dev, PR none
+- Files touched: `frontend/src/AccessGrantUsageModal.tsx`, `frontend/src/AccessGrantDetailModal.tsx`, `docs/CHANGELOG.md`, `planning/coordination/WORKLOG.md`
+- Test notes: `cd frontend && npm run build`
+- endpoints: unverändert (nur UI)
+- UI path: `/workspace/access` → Usage / Open
+- Changelog updated: yes (Unreleased Changed)
+- Follow-ups: keine

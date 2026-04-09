@@ -105,6 +105,8 @@ class IntegrationInstanceOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     oauth_connected: bool = False
+    oauth_upstream_health: str | None = None
+    oauth_refresh_error: str | None = None
 
 
 class IntegrationInstanceUpdate(BaseModel):
@@ -135,6 +137,15 @@ class UserConnectionSummaryOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     profile: dict[str, Any] = Field(default_factory=dict)
+    oauth_upstream_health: str | None = None
+    oauth_refresh_error: str | None = None
+    oauth_expires_at: datetime | None = None
+
+
+class IntegrationInstanceOAuthRefreshOut(BaseModel):
+    ok: bool = True
+    oauth_expires_at: datetime | None = None
+    detail: str | None = None
 
 
 class IntegrationInstanceInspectOut(BaseModel):

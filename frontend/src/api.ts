@@ -13,6 +13,7 @@ import type {
   IntegrationDeleteResult,
   IntegrationInstanceDeleteResult,
   IntegrationInstanceInspectOut,
+  IntegrationInstanceOAuthRefreshOut,
   IntegrationInstanceV2Out,
   IntegrationToolV2Out,
   IntegrationV2Out,
@@ -143,6 +144,16 @@ export const api = {
   integrationInstanceInspect(instanceId: string) {
     return request<IntegrationInstanceInspectOut>(
       `/api/v1/integration-instances/${encodeURIComponent(instanceId)}/inspect`,
+    );
+  },
+  refreshIntegrationInstanceOauth(csrfToken: string, instanceId: string) {
+    return request<IntegrationInstanceOAuthRefreshOut>(
+      `/api/v1/integration-instances/${encodeURIComponent(instanceId)}/oauth-refresh`,
+      {
+        method: "POST",
+        csrfToken,
+        body: {},
+      },
     );
   },
   createIntegrationInstanceV2(csrfToken: string, body: unknown) {

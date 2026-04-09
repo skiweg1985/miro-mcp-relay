@@ -137,13 +137,41 @@ export function integrationLifecycleBadge(
   return { label: "Ready", tone: "neutral" };
 }
 
-export function connectionRowStatus(instance: IntegrationInstanceV2Out): { label: string; tone: "neutral" | "success" | "warn" } {
+export function connectionRowStatus(instance: IntegrationInstanceV2Out): {
+  label: string;
+  tone: "neutral" | "success" | "warn" | "danger";
+} {
   if (instance.auth_mode === "oauth") {
-    return instance.oauth_connected
-      ? { label: "Connected", tone: "success" }
-      : { label: "Sign-in required", tone: "warn" };
+    if (!instance.oauth_connected) {
+      return { label: "Sign-in required", tone: "warn" };
+    }
+    const h = instance.oauth_upstream_health;
+    if (!h || h === "healthy") {
+      return { label: "Connected", tone: "success" };
+    }
+    if (h === "expiring_soon") {
+      return { label: "Expiring soon", tone: "warn" };
+    }
+    if (h === "no_refresh_token") {
+      return { label: "Limited", tone: "warn" };
+    }
+    if (h === "expired" || h === "refresh_failed") {
+      return { label: "Action needed", tone: "danger" };
+    }
+    return { label: "Connected", tone: "success" };
   }
   return { label: "Ready", tone: "neutral" };
+}
+
+/** User-facing label for oauth_upstream_health (inspect modal, tooltips). */
+export function oauthUpstreamHealthLabel(health: string | null | undefined): string {
+  if (!health) return "—";
+  if (health === "healthy") return "OK";
+  if (health === "expiring_soon") return "Expiring soon";
+  if (health === "expired") return "Expired";
+  if (health === "refresh_failed") return "Token error";
+  if (health === "no_refresh_token") return "No refresh token";
+  return health;
 }
 
 export function userConnectionStatusLabel(status: string): string {

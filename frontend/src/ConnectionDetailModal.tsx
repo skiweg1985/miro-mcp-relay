@@ -11,6 +11,7 @@ import {
   integrationTypeLabel,
   isGenericOAuthIntegration,
   oauthProviderProductLabel,
+  oauthUpstreamHealthLabel,
   userConnectionStatusLabel,
 } from "./integrationLabels";
 import { DetailRow, DetailSection, RawJsonDisclosure } from "./object-detail-ui";
@@ -25,6 +26,7 @@ type Props = {
   busy: boolean;
   isAdmin?: boolean;
   onConnect: (id: string) => void;
+  onRefreshOAuth?: (id: string) => void;
   onDisconnect: (id: string) => void;
   onTest: (id: string) => void;
   onEdit?: () => void;
@@ -39,6 +41,7 @@ export function ConnectionDetailModal({
   busy,
   isAdmin,
   onConnect,
+  onRefreshOAuth,
   onDisconnect,
   onTest,
   onEdit,
@@ -83,6 +86,11 @@ export function ConnectionDetailModal({
   const uc = data?.user_connection;
   const profile = uc?.profile ?? {};
   const status = inst ? connectionRowStatus(inst) : { label: "…", tone: "neutral" as const };
+  const upstreamHealth = inst?.oauth_upstream_health;
+  const needsAttention =
+    inst?.auth_mode === "oauth" &&
+    inst.oauth_connected &&
+    (upstreamHealth === "expired" || upstreamHealth === "refresh_failed");
 
   const summaryName =
     (typeof profile.display_name === "string" && profile.display_name.trim()) || inst?.name || "Connection";
@@ -116,6 +124,11 @@ export function ConnectionDetailModal({
 
       {inst && intg ? (
         <>
+          {needsAttention ? (
+            <p className="connections-oauth-alert" role="alert">
+              Provider tokens are missing or invalid. Use Refresh token or Sign in again.
+            </p>
+          ) : null}
           <DetailSection title="Summary">
             <DetailRow label="Integration" value={intg.name} />
             <DetailRow label="Kind" value={integrationTypeLabel(intg.type)} />
@@ -123,6 +136,9 @@ export function ConnectionDetailModal({
               label="Connection status"
               value={<StatusBadge tone={status.tone}>{status.label}</StatusBadge>}
             />
+            {inst.auth_mode === "oauth" && inst.oauth_connected && upstreamHealth ? (
+              <DetailRow label="Upstream OAuth" value={oauthUpstreamHealthLabel(upstreamHealth)} />
+            ) : null}
             <DetailRow label="Authentication" value={authModeLabel(inst.auth_mode)} />
             <DetailRow label="Traffic" value={accessModeLabel(inst.access_mode)} />
             <DetailRow label="Created" value={formatDateTime(inst.created_at)} />
@@ -161,8 +177,17 @@ export function ConnectionDetailModal({
               ) : null}
               <DetailRow
                 label="Access token expires"
-                value={oauthExpiresAt ? formatDateTime(oauthExpiresAt) : "Unknown"}
+                value={
+                  uc.oauth_expires_at
+                    ? formatDateTime(uc.oauth_expires_at)
+                    : oauthExpiresAt
+                      ? formatDateTime(oauthExpiresAt)
+                      : "Unknown"
+                }
               />
+              {uc.oauth_refresh_error ? (
+                <DetailRow label="Last refresh error" value={<span className="detail-error-text">{uc.oauth_refresh_error}</span>} />
+              ) : null}
               <DetailRow
                 label="Last token refresh"
                 value={oauthLastRefreshAt ? formatDateTime(oauthLastRefreshAt) : "Not refreshed yet"}
@@ -204,6 +229,16 @@ export function ConnectionDetailModal({
             <button type="button" className="ghost-button" onClick={() => onTest(instanceId)} disabled={busy}>
               Run check
             </button>
+            {inst.auth_mode === "oauth" && inst.oauth_connected && onRefreshOAuth ? (
+              <button type="button" className="ghost-button" onClick={() => onRefreshOAuth(instanceId)} disabled={busy}>
+                Refresh token
+              </button>
+            ) : null}
+            {inst.auth_mode === "oauth" && needsAttention ? (
+              <button type="button" className="primary-button" onClick={() => onConnect(instanceId)} disabled={busy}>
+                Sign in again
+              </button>
+            ) : null}
             {inst.auth_mode === "oauth" ? (
               inst.oauth_connected ? (
                 <button type="button" className="ghost-button" onClick={() => onDisconnect(instanceId)} disabled={busy}>

@@ -151,6 +151,39 @@ export function ConnectionsPage() {
     [session, notify, load],
   );
 
+  const runRefreshOAuth = useCallback(
+    async (instanceId: string) => {
+      if (session.status !== "authenticated") return;
+      setBusy(true);
+      try {
+        const r = await api.refreshIntegrationInstanceOauth(session.csrfToken, instanceId);
+        if (r.ok) {
+          notify({
+            tone: "success",
+            title: "Token refreshed",
+            description: r.oauth_expires_at ? undefined : "The connection was updated.",
+          });
+        } else {
+          notify({
+            tone: "error",
+            title: "Could not refresh token",
+            description: r.detail ?? "Sign in again or contact an admin.",
+          });
+        }
+        await load();
+      } catch (error) {
+        notify({
+          tone: "error",
+          title: "Refresh failed",
+          description: isApiError(error) ? error.message : "Unexpected error.",
+        });
+      } finally {
+        setBusy(false);
+      }
+    },
+    [session, notify, load],
+  );
+
   const testConnection = useCallback(async (instanceId: string) => {
     setBusy(true);
     try {
@@ -178,6 +211,10 @@ export function ConnectionsPage() {
       ? `${intName} · ${integrationTypeLabel(intType.type)}`
       : intName;
     const status = connectionRowStatus(instance);
+    const needsSignInAgain =
+      instance.auth_mode === "oauth" &&
+      instance.oauth_connected &&
+      (instance.oauth_upstream_health === "expired" || instance.oauth_upstream_health === "refresh_failed");
     const actions = (
       <div className="inline-actions inline-actions--table" onClick={(event) => event.stopPropagation()}>
         <button type="button" className="ghost-button" onClick={() => setDetailInstanceId(instance.id)}>
@@ -188,14 +225,29 @@ export function ConnectionsPage() {
         </button>
         {instance.auth_mode === "oauth" ? (
           instance.oauth_connected ? (
-            <button
-              type="button"
-              className="ghost-button"
-              disabled={busy}
-              onClick={() => setDisconnectConfirmId(instance.id)}
-            >
-              Disconnect
-            </button>
+            <>
+              <button type="button" className="ghost-button" disabled={busy} onClick={() => void runRefreshOAuth(instance.id)}>
+                Refresh token
+              </button>
+              {needsSignInAgain ? (
+                <button
+                  type="button"
+                  className="secondary-button"
+                  disabled={busy}
+                  onClick={() => void connectOAuth(instance.id)}
+                >
+                  Sign in again
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="ghost-button"
+                disabled={busy}
+                onClick={() => setDisconnectConfirmId(instance.id)}
+              >
+                Disconnect
+              </button>
+            </>
           ) : (
             <button
               type="button"
@@ -292,6 +344,7 @@ export function ConnectionsPage() {
           busy={busy}
           isAdmin={isAdmin}
           onConnect={(id) => void connectOAuth(id)}
+          onRefreshOAuth={(id) => void runRefreshOAuth(id)}
           onDisconnect={(id) => setDisconnectConfirmId(id)}
           onTest={(id) => void testConnection(id)}
           onEdit={

@@ -92,6 +92,8 @@ export type IntegrationInstanceV2Out = {
   created_at: string;
   updated_at: string;
   oauth_connected: boolean;
+  oauth_upstream_health?: string | null;
+  oauth_refresh_error?: string | null;
 };
 
 export type UserConnectionSummaryOut = {
@@ -100,6 +102,15 @@ export type UserConnectionSummaryOut = {
   created_at: string;
   updated_at: string;
   profile: Record<string, unknown>;
+  oauth_upstream_health?: string | null;
+  oauth_refresh_error?: string | null;
+  oauth_expires_at?: string | null;
+};
+
+export type IntegrationInstanceOAuthRefreshOut = {
+  ok: boolean;
+  oauth_expires_at?: string | null;
+  detail?: string | null;
 };
 
 export type IntegrationInstanceInspectOut = {

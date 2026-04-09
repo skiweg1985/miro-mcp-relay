@@ -1537,8 +1537,21 @@ html.dark .brokr-logo--gradient {
   white-space: nowrap;
 }
 
+.connections-oauth-alert {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--status-danger-border);
+  background: var(--danger-soft);
+  font-size: var(--font-size-sm);
+}
+
+.detail-error-text {
+  color: var(--danger);
+}
+
 .connections-table-wrap {
-  --connections-actions-w: calc(8 * var(--space-6));
+  --connections-actions-w: calc(10 * var(--space-6));
   width: 100%;
 }
 

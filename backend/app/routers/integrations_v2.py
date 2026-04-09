@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.database import get_db
-from app.deps import get_current_user, require_admin, require_csrf
+from app.deps import get_current_user, record_audit, require_admin, require_csrf
 from app.default_integrations import INTEGRATION_GRAPH_DEFAULT_ID, INTEGRATION_MIRO_DEFAULT_ID, TEMPLATE_KEY_MIRO_DEFAULT
 from app.generic_integration_oauth import first_generic_oauth_config_error, is_generic_oauth_template
 from app.execution_engine_v2 import execute_instance_action
@@ -23,6 +23,7 @@ from app.models import (
     IntegrationType,
     User,
     UserConnection,
+    UserConnectionStatus,
 )
 from app.schemas import (
     IntegrationCreate,
@@ -32,6 +33,7 @@ from app.schemas import (
     IntegrationInstanceCreate,
     IntegrationInstanceDeleteResult,
     IntegrationInstanceInspectOut,
+    IntegrationInstanceOAuthRefreshOut,
     IntegrationInstanceOut,
     IntegrationInstanceUpdate,
     IntegrationOut,
@@ -53,7 +55,13 @@ from app.services.access_grant_lifecycle import (
     invalidate_grants_for_integration_instances,
     soft_delete_integration_instance,
 )
-from app.upstream_oauth import get_upstream_oauth_token_for_session, user_has_oauth_connection
+from app.token_health import compute_oauth_connection_health
+from app.upstream_oauth import (
+    get_upstream_oauth_token_for_session,
+    oauth_expires_at_from_connection,
+    oauth_token_from_connection_row,
+    force_refresh_user_connection_for_org,
+)
 
 router = APIRouter(tags=["integrations-v2"])
 
@@ -80,13 +88,23 @@ def _integration_out(item: Integration) -> IntegrationOut:
 
 def _instance_out(db: Session, item: IntegrationInstance, user: User) -> IntegrationInstanceOut:
     connected = False
+    oauth_upstream_health: str | None = None
+    oauth_refresh_error: str | None = None
     if item.auth_mode == AuthMode.OAUTH.value:
-        connected = user_has_oauth_connection(
-            db,
-            user_id=user.id,
-            organization_id=user.organization_id,
-            instance_id=item.id,
+        conn = db.scalar(
+            select(UserConnection).where(
+                UserConnection.user_id == user.id,
+                UserConnection.integration_instance_id == item.id,
+                UserConnection.organization_id == user.organization_id,
+                UserConnection.status == UserConnectionStatus.ACTIVE.value,
+            )
         )
+        if conn and oauth_token_from_connection_row(conn):
+            connected = True
+            oauth_upstream_health = compute_oauth_connection_health(conn)
+            meta = loads_json(conn.metadata_json, {})
+            if isinstance(meta, dict) and meta.get("oauth_refresh_error"):
+                oauth_refresh_error = str(meta.get("oauth_refresh_error") or "")[:500] or None
     return IntegrationInstanceOut(
         id=item.id,
         name=item.name,
@@ -98,6 +116,8 @@ def _instance_out(db: Session, item: IntegrationInstance, user: User) -> Integra
         created_at=item.created_at,
         updated_at=item.updated_at,
         oauth_connected=connected,
+        oauth_upstream_health=oauth_upstream_health,
+        oauth_refresh_error=oauth_refresh_error,
     )
 
 
@@ -286,12 +306,16 @@ def inspect_integration_instance(
         profile = loads_json(conn.metadata_json, {})
         if not isinstance(profile, dict):
             profile = {}
+        ref_err = str(profile.get("oauth_refresh_error") or "").strip() or None if isinstance(profile, dict) else None
         uc_out = UserConnectionSummaryOut(
             id=conn.id,
             status=conn.status,
             created_at=conn.created_at,
             updated_at=conn.updated_at,
             profile=profile,
+            oauth_upstream_health=compute_oauth_connection_health(conn),
+            oauth_refresh_error=ref_err,
+            oauth_expires_at=oauth_expires_at_from_connection(conn),
         )
 
     return IntegrationInstanceInspectOut(
@@ -299,6 +323,56 @@ def inspect_integration_instance(
         integration=_integration_out(integration),
         user_connection=uc_out,
     )
+
+
+@router.post("/integration-instances/{instance_id}/oauth-refresh", response_model=IntegrationInstanceOAuthRefreshOut)
+def refresh_integration_instance_oauth(
+    instance_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _csrf: str = Depends(require_csrf),
+):
+    instance = db.scalar(
+        select(IntegrationInstance).where(
+            IntegrationInstance.id == instance_id,
+            IntegrationInstance.organization_id == current_user.organization_id,
+            IntegrationInstance.deleted_at.is_(None),
+        )
+    )
+    if not instance:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="instance_not_found")
+    if instance.auth_mode != AuthMode.OAUTH.value:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="instance_not_oauth")
+
+    conn = db.scalar(
+        select(UserConnection).where(
+            UserConnection.user_id == current_user.id,
+            UserConnection.integration_instance_id == instance_id,
+            UserConnection.organization_id == current_user.organization_id,
+        )
+    )
+    if not conn:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="user_connection_not_found")
+
+    ok, err, _exp_iso = force_refresh_user_connection_for_org(
+        db,
+        connection_id=conn.id,
+        organization_id=current_user.organization_id,
+    )
+    record_audit(
+        db,
+        action="integration_instance.oauth_refresh",
+        actor_type="user",
+        actor_id=current_user.id,
+        organization_id=current_user.organization_id,
+        metadata={"integration_instance_id": instance_id, "connection_id": conn.id, "ok": ok, "error": err},
+    )
+    db.commit()
+    db.refresh(conn)
+    if ok:
+        exp = oauth_expires_at_from_connection(conn)
+        return IntegrationInstanceOAuthRefreshOut(ok=True, oauth_expires_at=exp, detail=None)
+    return IntegrationInstanceOAuthRefreshOut(ok=False, oauth_expires_at=None, detail=err or "refresh_failed")
 
 
 @router.post("/integration-instances", response_model=IntegrationInstanceOut)

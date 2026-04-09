@@ -14,6 +14,21 @@
 - Changelog updated: yes (Unreleased Added)
 - Follow-ups: weitere Modals können `headingIcon={<BrokrLogo size="sm" />}` nutzen
 
+## 2026-04-09 – Cursor Agent – Connections-UI OAuth-Status
+
+- Done:
+  - API: `IntegrationInstanceOut` / `UserConnectionSummaryOut` mit `oauth_upstream_health`, `oauth_refresh_error`, `oauth_expires_at` (Inspect); `POST /integration-instances/{id}/oauth-refresh` für Session-User.
+  - Workspace Connections: Status-Badge nach Health, Buttons Refresh token / Sign in again, Detailmodal mit Alert und Fehlerzeile.
+- Next: keine
+- Blockers: keine
+- Branch/PR: branch lokal `feature/dev`, PR: none
+- Files touched: `backend/app/schemas.py`, `backend/app/routers/integrations_v2.py`, `frontend/src/ConnectionsPage.tsx`, `frontend/src/ConnectionDetailModal.tsx`, `frontend/src/integrationLabels.ts`, `frontend/src/api.ts`, `frontend/src/types.ts`, `frontend/src/index.css`, `docs/CHANGELOG.md`, `frontend/dist/*`, `planning/coordination/WORKLOG.md`
+- Test notes: `TOKEN_REFRESH_ENABLED=false PYTHONPATH=backend python3 -m unittest backend.test_smoke -v`; `cd frontend && npm run build`
+- endpoints: `POST /api/v1/integration-instances/{id}/oauth-refresh`
+- UI path: `/workspace/connections`
+- Changelog updated: yes (Unreleased Added)
+- Follow-ups: keine
+
 ## 2026-04-09 – Cursor Agent – Upstream-OAuth Refresh & Health
 
 - Done:

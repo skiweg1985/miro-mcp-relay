@@ -1,11 +1,13 @@
 import { type FormEvent, type ReactNode, useEffect, useId, useState, type Key } from "react";
 
 import { useAppContext } from "./app-context";
+import { BrokrLogo } from "./BrokrLogo";
 import { classNames, copyToClipboard } from "./utils";
 
 export function LoadingScreen({ label }: { label: string }) {
   return (
     <div className="splash-screen">
+      <BrokrLogo size="md" className="splash-brand-logo" />
       <div className="spinner" aria-hidden="true" />
       <p>{label}</p>
     </div>
@@ -18,12 +20,14 @@ export function Modal({
   onClose,
   children,
   wide,
+  headingIcon,
 }: {
   title: string;
   description?: string;
   onClose: () => void;
   children?: ReactNode;
   wide?: boolean;
+  headingIcon?: ReactNode;
 }) {
   const titleId = useId();
   useEffect(() => {
@@ -38,7 +42,8 @@ export function Modal({
     <div className="modal-root" role="dialog" aria-modal="true" aria-labelledby={titleId} style={{ zIndex: 85 }}>
       <button type="button" className="modal-backdrop" aria-label="Dismiss" onClick={onClose} />
       <div className={classNames("modal-panel", wide && "modal-panel--wide")}>
-        <div className="modal-panel-header">
+        <div className={classNames("modal-panel-header", headingIcon ? "modal-panel-header--with-icon" : undefined)}>
+          {headingIcon ? <div className="modal-panel-header-icon">{headingIcon}</div> : null}
           <h2 id={titleId}>{title}</h2>
         </div>
         <div className="modal-panel-body compact-form">
@@ -467,3 +472,5 @@ export function ToastViewport() {
     </div>
   );
 }
+
+export { BrokrLogo } from "./BrokrLogo";

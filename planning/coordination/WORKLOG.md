@@ -1,3 +1,19 @@
+## 2026-04-09 – Cursor Agent – Brokr-Logo Frontend
+
+- Done:
+  - Zentrales Asset `frontend/src/assets/logo/brokr.svg`; `BrokrLogo` (`gradient` / `mono`), `vite-env.d.ts`; Favicon in `main.tsx` aus demselben `?url`-Import.
+  - Sidebar: Logo + „Brokr“ + Tagline; Login- und Splash-Screen; Admin-Login-Modal mit Icon-Zeile; `Modal` optional `headingIcon`; Styles in `index.css`; `index.html`-Titel „Brokr“; `export { BrokrLogo }` aus `components.tsx`.
+  - Produktionsbuild `frontend/dist` aktualisiert; `docs/CHANGELOG.md` [Unreleased] Added.
+- Next: keine
+- Blockers: keine
+- Branch/PR: branch lokal `feature/dev`, PR: none
+- Files touched: `frontend/src/assets/logo/brokr.svg`, `frontend/src/BrokrLogo.tsx`, `frontend/src/vite-env.d.ts`, `frontend/src/main.tsx`, `frontend/src/App.tsx`, `frontend/src/components.tsx`, `frontend/src/index.css`, `frontend/index.html`, `frontend/dist/*`, `docs/CHANGELOG.md`, `planning/coordination/WORKLOG.md`
+- Test notes: `cd frontend && npm run build`
+- endpoints: n/a
+- UI path: `/` (Login), eingeloggter Workspace-Sidebar, Session-Restore-Splash
+- Changelog updated: yes (Unreleased Added)
+- Follow-ups: weitere Modals können `headingIcon={<BrokrLogo size="sm" />}` nutzen
+
 ## 2026-04-09 – Cursor Agent – Upstream-OAuth Refresh & Health
 
 - Done:

@@ -3,6 +3,7 @@ import { startTransition, useEffect, useMemo, useRef, useState, type FormEvent, 
 import { AppProvider, useAppContext } from "./app-context";
 import { ThemeToggle } from "./theme-toggle";
 import { api } from "./api";
+import { BrokrLogo } from "./BrokrLogo";
 import { Card, Field, LoadingScreen, PageIntro, ToastViewport } from "./components";
 import { BrokerAccessPage } from "./BrokerAccessPage";
 import { ConnectionsPage } from "./ConnectionsPage";
@@ -149,6 +150,9 @@ function LoginPage({ onSuccess }: { onSuccess: (path: string) => void }) {
     <>
       <main className="landing">
         <div className="landing-inner">
+          <div className="landing-brand">
+            <BrokrLogo size="lg" className="landing-brand-logo" />
+          </div>
           <h1 className="landing-title">Sign in</h1>
           <p className="landing-sub">Use your work account to continue.</p>
           <div className="landing-cta-wrap landing-cta-stack">
@@ -177,7 +181,10 @@ function LoginPage({ onSuccess }: { onSuccess: (path: string) => void }) {
         <div className="modal-root" role="dialog" aria-modal="true" aria-labelledby="landing-admin-login-title">
           <button type="button" className="modal-backdrop" aria-label="Dismiss" onClick={closeAdminModal} />
           <div className="modal-panel landing-admin-modal">
-            <div className="modal-panel-header">
+            <div className="modal-panel-header modal-panel-header--with-icon">
+              <div className="modal-panel-header-icon">
+                <BrokrLogo size="sm" />
+              </div>
               <h2 id="landing-admin-login-title">Admin sign-in</h2>
             </div>
             <div className="modal-panel-body">
@@ -225,15 +232,11 @@ function Shell({
   navItems,
   onNavigate,
   children,
-  title,
-  subtitle,
 }: {
   currentPath: string;
   navItems: Array<{ href: string; label: string }>;
   onNavigate: (path: string) => void;
   children: ReactNode;
-  title: string;
-  subtitle: string;
 }) {
   const { logout, session } = useAppContext();
 
@@ -241,8 +244,13 @@ function Shell({
     <div className="app-frame">
       <aside className="sidebar">
         <div className="brand-mark">
-          <span className="brand-kicker">{subtitle}</span>
-          <strong>{title}</strong>
+          <div className="brand-mark-row">
+            <BrokrLogo size="sm" className="brand-mark-logo" />
+            <div className="brand-mark-text">
+              <strong>Brokr</strong>
+              <span className="brand-tagline">The access layer for agents</span>
+            </div>
+          </div>
         </div>
 
         <nav className="sidebar-nav">
@@ -330,13 +338,7 @@ function AuthenticatedApp() {
   }
 
   return (
-    <Shell
-      currentPath={route.path}
-      navItems={workspaceNav}
-      onNavigate={navigate}
-      title="Workspace"
-      subtitle="Integration Platform"
-    >
+    <Shell currentPath={route.path} navItems={workspaceNav} onNavigate={navigate}>
       {route.name === "workspaceBrokerAccess" ? (
         <BrokerAccessPage />
       ) : route.name === "workspaceConnections" ? (

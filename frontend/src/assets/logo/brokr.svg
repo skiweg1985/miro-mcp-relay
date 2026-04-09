@@ -1,0 +1,16 @@
+<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="brokrGradient" x1="0" y1="0" x2="120" y2="120">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
+    </linearGradient>
+  </defs>
+  <circle cx="40" cy="60" r="18" stroke="url(#brokrGradient)" stroke-width="6"/>
+  <line x1="58" y1="60" x2="90" y2="60" stroke="url(#brokrGradient)" stroke-width="6" stroke-linecap="round"/>
+  <line x1="75" y1="60" x2="75" y2="75" stroke="url(#brokrGradient)" stroke-width="6" stroke-linecap="round"/>
+  <line x1="85" y1="60" x2="85" y2="70" stroke="url(#brokrGradient)" stroke-width="6" stroke-linecap="round"/>
+  <line x1="40" y1="42" x2="60" y2="25" stroke="url(#brokrGradient)" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="65" cy="22" r="4" fill="url(#brokrGradient)"/>
+  <line x1="40" y1="78" x2="60" y2="95" stroke="url(#brokrGradient)" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="65" cy="98" r="4" fill="url(#brokrGradient)"/>
+</svg>

@@ -1,3 +1,19 @@
+## 2026-04-09 – Cursor Agent – Access-Nutzung / Audit-Trail
+
+- Done:
+  - Backend: Modell `AccessUsageEvent`, Rollup-Spalten auf `access_grants`, `seed.reconcile_schema`, Service `access_usage_audit` (Ereignisse, Fensterzählungen, UI-Summaries), Instrumentierung in `consumer_access`, `access_grants.validate`, `consumer_token`, `consumer_execution`, `consumer_mcp_relay`; Router `access_usage.py` (Nutzer + Admin-Liste).
+  - Frontend: Access-Tabelle und Detailmodal (**Activity**), Admin-Seite **Access activity** (`/workspace/admin/access-activity`), Admin-Nutzer-Detail (Spalten bei Keys), API-Client + Types.
+  - `docs/CHANGELOG.md` [Unreleased] Added.
+- Next: optional geplanter Job zum Löschen alter Events nach Betriebs-Retention
+- Blockers: keine
+- Branch/PR: branch lokal `feature/dev`, PR: none
+- Files touched: `backend/app/models.py`, `backend/app/seed.py`, `backend/app/services/access_usage_audit.py`, `backend/app/services/consumer_access.py`, `backend/app/routers/access_grants.py`, `backend/app/routers/access_usage.py`, `backend/app/routers/consumer_token.py`, `backend/app/routers/consumer_execution.py`, `backend/app/routers/consumer_mcp_relay.py`, `backend/app/routers/admin_users.py`, `backend/app/schemas.py`, `backend/app/main.py`, `frontend/src/*`, `docs/CHANGELOG.md`, `planning/coordination/WORKLOG.md`
+- Test notes: `python3 -m py_compile …`; `PYTHONPATH=backend python3 -m unittest backend.test_smoke -v`; `cd frontend && npm run build`
+- endpoints: `GET /api/v1/access-grants/{id}/usage-events`, `GET /api/v1/admin/access-usage/events`; Consumer-Pfade schreiben Nutzungsereignisse
+- UI path: `/workspace/broker-access`, `/workspace/admin/access-activity`, `/workspace/admin/users` (Detail)
+- Changelog updated: yes (Unreleased Added)
+- Follow-ups: Retention-Job / Konfiguration `ACCESS_USAGE_*` bei Bedarf
+
 ## 2026-04-09 – Cursor Agent – OAuth Re-Login löscht Refresh-Fehler-Metadaten
 
 - Done:

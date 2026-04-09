@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import get_settings
 from app.routers import (
     access_grants,
+    access_usage,
     admin_connections,
     admin_login_providers,
     admin_microsoft_oauth,
@@ -71,6 +72,7 @@ def create_app() -> FastAPI:
     app.include_router(integrations_v2.router, prefix=settings.api_v1_prefix)
     app.include_router(integration_oauth.router, prefix=settings.api_v1_prefix)
     app.include_router(access_grants.router, prefix=settings.api_v1_prefix)
+    app.include_router(access_usage.router, prefix=settings.api_v1_prefix)
     app.include_router(consumer_execution.router, prefix=settings.api_v1_prefix)
     app.include_router(consumer_token.router, prefix=settings.api_v1_prefix)
     app.include_router(consumer_mcp_relay.router, prefix=settings.api_v1_prefix)

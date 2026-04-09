@@ -6,7 +6,7 @@ import { AccessGrantDetailModal } from "./AccessGrantDetailModal";
 import { AccessGrantUsageModal } from "./AccessGrantUsageModal";
 import { Card, ConfirmModal, DataTable, Field, Modal, PageIntro, StatusBadge } from "./components";
 import type { AccessGrantCreatedResponse, AccessGrantOut, IntegrationInstanceV2Out, IntegrationV2Out } from "./types";
-import { copyToClipboard, formatDateTime } from "./utils";
+import { copyToClipboard, formatDateTime, formatRelativeTime } from "./utils";
 import { isApiError } from "./errors";
 import { accessGrantEffectiveStatusLabel, canRemoveAccessGrant } from "./integrationLabels";
 
@@ -271,6 +271,13 @@ export function BrokerAccessPage() {
   );
 
   const rows = useMemo(() => {
+    const outcomeShort = (o: string | null | undefined) => {
+      if (!o) return "—";
+      if (o === "success") return "OK";
+      if (o === "denied") return "Denied";
+      if (o === "error") return "Error";
+      return o;
+    };
     return grants.map((grant) => {
       const intName = integrationNameForInstance(grant.integration_instance_id);
       const eff = grant.effective_status ?? grant.status;
@@ -289,6 +296,11 @@ export function BrokerAccessPage() {
         <StatusBadge key="s" tone={statusTone}>
           {accessGrantEffectiveStatusLabel(eff)}
         </StatusBadge>,
+        <span key="lu" title={grant.last_used_at ? formatDateTime(grant.last_used_at) : undefined}>
+          {grant.last_used_at ? formatRelativeTime(grant.last_used_at) : "—"}
+        </span>,
+        <span key="uc">{grant.usage_count_total ?? 0}</span>,
+        <span key="lo">{outcomeShort(grant.last_outcome)}</span>,
         <span key="e">{formatDateTime(grant.expires_at)}</span>,
         <div key="a" className="inline-actions" onClick={(event) => event.stopPropagation()}>
           <button type="button" className="ghost-button" onClick={() => setUsageGrant(grant)} aria-label="Usage instructions">
@@ -448,7 +460,17 @@ export function BrokerAccessPage() {
 
       <Card title="Access keys">
         <DataTable
-          columns={["Client or app", "Integration", "Connection", "Status", "Expires", "Actions"]}
+          columns={[
+            "Client or app",
+            "Integration",
+            "Connection",
+            "Status",
+            "Last used",
+            "Uses",
+            "Last result",
+            "Expires",
+            "Actions",
+          ]}
           rows={rows}
           emptyTitle="No access keys"
           emptyBody="Create a key and give it to the app that should call the broker."

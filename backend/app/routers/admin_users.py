@@ -223,6 +223,9 @@ def get_user_detail(user_id: str, db: Session = Depends(get_db), _admin: User = 
                 effective_status=effective_grant_display_status(g),
                 created_at=g.created_at,
                 last_used_at=g.last_used_at,
+                usage_count_total=int(g.usage_count_total or 0),
+                last_outcome=g.last_outcome,
+                last_usage_type=g.last_usage_type,
                 revoked_at=g.revoked_at,
             )
         )

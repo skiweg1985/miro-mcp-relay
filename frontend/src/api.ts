@@ -1,6 +1,7 @@
 import type {
   AccessGrantCreatedResponse,
   AccessGrantOut,
+  AccessUsageEventListResponse,
   AdminUserActionResult,
   AdminUserDetailResponse,
   AdminConnectionRefreshResult,
@@ -228,6 +229,43 @@ export const api = {
       method: "DELETE",
       csrfToken,
     });
+  },
+  listAccessGrantUsageEvents(
+    grantId: string,
+    params?: { outcome?: string; limit?: number; offset?: number },
+  ) {
+    const sp = new URLSearchParams();
+    if (params?.outcome) sp.set("outcome", params.outcome);
+    if (params?.limit != null) sp.set("limit", String(params.limit));
+    if (params?.offset != null) sp.set("offset", String(params.offset));
+    const qs = sp.toString();
+    return request<AccessUsageEventListResponse>(
+      `/api/v1/access-grants/${encodeURIComponent(grantId)}/usage-events${qs ? `?${qs}` : ""}`,
+    );
+  },
+  listAdminAccessUsageEvents(params: {
+    from?: string;
+    to?: string;
+    user_id?: string;
+    integration_id?: string;
+    access_grant_id?: string;
+    usage_type?: string;
+    outcome?: string;
+    limit?: number;
+    offset?: number;
+  }) {
+    const sp = new URLSearchParams();
+    if (params.from) sp.set("from", params.from);
+    if (params.to) sp.set("to", params.to);
+    if (params.user_id?.trim()) sp.set("user_id", params.user_id.trim());
+    if (params.integration_id?.trim()) sp.set("integration_id", params.integration_id.trim());
+    if (params.access_grant_id?.trim()) sp.set("access_grant_id", params.access_grant_id.trim());
+    if (params.usage_type?.trim()) sp.set("usage_type", params.usage_type.trim());
+    if (params.outcome?.trim()) sp.set("outcome", params.outcome.trim());
+    if (params.limit != null) sp.set("limit", String(params.limit));
+    if (params.offset != null) sp.set("offset", String(params.offset));
+    const qs = sp.toString();
+    return request<AccessUsageEventListResponse>(`/api/v1/admin/access-usage/events${qs ? `?${qs}` : ""}`);
   },
   getMicrosoftOAuthAdmin() {
     return request<MicrosoftOAuthAdminOut>("/api/v1/admin/microsoft-oauth");

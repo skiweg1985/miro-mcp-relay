@@ -43,6 +43,24 @@ def reconcile_schema() -> None:
                     )
                 else:
                     conn.execute(text("ALTER TABLE access_grants ADD COLUMN direct_token_access_enabled BOOLEAN DEFAULT 0"))
+        if "last_success_at" not in cols_g:
+            with engine.begin() as conn:
+                conn.execute(text(f"ALTER TABLE access_grants ADD COLUMN last_success_at {dt_sql}"))
+        if "last_failure_at" not in cols_g:
+            with engine.begin() as conn:
+                conn.execute(text(f"ALTER TABLE access_grants ADD COLUMN last_failure_at {dt_sql}"))
+        if "usage_count_total" not in cols_g:
+            with engine.begin() as conn:
+                if engine.dialect.name == "postgresql":
+                    conn.execute(text("ALTER TABLE access_grants ADD COLUMN usage_count_total INTEGER NOT NULL DEFAULT 0"))
+                else:
+                    conn.execute(text("ALTER TABLE access_grants ADD COLUMN usage_count_total INTEGER DEFAULT 0"))
+        if "last_usage_type" not in cols_g:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE access_grants ADD COLUMN last_usage_type VARCHAR(64)"))
+        if "last_outcome" not in cols_g:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE access_grants ADD COLUMN last_outcome VARCHAR(32)"))
     if not insp.has_table("user_connections"):
         return
     cols = {c["name"] for c in insp.get_columns("user_connections")}

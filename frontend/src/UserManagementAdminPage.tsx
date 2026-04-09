@@ -667,6 +667,9 @@ export function UserManagementAdminPage() {
                           <th scope="col">Name</th>
                           <th scope="col">Integration</th>
                           <th scope="col">State</th>
+                          <th scope="col">Last used</th>
+                          <th scope="col">Uses</th>
+                          <th scope="col">Last result</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -682,6 +685,19 @@ export function UserManagementAdminPage() {
                             </td>
                             <td>
                               <span className="status-badge neutral">{g.effective_status}</span>
+                            </td>
+                            <td>
+                              <OptionalTime iso={g.last_used_at} />
+                            </td>
+                            <td>{g.usage_count_total ?? 0}</td>
+                            <td>
+                              {g.last_outcome === "success"
+                                ? "OK"
+                                : g.last_outcome === "denied"
+                                  ? "Denied"
+                                  : g.last_outcome === "error"
+                                    ? "Error"
+                                    : "—"}
                             </td>
                           </tr>
                         ))}

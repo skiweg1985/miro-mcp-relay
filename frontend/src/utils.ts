@@ -49,6 +49,24 @@ export function formatDateTime(value: string | null): string {
   }).format(date);
 }
 
+/** Relative time for activity lists (English, workspace locale). */
+export function formatRelativeTime(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const date = parseApiDateTime(iso);
+  if (Number.isNaN(date.getTime())) return "—";
+  const diffMs = Date.now() - date.getTime();
+  if (diffMs < 0) return formatDateTime(iso);
+  const sec = Math.floor(diffMs / 1000);
+  if (sec < 45) return "Just now";
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min} min ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 36) return `${hr} h ago`;
+  const days = Math.floor(hr / 24);
+  if (days < 14) return `${days} days ago`;
+  return formatDateTime(iso);
+}
+
 const OAUTH_CALLBACK_MESSAGES: Record<string, string> = {
   connection_failed: "Connection failed.",
   missing_callback_parameters: "Missing OAuth callback parameters.",
@@ -132,6 +150,9 @@ export function matchesRoute(pathname: string): RouteMatch {
   }
   if (path === "/workspace/admin/users") {
     return { name: "workspaceAdminUsers", path: "/workspace/admin/users" };
+  }
+  if (path === "/workspace/admin/access-activity") {
+    return { name: "workspaceAdminAccessActivity", path: "/workspace/admin/access-activity" };
   }
   if (path.startsWith("/grants") || path.startsWith("/token-access")) {
     return { name: "workspaceBrokerAccess", path: "/workspace/broker-access" };

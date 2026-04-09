@@ -148,6 +148,38 @@ export type AccessGrantOut = {
   invalidated_at: string | null;
   invalidation_reason: string | null;
   last_used_at: string | null;
+  last_success_at: string | null;
+  last_failure_at: string | null;
+  usage_count_total: number;
+  last_usage_type: string | null;
+  last_outcome: string | null;
+  usage_count_24h: number;
+  usage_count_7d: number;
+  usage_count_30d: number;
+};
+
+export type AccessUsageEventRow = {
+  id: string;
+  created_at: string;
+  access_grant_id: string;
+  user_id: string;
+  integration_instance_id: string;
+  integration_id: string | null;
+  event_type: string;
+  usage_type: string;
+  outcome: string;
+  status_code: number | null;
+  denied_reason: string | null;
+  summary: string;
+  request_id: string | null;
+};
+
+export type AccessUsageEventListResponse = {
+  ok: boolean;
+  events: AccessUsageEventRow[];
+  total: number;
+  limit: number;
+  offset: number;
 };
 
 export type IntegrationInstanceDeleteResult = {
@@ -279,6 +311,9 @@ export type AdminUserAccessGrantSummaryRow = {
   effective_status: string;
   created_at: string;
   last_used_at: string | null;
+  usage_count_total: number;
+  last_outcome: string | null;
+  last_usage_type: string | null;
   revoked_at: string | null;
 };
 
@@ -330,6 +365,7 @@ export type RouteMatch =
   | { name: "workspaceAdminMicrosoftOAuth"; path: "/workspace/admin/microsoft-oauth" }
   | { name: "workspaceAdminLoginProviders"; path: "/workspace/admin/login-providers" }
   | { name: "workspaceAdminUsers"; path: "/workspace/admin/users" }
+  | { name: "workspaceAdminAccessActivity"; path: "/workspace/admin/access-activity" }
   | { name: "notFound"; path: string };
 
 export type Toast = {

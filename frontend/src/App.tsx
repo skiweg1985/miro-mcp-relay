@@ -10,6 +10,7 @@ import { ConnectionsPage } from "./ConnectionsPage";
 import { IntegrationsV2Page } from "./IntegrationsV2Page";
 import { BrokerLoginProvidersAdminPage } from "./BrokerLoginProvidersAdminPage";
 import { MicrosoftOAuthAdminPage } from "./MicrosoftOAuthAdminPage";
+import { AccessActivityAdminPage } from "./AccessActivityAdminPage";
 import { UserManagementAdminPage } from "./UserManagementAdminPage";
 import { isApiError } from "./errors";
 import type { LoginProviderOption, RouteMatch } from "./types";
@@ -303,7 +304,8 @@ function AuthenticatedApp() {
       route.name === "workspaceBrokerAccess" ||
       (route.name === "workspaceAdminMicrosoftOAuth" && session.user.is_admin) ||
       (route.name === "workspaceAdminLoginProviders" && session.user.is_admin) ||
-      (route.name === "workspaceAdminUsers" && session.user.is_admin);
+      (route.name === "workspaceAdminUsers" && session.user.is_admin) ||
+      (route.name === "workspaceAdminAccessActivity" && session.user.is_admin);
     if (!allowed) {
       navigate("/workspace/integrations-v2");
     }
@@ -320,7 +322,8 @@ function AuthenticatedApp() {
   if (
     (route.name === "workspaceAdminMicrosoftOAuth" ||
       route.name === "workspaceAdminLoginProviders" ||
-      route.name === "workspaceAdminUsers") &&
+      route.name === "workspaceAdminUsers" ||
+      route.name === "workspaceAdminAccessActivity") &&
     !isAdmin
   ) {
     return <LoadingScreen label="Redirecting…" />;
@@ -332,7 +335,7 @@ function AuthenticatedApp() {
     route.name !== "workspaceBrokerAccess" &&
     !(route.name === "workspaceAdminMicrosoftOAuth" && isAdmin) &&
     !(route.name === "workspaceAdminLoginProviders" && isAdmin) &&
-    !(route.name === "workspaceAdminUsers" && isAdmin)
+    !((route.name === "workspaceAdminUsers" || route.name === "workspaceAdminAccessActivity") && isAdmin)
   ) {
     return <LoadingScreen label="Redirecting to integrations..." />;
   }
@@ -345,6 +348,8 @@ function AuthenticatedApp() {
         <ConnectionsPage />
       ) : route.name === "workspaceAdminUsers" && isAdmin ? (
         <UserManagementAdminPage />
+      ) : route.name === "workspaceAdminAccessActivity" && isAdmin ? (
+        <AccessActivityAdminPage />
       ) : route.name === "workspaceAdminLoginProviders" && isAdmin ? (
         <BrokerLoginProvidersAdminPage />
       ) : route.name === "workspaceAdminMicrosoftOAuth" && isAdmin ? (

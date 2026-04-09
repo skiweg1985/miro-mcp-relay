@@ -334,6 +334,38 @@ class AccessGrantOut(BaseModel):
     invalidated_at: datetime | None = None
     invalidation_reason: str | None = None
     last_used_at: datetime | None = None
+    last_success_at: datetime | None = None
+    last_failure_at: datetime | None = None
+    usage_count_total: int = 0
+    last_usage_type: str | None = None
+    last_outcome: str | None = None
+    usage_count_24h: int = 0
+    usage_count_7d: int = 0
+    usage_count_30d: int = 0
+
+
+class AccessUsageEventOut(BaseModel):
+    id: str
+    created_at: datetime
+    access_grant_id: str
+    user_id: str
+    integration_instance_id: str
+    integration_id: str | None = None
+    event_type: str
+    usage_type: str
+    outcome: str
+    status_code: int | None = None
+    denied_reason: str | None = None
+    summary: str
+    request_id: str | None = None
+
+
+class AccessUsageEventListOut(BaseModel):
+    ok: bool = True
+    events: list[AccessUsageEventOut]
+    total: int
+    limit: int
+    offset: int
 
 
 class AccessGrantDeleteResult(BaseModel):
@@ -474,6 +506,9 @@ class AdminUserAccessGrantSummaryOut(BaseModel):
     effective_status: str
     created_at: datetime
     last_used_at: datetime | None = None
+    usage_count_total: int = 0
+    last_outcome: str | None = None
+    last_usage_type: str | None = None
     revoked_at: datetime | None = None
 
 

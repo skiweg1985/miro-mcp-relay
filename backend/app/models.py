@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from enum import StrEnum
 from uuid import uuid4
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -245,6 +245,39 @@ class AccessGrant(Base):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     invalidated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_success_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_failure_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    usage_count_total: Mapped[int] = mapped_column(Integer, default=0)
+    last_usage_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    last_outcome: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
+
+class AccessUsageEvent(Base):
+    """Structured audit row for broker access key usage (no secrets)."""
+
+    __tablename__ = "access_usage_events"
+    __table_args__ = (
+        Index("ix_access_usage_events_grant_created", "access_grant_id", "created_at"),
+        Index("ix_access_usage_events_org_created", "organization_id", "created_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now, index=True)
+    organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    access_grant_id: Mapped[str] = mapped_column(ForeignKey("access_grants.id"), index=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    integration_instance_id: Mapped[str] = mapped_column(String(36), index=True)
+    integration_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    user_connection_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    event_type: Mapped[str] = mapped_column(String(64), index=True)
+    usage_type: Mapped[str] = mapped_column(String(64), index=True)
+    outcome: Mapped[str] = mapped_column(String(32), index=True)
+    status_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    denied_reason: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    request_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    source_ip: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    metadata_json: Mapped[str] = mapped_column(Text, default="{}")
 
 
 class IntegrationTool(Base):

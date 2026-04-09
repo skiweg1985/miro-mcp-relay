@@ -29,6 +29,7 @@ from app.services.access_grants import (
     touch_grant_used,
 )
 from app.services.consumer_access import resolve_consumer_grant_context
+from app.upstream_oauth import force_refresh_upstream_oauth_token_for_grant
 
 logger = logging.getLogger(__name__)
 
@@ -145,30 +146,47 @@ async def _mcp_relay_handler(
     if instance.auth_mode == AuthMode.OAUTH.value and not upstream_token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="oauth_upstream_token_missing")
 
-    try:
-        outbound = resolve_outbound_headers(instance, x_user_token=upstream_token)
-    except HTTPException:
-        raise
-
-    client_headers = filter_client_headers_for_upstream(request.headers)
-    merged = merge_upstream_auth_headers(client_headers=client_headers, upstream_auth=outbound)
-
     timeout = httpx.Timeout(connect=30.0, read=3600.0, write=3600.0, pool=30.0)
 
     method = request.method.upper()
-    content = None
+    body_bytes: bytes | None = None
     if method in _METHODS_WITH_BODY:
+        body_bytes = await request.body()
 
-        async def body_iter():
-            async for chunk in request.stream():
-                yield chunk
+    client_headers = filter_client_headers_for_upstream(request.headers)
 
-        content = body_iter()
+    async def _send_upstream(tok: str | None) -> httpx.Response:
+        try:
+            outbound = resolve_outbound_headers(instance, x_user_token=tok)
+        except HTTPException:
+            raise
+        merged = merge_upstream_auth_headers(client_headers=client_headers, upstream_auth=outbound)
+        c = await _relay_upstream_client(grant.id, timeout)
+        req = c.build_request(method, target_url, headers=merged, content=body_bytes)
+        return await c.send(req, stream=True)
 
     try:
-        client = await _relay_upstream_client(grant.id, timeout)
-        req = client.build_request(method, target_url, headers=merged, content=content)
-        upstream = await client.send(req, stream=True)
+        upstream = await _send_upstream(upstream_token)
+        client_used_override = bool(x_user_token and x_user_token.strip())
+        if (
+            upstream.status_code == 401
+            and instance.auth_mode == AuthMode.OAUTH.value
+            and not client_used_override
+        ):
+            await upstream.aclose()
+            new_tok = force_refresh_upstream_oauth_token_for_grant(
+                db,
+                grant_user_id=grant.user_id,
+                organization_id=grant.organization_id,
+                instance=instance,
+                user_connection_id=grant.user_connection_id,
+            )
+            if new_tok:
+                db.commit()
+                upstream = await _send_upstream(new_tok)
+            else:
+                db.commit()
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="oauth_upstream_token_invalid")
         upstream_ct = upstream.headers.get("content-type") or "none"
         upstream_host = urlparse(target_url).hostname or ""
         logger.info(
@@ -181,6 +199,8 @@ async def _mcp_relay_handler(
             upstream_ct,
             upstream_host,
         )
+    except HTTPException:
+        raise
     except httpx.RequestError as exc:
         logger.warning("mcp_relay_upstream_error instance_id=%s detail=%s", instance_id, type(exc).__name__)
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="mcp_relay_upstream_unreachable") from exc

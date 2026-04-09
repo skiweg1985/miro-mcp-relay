@@ -422,6 +422,35 @@ class AdminUserConnectionOut(BaseModel):
     has_stored_oauth: bool
     created_at: datetime
     updated_at: datetime
+    oauth_health: str | None = None
+    oauth_expires_at: datetime | None = None
+    oauth_last_refresh_at: str | None = None
+    oauth_refresh_error: str | None = None
+
+
+class AdminConnectionHealthRowOut(BaseModel):
+    connection_id: str
+    user_id: str
+    user_email: str
+    integration_instance_id: str
+    integration_instance_name: str
+    status: str
+    oauth_health: str
+    oauth_expires_at: datetime | None = None
+    oauth_last_refresh_at: str | None = None
+    oauth_refresh_error: str | None = None
+
+
+class AdminConnectionHealthListOut(BaseModel):
+    ok: bool = True
+    connections: list[AdminConnectionHealthRowOut]
+
+
+class AdminConnectionRefreshOut(BaseModel):
+    ok: bool
+    connection_id: str
+    oauth_expires_at: str | None = None
+    error: str | None = None
 
 
 class AdminUserAccessGrantSummaryOut(BaseModel):

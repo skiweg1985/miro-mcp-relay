@@ -252,6 +252,10 @@ export type AdminUserConnectionRow = {
   has_stored_oauth: boolean;
   created_at: string;
   updated_at: string;
+  oauth_health?: string | null;
+  oauth_expires_at?: string | null;
+  oauth_last_refresh_at?: string | null;
+  oauth_refresh_error?: string | null;
 };
 
 export type AdminUserAccessGrantSummaryRow = {
@@ -298,6 +302,13 @@ export type AdminUserActionResult = {
 export type AdminUserHardDeleteResult = {
   ok: boolean;
   id: string;
+};
+
+export type AdminConnectionRefreshResult = {
+  ok: boolean;
+  connection_id: string;
+  oauth_expires_at?: string | null;
+  error?: string | null;
 };
 
 export type RouteMatch =

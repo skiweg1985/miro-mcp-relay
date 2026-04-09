@@ -30,8 +30,10 @@ from app.schemas import (
     AdminUserSessionOut,
     AdminOAuthIdentityOut,
 )
-from app.security import ensure_utc, utcnow
+from app.security import ensure_utc, loads_json, utcnow
 from app.services.access_grants import effective_grant_display_status
+from app.token_health import compute_oauth_connection_health
+from app.upstream_oauth import oauth_expires_at_from_connection
 from app.services.user_lifecycle import (
     account_status,
     assert_mutable_admin_target_db,
@@ -187,6 +189,9 @@ def get_user_detail(user_id: str, db: Session = Depends(get_db), _admin: User = 
         has_oauth = bool(
             c.oauth_access_token_encrypted or c.oauth_refresh_token_encrypted or c.oauth_dcr_client_secret_encrypted
         )
+        prof = loads_json(c.metadata_json, {})
+        last_ref = str(prof.get("oauth_last_refresh_at") or "").strip() or None if isinstance(prof, dict) else None
+        ref_err = str(prof.get("oauth_refresh_error") or "").strip() or None if isinstance(prof, dict) else None
         connections_out.append(
             AdminUserConnectionOut(
                 id=c.id,
@@ -196,6 +201,10 @@ def get_user_detail(user_id: str, db: Session = Depends(get_db), _admin: User = 
                 has_stored_oauth=has_oauth,
                 created_at=c.created_at,
                 updated_at=c.updated_at,
+                oauth_health=compute_oauth_connection_health(c),
+                oauth_expires_at=oauth_expires_at_from_connection(c),
+                oauth_last_refresh_at=last_ref,
+                oauth_refresh_error=ref_err,
             )
         )
 

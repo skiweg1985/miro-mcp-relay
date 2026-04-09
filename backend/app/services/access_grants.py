@@ -8,7 +8,11 @@ from sqlalchemy.orm import Session
 
 from app.models import AccessGrant, AccessGrantStatus, IntegrationInstance, UserConnection, UserConnectionStatus
 from app.security import dumps_json, lookup_secret_hash, utcnow, verify_lookup_secret
-from app.upstream_oauth import get_or_refresh_upstream_oauth_token_for_grant, oauth_token_from_connection_row
+from app.upstream_oauth import (
+    get_or_refresh_upstream_oauth_token_for_grant,
+    oauth_expires_at_from_connection,
+    oauth_token_from_connection_row,
+)
 
 
 BROKER_ACCESS_KEY_PREFIX = "bkr_"
@@ -110,6 +114,18 @@ def touch_grant_used(db: Session, grant: AccessGrant) -> None:
     db.add(grant)
 
 
+def _stored_access_token_if_usable(conn: UserConnection | None) -> str | None:
+    if not conn:
+        return None
+    tok = oauth_token_from_connection_row(conn)
+    if not tok:
+        return None
+    exp = oauth_expires_at_from_connection(conn)
+    if exp is not None and exp <= utcnow():
+        return None
+    return tok
+
+
 def resolve_upstream_oauth_token_for_grant(
     db: Session,
     *,
@@ -139,7 +155,7 @@ def resolve_upstream_oauth_token_for_grant(
             and conn.integration_instance_id == instance.id
             and conn.status == UserConnectionStatus.ACTIVE.value
         ):
-            return oauth_token_from_connection_row(conn)
+            return _stored_access_token_if_usable(conn)
         return None
     if x_user_token and x_user_token.strip():
         return x_user_token.strip()
@@ -151,4 +167,4 @@ def resolve_upstream_oauth_token_for_grant(
             UserConnection.status == UserConnectionStatus.ACTIVE.value,
         )
     )
-    return oauth_token_from_connection_row(conn)
+    return _stored_access_token_if_usable(conn)

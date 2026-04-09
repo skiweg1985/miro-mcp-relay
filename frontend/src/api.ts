@@ -3,6 +3,7 @@ import type {
   AccessGrantOut,
   AdminUserActionResult,
   AdminUserDetailResponse,
+  AdminConnectionRefreshResult,
   AdminUserHardDeleteResult,
   AdminUserListResponse,
   ApiError,
@@ -313,6 +314,13 @@ export const api = {
       method: "DELETE",
       csrfToken,
       body: { confirm_email: confirmEmail.trim() },
+    });
+  },
+  adminRefreshUserConnection(csrfToken: string, connectionId: string) {
+    return request<AdminConnectionRefreshResult>(`/api/v1/admin/connections/${encodeURIComponent(connectionId)}/refresh`, {
+      method: "POST",
+      csrfToken,
+      body: {},
     });
   },
 };

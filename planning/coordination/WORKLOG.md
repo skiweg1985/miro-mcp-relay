@@ -1,3 +1,23 @@
+## 2026-04-09 – Cursor Agent – Upstream-OAuth Refresh & Health
+
+- Done:
+  - `upstream_oauth`: Fehler-Metadaten (`oauth_refresh_error`), Logging, kein Rückgabe abgelaufener Tokens wenn Metadaten `oauth_expires_at` belegen; `force_refresh_*` für Relay und Admin.
+  - `token_health`: Hintergrund-Loop (`TOKEN_REFRESH_*`), `compute_oauth_connection_health`, Audit `token_refresh_cycle`.
+  - `access_grants`: Fallback nur bei noch gültigem gespeichertem Access-Token (Ablauf-Check).
+  - Admin: `GET /api/v1/admin/connection-health`, `POST /api/v1/admin/connections/{id}/refresh`; User-Detail-Connections mit OAuth-Feldern.
+  - `consumer_mcp_relay`: Request-Body puffern, bei Upstream-401 erzwungener Refresh + Retry.
+  - Frontend Admin Users: OAuth-Spalte, Ablauf, Refresh-Button; API `adminRefreshUserConnection`.
+  - `.env.example`, `AGENTS.md`; `backend/test_smoke.py` setzt `TOKEN_REFRESH_ENABLED=false` vor App-Import.
+- Next: optional Keycloak Realm SSO Session Idle für längere Refresh-Token-Lebensdauer falls gewünscht.
+- Blockers: keine
+- Branch/PR: branch lokal `feature/dev`, PR: none
+- Files touched: `backend/app/upstream_oauth.py`, `backend/app/token_health.py`, `backend/app/main.py`, `backend/app/core/config.py`, `backend/app/routers/admin_connections.py`, `backend/app/routers/admin_users.py`, `backend/app/routers/consumer_mcp_relay.py`, `backend/app/services/access_grants.py`, `backend/app/schemas.py`, `backend/test_smoke.py`, `frontend/src/UserManagementAdminPage.tsx`, `frontend/src/api.ts`, `frontend/src/types.ts`, `.env.example`, `AGENTS.md`, `docs/CHANGELOG.md`, `planning/coordination/WORKLOG.md`
+- Test notes: `PYTHONPATH=backend TOKEN_REFRESH_ENABLED=false python3 -m unittest discover -s backend -p "test_*.py" -v`; `cd frontend && npm run build`
+- endpoints: `GET /api/v1/admin/connection-health`, `POST /api/v1/admin/connections/{id}/refresh`
+- UI path: `/workspace/admin/users` (Detailmodal → Connected integrations)
+- Changelog updated: yes (Unreleased Added)
+- Follow-ups: Consumer-Execution 401-Retry analog MCP-Relay bei Bedarf
+
 ## 2026-04-08 – Cursor Agent – Doku V2 + dist + push
 
 - Done:

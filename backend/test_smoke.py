@@ -1,5 +1,8 @@
+import os
 import unittest
 from types import SimpleNamespace
+
+os.environ["TOKEN_REFRESH_ENABLED"] = "false"
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session

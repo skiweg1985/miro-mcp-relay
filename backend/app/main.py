@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
 from app.routers import (
     access_grants,
+    admin_connections,
     admin_login_providers,
     admin_microsoft_oauth,
     admin_users,
@@ -41,13 +44,26 @@ def create_app() -> FastAPI:
     )
 
     @app.on_event("startup")
-    def startup():
+    async def startup():
         init_db()
+        settings = get_settings()
+        app.state.token_refresh_task = None
+        if settings.token_refresh_enabled:
+            from app.token_health import token_refresh_background_loop
+
+            app.state.token_refresh_task = asyncio.create_task(token_refresh_background_loop())
 
     @app.on_event("shutdown")
     async def shutdown():
         from app.routers.consumer_mcp_relay import shutdown_relay_upstream_clients
 
+        t = getattr(app.state, "token_refresh_task", None)
+        if t is not None:
+            t.cancel()
+            try:
+                await t
+            except asyncio.CancelledError:
+                pass
         await shutdown_relay_upstream_clients()
 
     app.include_router(public.router, prefix=settings.api_v1_prefix)
@@ -61,6 +77,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_microsoft_oauth.router, prefix=settings.api_v1_prefix)
     app.include_router(admin_login_providers.router, prefix=settings.api_v1_prefix)
     app.include_router(admin_users.router, prefix=settings.api_v1_prefix)
+    app.include_router(admin_connections.router, prefix=settings.api_v1_prefix)
     return app
 
 

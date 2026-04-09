@@ -37,6 +37,23 @@ function statusBadgeClass(accountStatus: string): string {
   return "danger";
 }
 
+function oauthHealthBadgeClass(health: string | null | undefined): string {
+  if (!health) return "neutral";
+  if (health === "healthy") return "success";
+  if (health === "expiring_soon") return "warn";
+  return "danger";
+}
+
+function oauthHealthLabel(health: string | null | undefined): string {
+  if (!health) return "—";
+  if (health === "healthy") return "OK";
+  if (health === "expiring_soon") return "Expiring soon";
+  if (health === "expired") return "Expired";
+  if (health === "refresh_failed") return "Refresh failed";
+  if (health === "no_refresh_token") return "No refresh token";
+  return health;
+}
+
 function ImpactSummary({
   displayName,
   email,
@@ -590,6 +607,9 @@ export function UserManagementAdminPage() {
                           <th scope="col">Integration</th>
                           <th scope="col">Status</th>
                           <th scope="col">Tokens</th>
+                          <th scope="col">OAuth</th>
+                          <th scope="col">Access expires</th>
+                          <th scope="col"> </th>
                         </tr>
                       </thead>
                       <tbody>
@@ -600,6 +620,31 @@ export function UserManagementAdminPage() {
                             </td>
                             <td>{c.status}</td>
                             <td>{c.has_stored_oauth ? "Stored" : "—"}</td>
+                            <td>
+                              <span className={`status-badge ${oauthHealthBadgeClass(c.oauth_health)}`} title={c.oauth_refresh_error || undefined}>
+                                {oauthHealthLabel(c.oauth_health)}
+                              </span>
+                            </td>
+                            <td>
+                              <OptionalTime iso={c.oauth_expires_at} />
+                            </td>
+                            <td>
+                              {session.status === "authenticated" && c.has_stored_oauth ? (
+                                <button
+                                  type="button"
+                                  className="secondary-button"
+                                  disabled={actionBusy}
+                                  onClick={() =>
+                                    void runAction(
+                                      () => api.adminRefreshUserConnection(session.csrfToken, c.id),
+                                      "Upstream token refresh",
+                                    )
+                                  }
+                                >
+                                  Refresh
+                                </button>
+                              ) : null}
+                            </td>
                           </tr>
                         ))}
                       </tbody>

@@ -43,6 +43,11 @@ class Settings(BaseSettings):
     miro_breaker_fail_threshold: int = 5
     miro_breaker_open_ms: int = 30000
 
+    token_refresh_enabled: bool = True
+    token_refresh_interval_seconds: int = 300
+    token_refresh_lookahead_seconds: int = 600
+    token_health_expiring_soon_seconds: int = 600
+
     microsoft_broker_authority_base: str = "https://login.microsoftonline.com"
     microsoft_broker_tenant_id: str = "common"
     microsoft_broker_client_id: str = ""

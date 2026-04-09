@@ -89,6 +89,7 @@ If a test framework is introduced later, mirror the framework-native single-test
   - `MICROSOFT_BROKER_CLIENT_SECRET`
   - issued Miro relay tokens
 - Persisted imported legacy data for migration lives under `LEGACY_MIRO_DATA_DIR`.
+- Upstream OAuth background refresh: `TOKEN_REFRESH_ENABLED`, `TOKEN_REFRESH_INTERVAL_SECONDS`, `TOKEN_REFRESH_LOOKAHEAD_SECONDS`, `TOKEN_HEALTH_EXPIRING_SOON_SECONDS` (see `.env.example`). Smoke tests set `TOKEN_REFRESH_ENABLED=false` via `backend/test_smoke.py` before importing the app.
 
 ## Code Style and Structure
 
